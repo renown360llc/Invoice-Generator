@@ -35,11 +35,11 @@ export function showToast(message, type = 'info') {
 }
 
 const CURRENCY_SYMBOLS = {
-    USD: '$',
+    USD: 'USD $',
     EUR: '€',
     GBP: '£',
     INR: '₹',
-    CAD: '$'
+    CAD: 'CAD $'
 };
 
 export function formatCurrency(amount, currencyCode = 'USD') {

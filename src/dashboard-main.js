@@ -1,6 +1,7 @@
 import { getCurrentUser, signOut } from './auth.js'
 import { getInvoices, getInvoice } from './database.js'
 import { generatePDF } from './modules/pdf.js'
+import { formatCurrency } from './modules/utils.js'
 import './security.js'
 
 // Check authentication
@@ -35,12 +36,7 @@ function showToast(message, type = 'info') {
 }
 
 // Format currency
-function formatCurrency(amount) {
-    return new Intl.NumberFormat('en-US', {
-        style: 'currency',
-        currency: 'USD'
-    }).format(amount)
-}
+// Imported from ./modules/utils.js
 
 // Format date
 function formatDate(dateString) {
