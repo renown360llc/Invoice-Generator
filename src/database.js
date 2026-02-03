@@ -142,24 +142,33 @@ export async function getNextInvoiceNumber() {
     const user = await getCurrentUser()
     if (!user) throw new Error('Not authenticated')
 
-    const GLOBAL_COUNTER_ID = '00000000-0000-0000-0000-000000000000';
+    // Get the last created invoice for this user
+    const { data: invoices, error } = await supabase
+        .from('invoices')
+        .select('invoice_number')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
 
-    // Get current counter
-    const { data: counter } = await supabase
-        .from('invoice_counters')
-        .select('last_number')
-        .eq('user_id', GLOBAL_COUNTER_ID)
-        .single()
+    if (error) {
+        console.error('Error fetching last invoice:', error)
+        return 'INV-0001' // Fallback
+    }
 
-    const nextNumber = (counter?.last_number || 0) + 1
+    if (!invoices || invoices.length === 0) {
+        return 'INV-0001'
+    }
 
-    // Update counter
-    await supabase
-        .from('invoice_counters')
-        .upsert({
-            user_id: GLOBAL_COUNTER_ID, // Use fixed ID for global serialization
-            last_number: nextNumber
-        })
+    const lastNumber = invoices[0].invoice_number
+    // Extract number part (assuming INV-XXXX format)
+    const match = lastNumber.match(/INV-(\d+)/)
 
-    return `INV-${String(nextNumber).padStart(4, '0')}`
+    if (match && match[1]) {
+        const currentNum = parseInt(match[1], 10)
+        const nextNum = currentNum + 1
+        return `INV-${String(nextNum).padStart(4, '0')}`
+    }
+
+    // Fallback if format is weird
+    return 'INV-0001'
 }
