@@ -7,6 +7,10 @@ const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 // Validate that keys are present
 if (!supabaseUrl || !supabaseAnonKey) {
     console.error('Missing Supabase credentials in .env file')
+    // Alert in production for debugging
+    if (import.meta.env.PROD) {
+        alert('Configuration Error: Supabase credentials (URL/Key) are missing. Please configure your environment variables.')
+    }
     throw new Error('Supabase configuration error. Check your .env file.')
 }
 
