@@ -4,14 +4,14 @@ import { createClient } from '@supabase/supabase-js'
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
-// Validate that keys are present
-if (!supabaseUrl || !supabaseAnonKey) {
-    console.error('Missing Supabase credentials in .env file')
+// Validate that keys are present and not placeholders
+if (!supabaseUrl || !supabaseAnonKey || supabaseUrl.includes('your-project-id')) {
+    console.error('Missing or invalid Supabase credentials')
     // Alert in production for debugging
     if (import.meta.env.PROD) {
-        alert('Configuration Error: Supabase credentials (URL/Key) are missing. Please configure your environment variables.')
+        alert('CRITICAL PROD CONFIG ERROR:\n\nIt looks like VITE_SUPABASE_URL is set to a placeholder ("your-project-id").\n\nPlease go to your Vercel Settings > Environment Variables used for the build, and start with the correct URL from Supabase.')
     }
-    throw new Error('Supabase configuration error. Check your .env file.')
+    throw new Error('Supabase configuration error: Invalid URL or Key.')
 }
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey)
