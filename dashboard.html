@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Invoice Generator Pro</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+
+    <link rel="stylesheet" href="styles/variables.css">
+    <link rel="stylesheet" href="styles/dashboard.css?v=9">
+
+    <style>
+        body {
+            display: none;
+        }
+    </style>
+    <script type="module">
+        import { requireAuth } from './src/auth.js';
+        requireAuth().then(user => {
+            if (user) document.body.style.display = 'block';
+        });
+    </script>
+</head>
+
+<body>
+    <!-- Navigation Header -->
+    <!-- Navigation injected by layout.js -->
+
+    <!-- Main Content -->
+    <main class="dashboard">
+        <div class="dashboard__container">
+            <!-- Header -->
+            <div class="dashboard__header">
+                <div>
+                    <h1 class="dashboard__title">Welcome back, <span id="userNameDisplay">there</span>! 👋</h1>
+                    <p class="dashboard__subtitle">Here's what's happening with your invoices</p>
+                </div>
+                <div style="display: flex; gap: 0.5rem;">
+                    <button id="refreshBtn" class="btn btn--outline" title="Refresh Dashboard">
+                        🔄 Refresh
+                    </button>
+                    <a href="app.html" class="btn btn--primary">
+                        <svg class="btn-icon" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd"
+                                d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z"
+                                clip-rule="evenodd" />
+                        </svg>
+                        New Invoice
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Stats Cards -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-card__header">
+                    <span class="stat-card__label">This Month</span>
+                    <span class="stat-card__icon">💰</span>
+                </div>
+                <div class="stat-card__value" id="monthlyRevenue">$0</div>
+                <div class="stat-card__change" id="monthlyChange">—</div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-card__header">
+                    <span class="stat-card__label">Total Invoices</span>
+                    <span class="stat-card__icon">📄</span>
+                </div>
+                <div class="stat-card__value" id="totalInvoices">0</div>
+                <div class="stat-card__change" id="invoiceChange">—</div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-card__header">
+                    <span class="stat-card__label">This Year</span>
+                    <span class="stat-card__icon">📊</span>
+                </div>
+                <div class="stat-card__value" id="yearlyRevenue">$0</div>
+                <div class="stat-card__change" id="yearlyChange">—</div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-card__header">
+                    <span class="stat-card__label">Avg Invoice</span>
+                    <span class="stat-card__icon">💵</span>
+                </div>
+                <div class="stat-card__value" id="avgInvoice">$0</div>
+                <div class="stat-card__change">—</div>
+            </div>
+        </div>
+
+        <!-- Recent Invoices -->
+        <div class="section">
+            <div class="section__header">
+                <h2 class="section__title">Recent Invoices</h2>
+                <a href="invoices.html" class="link">View all →</a>
+            </div>
+            <div class="table-container">
+                <table class="table" id="recentInvoicesTable">
+                    <thead>
+                        <tr>
+                            <th>Invoice #</th>
+                            <th>Client</th>
+                            <th>Date</th>
+                            <th>Amount</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="recentInvoicesBody">
+                        <tr>
+                            <td colspan="5" class="table__empty">
+                                <div class="empty-state">
+                                    <span class="empty-state__icon">📭</span>
+                                    <p class="empty-state__text">No invoices yet</p>
+                                    <a href="app.html" class="btn btn--primary btn--sm">Create your first
+                                        invoice</a>
+                                </div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Monthly Chart -->
+        <div class="section">
+            <div class="section__header">
+                <h2 class="section__title">Revenue Overview</h2>
+            </div>
+            <div class="chart-container">
+                <canvas id="revenueChart"></canvas>
+            </div>
+        </div>
+        </div>
+    </main>
+
+    <div id="toast" class="toast"></div>
+
+    <script type="module">
+        import { loadLayout } from './src/components/layout.js';
+        loadLayout('dashboard');
+    </script>
+    <script type="module" src="src/dashboard-main.js"></script>
+</body>
+
+</html>

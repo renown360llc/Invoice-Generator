@@ -1,0 +1,63 @@
+/* ============================================================================
+   Crystal Air Theme - Design Tokens
+   ============================================================================ */
+
+:root {
+    /* Invoicera-Inspired Theme - Design Tokens */
+    --primary: #F37021;
+    /* Invoicera Orange */
+    --primary-hover: #D45A0A;
+    --primary-gradient: linear-gradient(135deg, #F37021 0%, #FF8C42 100%);
+
+    /* Secondary & Accents */
+    --secondary: #2D3748;
+    /* Dark Slate for Nav/Footer */
+    --accent-blue: #3182CE;
+    --accent-green: #38A169;
+
+    /* Surfaces */
+    --surface-glass: #ffffff;
+    /* Removed glass, now solid white */
+    --surface-glass-strong: #ffffff;
+    --surface-glass-border: #E2E8F0;
+    --surface-border-subtle: #EDF2F7;
+
+    --surface-paper: #ffffff;
+    --surface-app: #F8F9FA;
+    /* Light clean gray background */
+
+    /* Mesh Gradient - Removed for clean look, kept variable for compatibility but made it subtle */
+    --bg-mesh-light: none;
+
+    /* Pattern - Subtle Dot Grid */
+    --bg-grid:
+        radial-gradient(#E2E8F0 1px, transparent 1px);
+
+    /* Typography */
+    --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    --text-primary: #1A202C;
+    /* Darker, sharper text */
+    --text-secondary: #4A5568;
+    --text-tertiary: #718096;
+
+    /* Spacing & Radius */
+    --radius-sm: 4px;
+    --radius-md: 6px;
+    --radius-lg: 8px;
+    --radius-xl: 12px;
+    --radius-full: 9999px;
+
+    /* Shadows - Clean & Professional */
+    --shadow-glass: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+    --shadow-glass-colored: 0 10px 15px -3px rgba(243, 112, 33, 0.1);
+    --shadow-paper: 0 20px 25px -5px rgba(0, 0, 0, 0.05), 0 10px 10px -5px rgba(0, 0, 0, 0.01);
+    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+    --shadow-card: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+}
+
+/* Base Reset Helpers */
+.glass-panel {
+    background: var(--surface-glass);
+    border: 1px solid var(--surface-glass-border);
+    box-shadow: var(--shadow-sm);
+}

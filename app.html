@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Invoice Generator Pro</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+
+    <link rel="stylesheet" href="styles/variables.css">
+    <link rel="stylesheet" href="styles/dashboard.css?v=9">
+    <link rel="stylesheet" href="styles/app.css?v=9">
+
+    <style>
+        body {
+            display: none;
+        }
+    </style>
+    <script type="module">
+        import { requireAuth } from './src/auth.js';
+        requireAuth().then(user => {
+            if (user) document.body.style.display = 'block';
+        });
+    </script>
+</head>
+
+<body>
+    <!-- Navigation Header -->
+    <!-- Navigation injected by layout.js -->
+
+    <div class="app">
+        <!-- Editor Panel -->
+        <aside class="editor">
+            <header class="editor__header">
+                <h1 class="editor__title">Invoice Generator</h1>
+                <div class="editor__actions">
+                    <button type="button" id="newBtn" class="btn btn--outline btn--sm">New</button>
+                    <button type="button" id="saveBtn" class="btn btn--outline btn--sm">Save</button>
+                </div>
+            </header>
+
+            <!-- Template Bar -->
+            <div class="template-bar">
+                <select id="templateSelect" class="template-bar__select">
+                    <option value="">Load template...</option>
+                </select>
+                <button type="button" id="updateTemplateBtn" class="btn btn--outline btn--sm" style="display: none;"
+                    title="Overwrite current template">
+                    Update Template
+                </button>
+                <button type="button" id="saveTemplateBtn" class="btn btn--text btn--sm"
+                    title="Save current business/client info as new template">
+                    💾 Save as Template
+                </button>
+            </div>
+
+            <form id="invoiceForm" class="editor__form">
+                <!-- From Section -->
+                <section class="form-section">
+                    <h2 class="form-section__title">From</h2>
+                    <div class="form-section__content">
+                        <div class="form-field">
+                            <label class="form-field__label">Company Name</label>
+                            <input type="text" id="businessName" class="form-field__input form-field__input--lg"
+                                placeholder="Your Company Name">
+                        </div>
+                        <div class="form-row form-row--2">
+                            <div class="form-field">
+                                <label class="form-field__label">Email</label>
+                                <input type="email" id="businessEmail" class="form-field__input"
+                                    placeholder="email@company.com">
+                            </div>
+                            <div class="form-field">
+                                <label class="form-field__label">Phone</label>
+                                <input type="tel" id="businessPhone" class="form-field__input"
+                                    placeholder="+1 (555) 000-0000">
+                            </div>
+                        </div>
+                        <div class="form-field">
+                            <label class="form-field__label">Address</label>
+                            <textarea id="businessAddress" class="form-field__textarea" rows="2"
+                                placeholder="Street Address&#10;City, State ZIP"></textarea>
+                        </div>
+                        <div class="form-row form-row--2">
+                            <div class="form-field">
+                                <label class="form-field__label">Logo</label>
+                                <div class="file-upload">
+                                    <input type="file" id="logoUpload" accept="image/*" class="file-upload__input">
+                                    <label for="logoUpload" class="file-upload__label">
+                                        <span class="file-upload__icon">📎</span>
+                                        <span id="logoFileName" class="file-upload__text">Choose Logo</span>
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="form-field">
+                                <label class="form-field__label">Brand Color</label>
+                                <div class="color-picker">
+                                    <input type="color" id="brandColor" class="color-picker__input" value="#000000">
+                                    <span class="color-picker__preview"></span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Bill To Section -->
+                <section class="form-section">
+                    <h2 class="form-section__title">Bill To</h2>
+                    <div class="form-section__content">
+                        <div class="form-field">
+                            <label class="form-field__label">Client Name</label>
+                            <input type="text" id="clientName" class="form-field__input form-field__input--lg"
+                                placeholder="Client Company Name">
+                        </div>
+                        <div class="form-row form-row--2">
+                            <div class="form-field">
+                                <label class="form-field__label">Email</label>
+                                <input type="email" id="clientEmail" class="form-field__input"
+                                    placeholder="client@email.com">
+                            </div>
+                            <div class="form-field">
+                                <label class="form-field__label">Phone</label>
+                                <input type="tel" id="clientPhone" class="form-field__input"
+                                    placeholder="+1 (555) 000-0000">
+                            </div>
+                        </div>
+                        <div class="form-field">
+                            <label class="form-field__label">Address</label>
+                            <textarea id="clientAddress" class="form-field__textarea" rows="2"
+                                placeholder="Street Address&#10;City, State ZIP"></textarea>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Invoice Details Section -->
+                <section class="form-section">
+                    <h2 class="form-section__title">Invoice Details</h2>
+                    <div class="form-section__content">
+                        <div class="form-row form-row--3">
+                            <div class="form-field">
+                                <label class="form-field__label">Invoice #</label>
+                                <input type="text" id="invoiceNumber" class="form-field__input" placeholder="INV-0001">
+                            </div>
+                            <div class="form-field">
+                                <label class="form-field__label">Date</label>
+                                <input type="date" id="invoiceDate" class="form-field__input">
+                            </div>
+                            <div class="form-field">
+                                <label class="form-field__label">Due Date</label>
+                                <input type="date" id="dueDate" class="form-field__input">
+                            </div>
+                        </div>
+                        <div class="form-row form-row--2">
+                            <div class="form-field">
+                                <label class="form-field__label">Payment Terms</label>
+                                <select id="paymentTerms" class="form-field__select">
+                                    <option value="Due on Receipt">Due on Receipt</option>
+                                    <option value="Net 15">Net 15</option>
+                                    <option value="Net 30" selected>Net 30</option>
+                                    <option value="Net 45">Net 45</option>
+                                    <option value="Net 60">Net 60</option>
+                                </select>
+                            </div>
+                            <div class="form-field">
+                                <label class="form-field__label">Currency</label>
+                                <select id="currency" class="form-field__select">
+                                    <option value="USD">USD ($)</option>
+                                    <option value="EUR">EUR (€)</option>
+                                    <option value="GBP">GBP (£)</option>
+                                    <option value="INR">INR (₹)</option>
+                                    <option value="CAD">CAD ($)</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Line Items Section -->
+                <section class="form-section">
+                    <div class="form-section__header">
+                        <h2 class="form-section__title">Line Items</h2>
+                    </div>
+                    <div id="itemsContainer" class="items-container">
+                        <!-- Dynamic items here -->
+                    </div>
+                    <button type="button" id="addItemBtn" class="btn btn--dashed btn--block">
+                        <span class="btn__icon">+</span> Add New Item
+                    </button>
+                </section>
+
+                <!-- Totals Section -->
+                <!-- Totals Section -->
+                <section class="form-section">
+                    <h2 class="form-section__title">Summary</h2>
+                    <div class="form-section__content">
+                        <!-- Inputs Grid -->
+                        <div class="summary-inputs">
+                            <div class="form-field">
+                                <label class="form-field__label">Tax Rate (%)</label>
+                                <input type="number" id="taxRate" class="form-field__input" value="0" min="0" max="100"
+                                    step="0.01">
+                            </div>
+
+                            <div class="form-field">
+                                <label class="form-field__label">Discount</label>
+                                <div class="input-group">
+                                    <select id="discountType" class="input-group__select">
+                                        <option value="percent">%</option>
+                                        <option value="fixed">$</option>
+                                    </select>
+                                    <input type="number" id="discountValue" class="input-group__input" value="0" min="0"
+                                        step="0.01">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Totals Display -->
+                        <div class="totals-display">
+                            <div class="totals-display__row">
+                                <span class="totals-display__label">Subtotal</span>
+                                <span id="subtotalDisplay" class="totals-display__value">$0.00</span>
+                            </div>
+                            <div class="totals-display__row">
+                                <span class="totals-display__label">Tax</span>
+                                <span id="taxDisplay" class="totals-display__value">$0.00</span>
+                            </div>
+                            <div class="totals-display__row">
+                                <span class="totals-display__label">Discount</span>
+                                <span id="discountDisplay" class="totals-display__value">-$0.00</span>
+                            </div>
+                            <div class="totals-display__row totals-display__row--total">
+                                <span class="totals-display__label">Total Due</span>
+                                <span id="totalDisplay" class="totals-display__value">$0.00</span>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Notes Section -->
+                <section class="form-section">
+                    <h2 class="form-section__title">Additional Info</h2>
+                    <div class="form-section__content">
+                        <div class="form-field">
+                            <label class="form-field__label">Notes</label>
+                            <textarea id="notes" class="form-field__textarea" rows="3"
+                                placeholder="Thank you for your business!"></textarea>
+                        </div>
+                        <div class="form-field">
+                            <label class="form-field__label">Payment Instructions</label>
+                            <textarea id="paymentInstructions" class="form-field__textarea" rows="3"
+                                placeholder="Bank: Example Bank&#10;Account: 1234567890&#10;Routing: 000000000"></textarea>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Action Buttons -->
+                <div class="editor__footer">
+                    <button type="button" id="emailBtn" class="btn btn--outline btn--lg btn--block"
+                        style="margin-bottom: 0.75rem;">
+                        📧 Email Invoice
+                    </button>
+                    <button type="button" id="downloadPdfBtn" class="btn btn--primary btn--lg btn--block">
+                        Download PDF
+                    </button>
+                </div>
+            </form>
+        </aside>
+
+        <!-- Preview Panel -->
+        <main class="preview">
+            <header class="preview__header">
+                <span class="preview__title">Live Preview</span>
+                <button type="button" id="printBtn" class="btn btn--icon" title="Print">
+                    🖨️
+                </button>
+            </header>
+            <div class="preview__container">
+                <div id="invoicePreview" class="invoice-paper">
+                    <!-- Preview content rendered here -->
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Toast -->
+    <div id="toast" class="toast"></div>
+
+    <script type="module">
+        import { loadLayout } from './src/components/layout.js';
+        loadLayout('app');
+    </script>
+    <script type="module" src="src/app-main.js"></script>
+</body>
+
+</html>

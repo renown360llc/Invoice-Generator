@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Profile | Invoice Pro</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <link rel="stylesheet" href="styles/variables.css">
+    <link rel="stylesheet" href="styles/dashboard.css?v=8"> <!-- Reusing navbar/base styles -->
+    <link rel="stylesheet" href="styles/profile.css?v=2">
+
+    <style>
+        body {
+            display: none;
+        }
+    </style>
+    <script type="module">
+        import { requireAuth } from './src/auth.js';
+        requireAuth().then(user => {
+            if (user) document.body.style.display = 'block';
+        });
+    </script>
+</head>
+
+<body>
+    <!-- Navigation injected by layout.js -->
+
+    <div class="profile-container">
+        <!-- Sidebar Navigation -->
+        <aside class="profile-sidebar">
+            <div class="profile-nav__header">
+                <h3 class="profile-nav__title">Settings</h3>
+            </div>
+            <ul class="profile-nav__list">
+                <li class="profile-nav__item">
+                    <a href="#account" class="profile-nav__link active" data-tab="account">
+                        <span>👤</span> Account Details
+                    </a>
+                </li>
+                <li class="profile-nav__item">
+                    <a href="#security" class="profile-nav__link" data-tab="security">
+                        <span>🔒</span> Security
+                    </a>
+                </li>
+                <li class="profile-nav__item">
+                    <a href="#legal" class="profile-nav__link" data-tab="legal">
+                        <span>⚖️</span> Legal & Privacy
+                    </a>
+                </li>
+                <li class="profile-nav__item" style="border-top: 1px solid #EDF2F7; margin-top: 0.5rem;">
+                    <a href="#" id="signOutBtnSide" class="profile-nav__link" style="color: #E53E3E;">
+                        <span>🚪</span> Sign Out
+                    </a>
+                </li>
+            </ul>
+        </aside>
+
+        <!-- Content Area -->
+        <main class="profile-content">
+
+            <!-- Account Details Section -->
+            <section id="account" class="profile-section active">
+                <header class="profile-header">
+                    <div>
+                        <h1 class="profile-header__title">Account Details</h1>
+                        <p class="profile-header__desc">Manage your personal information and preferences.</p>
+                    </div>
+                </header>
+                <div class="profile-body">
+                    <!-- Avatar -->
+                    <div class="avatar-section">
+                        <div class="avatar-preview">
+                            <img id="avatarImage"
+                                src="https://ui-avatars.com/api/?name=User&background=F37021&color=fff" alt="Profile">
+                        </div>
+                        <div class="avatar-actions">
+                            <span class="avatar-label">Profile Picture</span>
+                            <div class="btn-group">
+                                <button class="btn btn--outline btn--sm">Change</button>
+                                <button class="btn btn--text btn--sm" style="color: #E53E3E;">Remove</button>
+                            </div>
+                            <span class="avatar-help">JPG, GIF or PNG. Max size 800K</span>
+                        </div>
+                    </div>
+
+                    <form id="profileForm">
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label class="form-label">Full Name</label>
+                                <input type="text" class="form-input" id="fullName" placeholder="Your Name">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Job Title</label>
+                                <input type="text" class="form-input" id="jobTitle" placeholder="e.g. Freelancer">
+                            </div>
+                            <div class="form-group form-group--full">
+                                <label class="form-label">Email Address</label>
+                                <input type="email" class="form-input" id="email" readonly>
+                                <p style="font-size: 12px; color: #718096; margin-top: 4px;">To change your email, visit
+                                    the Security tab.</p>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Company Name</label>
+                                <input type="text" class="form-input" id="companyName" placeholder="Your Company">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Phone Number</label>
+                                <input type="tel" class="form-input" id="phoneNumber" placeholder="+1 ...">
+                            </div>
+                        </div>
+                        <div class="form-actions">
+                            <button type="button" class="btn btn--outline">Cancel</button>
+                            <button type="submit" class="btn btn--primary">Save Changes</button>
+                        </div>
+                    </form>
+                </div>
+            </section>
+
+            <!-- Security Section -->
+            <section id="security" class="profile-section">
+                <header class="profile-header">
+                    <div>
+                        <h1 class="profile-header__title">Login & Security</h1>
+                        <p class="profile-header__desc">Manage your password and security settings.</p>
+                    </div>
+                </header>
+                <div class="profile-body">
+
+                    <div class="security-item">
+                        <div class="security-item__header">
+                            <div>
+                                <h3 class="security-item__title">Change Password</h3>
+                                <p class="security-item__desc">Ensure your account is secure with a strong password.</p>
+                            </div>
+                            <button class="btn btn--outline btn--sm">Update</button>
+                        </div>
+                    </div>
+
+                    <div class="security-item">
+                        <div class="security-item__header">
+                            <div>
+                                <h3 class="security-item__title">Two-Factor Authentication</h3>
+                                <p class="security-item__desc">Add an extra layer of security to your account.</p>
+                            </div>
+                            <button class="btn btn--outline btn--sm" disabled title="Coming Soon">Enable</button>
+                        </div>
+                    </div>
+
+                    <div class="security-item danger-zone">
+                        <div class="security-item__header">
+                            <div>
+                                <h3 class="security-item__title">Delete Account</h3>
+                                <p class="security-item__desc">Permanently remove your account and all data. This action
+                                    cannot be undone.</p>
+                            </div>
+                            <button class="btn btn--outline btn--sm"
+                                style="color: #C53030; border-color: #C53030; background: white;">Delete
+                                Account</button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Legal Section -->
+            <section id="legal" class="profile-section">
+                <header class="profile-header">
+                    <div>
+                        <h1 class="profile-header__title">Legal & Privacy</h1>
+                        <p class="profile-header__desc">Review our terms of use and privacy policy.</p>
+                    </div>
+                </header>
+                <div class="profile-body">
+                    <div class="legal-content">
+                        <h3>Terms of Use</h3>
+                        <p>Welcome to Invoice Pro. By using our website and services, you agree to comply with and be
+                            bound by the following terms and conditions of use.</p>
+                        <p>1. <strong>Acceptance of Terms:</strong> By accessing this web site, you are agreeing to be
+                            bound by these web site Terms and Conditions of Use, all applicable laws and regulations,
+                            and agree that you are responsible for compliance with any applicable local laws.</p>
+                        <p>2. <strong>Use License:</strong> Permission is granted to temporarily download one copy of
+                            the materials (information or software) on Invoice Pro's web site for personal,
+                            non-commercial transitory viewing only.</p>
+
+                        <h3>Privacy Policy</h3>
+                        <p>Your privacy is important to us. It is Invoice Pro's policy to respect your privacy regarding
+                            any information we may collect while operating our website.</p>
+                        <p>We respect your privacy and are committed to protecting personally identifiable information
+                            you may provide us through the Website. We have adopted this privacy policy ("Privacy
+                            Policy") to explain what information may be collected on our Website, how we use this
+                            information, and under what circumstances we may disclose the information to third parties.
+                        </p>
+                    </div>
+                </div>
+            </section>
+
+        </main>
+    </div>
+
+    <!-- Toast -->
+    <div id="toast" class="toast"></div>
+
+    <script type="module">
+        import { loadLayout } from './src/components/layout.js';
+        loadLayout(''); // No active link in main nav
+    </script>
+    <script type="module" src="src/profile.js"></script>
+</body>
+
+</html>

@@ -1,0 +1,51 @@
+{
+    "rewrites": [
+        {
+            "source": "/",
+            "destination": "/index.html"
+        },
+        {
+            "source": "/dashboard",
+            "destination": "/dashboard.html"
+        },
+        {
+            "source": "/app",
+            "destination": "/app.html"
+        },
+        {
+            "source": "/invoices",
+            "destination": "/invoices.html"
+        },
+        {
+            "source": "/login",
+            "destination": "/auth.html?mode=login"
+        },
+        {
+            "source": "/signup",
+            "destination": "/auth.html?mode=signup"
+        }
+    ],
+    "headers": [
+        {
+            "source": "/(.*)",
+            "headers": [
+                {
+                    "key": "X-Content-Type-Options",
+                    "value": "nosniff"
+                },
+                {
+                    "key": "X-Frame-Options",
+                    "value": "DENY"
+                },
+                {
+                    "key": "X-XSS-Protection",
+                    "value": "1; mode=block"
+                },
+                {
+                    "key": "Strict-Transport-Security",
+                    "value": "max-age=63072000; includeSubDomains; preload"
+                }
+            ]
+        }
+    ]
+}
