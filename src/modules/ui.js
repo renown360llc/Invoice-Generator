@@ -3,7 +3,18 @@
  * Handles DOM manipulation, event listeners, and preview rendering.
  */
 
-import { formatCurrency, formatDate, showToast } from './utils.js';
+import { formatCurrency, formatDate, parseDateToInput, showToast } from './utils.js';
+
+// ... (rest of imports/code)
+
+// In fillFormWithData:
+// Meta
+if (data.invoice_meta) {
+    document.getElementById('invoiceDate').value = parseDateToInput(data.invoice_meta.date);
+    document.getElementById('dueDate').value = parseDateToInput(data.invoice_meta.dueDate);
+    document.getElementById('paymentTerms').value = data.invoice_meta.terms || 'Net 30';
+    document.getElementById('currency').value = data.invoice_meta.currency || 'USD';
+}
 
 // Re-using the logic from app-main.js but cleanly componentized
 
@@ -312,8 +323,8 @@ export function fillFormWithData(data) {
 
     // Meta
     if (data.invoice_meta) {
-        document.getElementById('invoiceDate').value = data.invoice_meta.date || '';
-        document.getElementById('dueDate').value = data.invoice_meta.dueDate || '';
+        document.getElementById('invoiceDate').value = parseDateToInput(data.invoice_meta.date);
+        document.getElementById('dueDate').value = parseDateToInput(data.invoice_meta.dueDate);
         document.getElementById('paymentTerms').value = data.invoice_meta.terms || 'Net 30';
         document.getElementById('currency').value = data.invoice_meta.currency || 'USD';
     }

@@ -59,3 +59,14 @@ export function formatDate(dateString) {
         year: 'numeric'
     });
 }
+
+export function parseDateToInput(displayDate) {
+    if (!displayDate) return '';
+    try {
+        const date = new Date(displayDate);
+        if (isNaN(date.getTime())) return '';
+        return date.toISOString().split('T')[0];
+    } catch (e) {
+        return '';
+    }
+}

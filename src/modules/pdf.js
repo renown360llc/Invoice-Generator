@@ -81,7 +81,7 @@ export function generatePDF(data) {
         ['Invoice #:', data.invoice_number],
         ['Date:', data.invoice_meta.date],
         ['Due Date:', data.invoice_meta.dueDate],
-        ['Amount Due:', data.totals.total] // Should be formatted externally or here? Data has raw numbers?
+        ['Amount Due:', formatCurrency(data.totals.total, data.invoice_meta.currency)]
         // Wait, data.totals has numbers. We need currency symbol.
     ];
 
