@@ -59,23 +59,109 @@ function formatDate(dateString) {
     })
 }
 
-// Search invoices
-function searchInvoices(query) {
-    if (!query) {
-        filteredInvoices = [...allInvoices]
-    } else {
-        const lowerQuery = query.toLowerCase()
-        filteredInvoices = allInvoices.filter(inv =>
-            inv.invoice_number.toLowerCase().includes(lowerQuery) ||
-            inv.client_info?.name?.toLowerCase().includes(lowerQuery)
-        )
-    }
-    currentPage = 1
-    renderInvoices()
+// State for consultant filter
+let selectedConsultant = '';
+
+// Populate Consultant Filter (Custom Dropdown)
+function populateConsultantFilter() {
+    const list = document.getElementById('consultantList');
+    list.innerHTML = '';
+
+    // Add "All Consultants" option
+    const allOption = document.createElement('div');
+    allOption.className = `custom-select__option ${selectedConsultant === '' ? 'selected' : ''}`;
+    allOption.textContent = 'All Consultants';
+    allOption.onclick = () => selectConsultant('', 'All Consultants');
+    list.appendChild(allOption);
+
+    const consultants = new Set();
+    allInvoices.forEach(inv => {
+        if (inv.items && Array.isArray(inv.items)) {
+            inv.items.forEach(item => {
+                if (item.consultant && item.consultant.trim()) {
+                    consultants.add(item.consultant.trim());
+                }
+            });
+        }
+    });
+
+    const sortedConsultants = Array.from(consultants).sort((a, b) => a.localeCompare(b));
+    sortedConsultants.forEach(consultant => {
+        const option = document.createElement('div');
+        option.className = `custom-select__option ${selectedConsultant === consultant ? 'selected' : ''}`;
+        option.textContent = consultant;
+        option.onclick = () => selectConsultant(consultant, consultant);
+        list.appendChild(option);
+    });
+}
+
+// Select Consultant Helper
+function selectConsultant(value, label) {
+    selectedConsultant = value;
+
+    // Update Trigger Text
+    const triggerSpan = document.querySelector('.custom-select__trigger span');
+    if (triggerSpan) triggerSpan.textContent = label;
+
+    // Close Dropdown
+    document.getElementById('consultantFilterContainer').classList.remove('open');
+
+    // Re-render list to update selection styles
+    populateConsultantFilter();
+
+    // Apply Filters
+    currentPage = 1;
+    applyFilters();
+    renderInvoices();
+}
+
+// Filter Options in Dropdown
+function filterConsultantOptions(query) {
+    const options = document.querySelectorAll('.custom-select__option');
+    options.forEach(option => {
+        if (option.textContent.toLowerCase().includes(query.toLowerCase())) {
+            option.style.display = 'block';
+        } else {
+            option.style.display = 'none';
+        }
+    });
+}
+
+// Unified Filter Application
+function applyFilters() {
+    const searchQuery = document.getElementById('searchInput').value.toLowerCase();
+    const sortSelect = document.getElementById('sortSelect').value;
+
+    filteredInvoices = allInvoices.filter(inv => {
+        // 1. Search Filter
+        const matchesSearch = !searchQuery ||
+            inv.invoice_number.toLowerCase().includes(searchQuery) ||
+            inv.client_info?.name?.toLowerCase().includes(searchQuery);
+
+        // 2. Consultant Filter
+        let matchesConsultant = true;
+        if (selectedConsultant) {
+            matchesConsultant = inv.items?.some(item =>
+                item.consultant && item.consultant.trim() === selectedConsultant
+            );
+        }
+
+        return matchesSearch && matchesConsultant;
+    });
+
+    // 3. Sort
+    sortInvoices(sortSelect, false); // false = don't re-render yet
+}
+
+// Search invoices (Delegates to applyFilters)
+function searchInvoices() {
+    currentPage = 1;
+    applyFilters();
+    renderInvoices();
 }
 
 // Sort invoices
-function sortInvoices(sortBy) {
+function sortInvoices(sortBy, render = true) {
     switch (sortBy) {
         case 'date-desc':
             filteredInvoices.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
@@ -97,7 +183,7 @@ function sortInvoices(sortBy) {
             })
             break
     }
-    renderInvoices()
+    if (render) renderInvoices()
 }
 
 // Render invoices table
@@ -283,7 +369,13 @@ async function loadInvoices(currentUser = null) {
 
         // Apply current sort
         const sortSelect = document.getElementById('sortSelect')
-        sortInvoices(sortSelect.value)
+
+        // Populate filter based on loaded data
+        populateConsultantFilter();
+
+        // Initial filter application (handles default sort)
+        applyFilters();
+        renderInvoices();
 
     } catch (error) {
         console.error('Load invoices error:', error)
@@ -306,17 +398,40 @@ async function init() {
         await loadInvoices(user)
 
         // Setup event listeners
-        document.getElementById('searchInput').addEventListener('input', (e) => {
-            searchInvoices(e.target.value)
-        })
+        document.getElementById('searchInput').addEventListener('input', () => {
+            searchInvoices();
+        });
+
+        // Custom Dropdown Listeners
+        const trigger = document.getElementById('consultantFilterTrigger');
+        const searchInput = document.getElementById('consultantSearchInput');
+
+        if (trigger) {
+            trigger.addEventListener('click', (e) => {
+                e.stopPropagation(); // Prevent closing immediately
+                const container = document.getElementById('consultantFilterContainer');
+                container.classList.toggle('open');
+
+                if (container.classList.contains('open')) {
+                    searchInput.focus();
+                }
+            });
+        }
+
+        if (searchInput) {
+            searchInput.addEventListener('click', (e) => e.stopPropagation()); // Prevent closing when clicking search
+            searchInput.addEventListener('input', (e) => {
+                filterConsultantOptions(e.target.value);
+            });
+        }
 
         document.getElementById('sortSelect').addEventListener('change', (e) => {
-            sortInvoices(e.target.value)
-        })
+            sortInvoices(e.target.value);
+        });
 
     } catch (error) {
-        console.error('Initialization error:', error)
-        showToast('Error loading page', 'error')
+        console.error('Initialization error:', error);
+        showToast('Error loading page', 'error');
     }
 }
 
@@ -333,6 +448,12 @@ document.addEventListener('click', (e) => {
     if (!e.target.closest('#userMenu') && !e.target.closest('#userMenuBtn')) {
         const userMenu = document.getElementById('userMenu');
         if (userMenu) userMenu.classList.remove('show');
+    }
+
+    // Close Custom Dropdown (Click outside)
+    if (!e.target.closest('#consultantFilterContainer')) {
+        const dropdown = document.getElementById('consultantFilterContainer');
+        if (dropdown) dropdown.classList.remove('open');
     }
 
     // Logout

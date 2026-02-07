@@ -14,7 +14,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
 
     <link rel="stylesheet" href="styles/variables.css">
-    <link rel="stylesheet" href="styles/dashboard.css?v=9">
+    <link rel="stylesheet" href="styles/dashboard.css?v=10">
 
     <style>
         body {
@@ -62,6 +62,20 @@
                 <div class="invoices-filter-bar">
                     <input type="text" id="searchInput" class="search-input"
                         placeholder="Search by invoice # or client name...">
+                    <div id="consultantFilterContainer" class="custom-select" style="min-width: 180px;">
+                        <div class="custom-select__trigger" id="consultantFilterTrigger">
+                            <span>All Consultants</span>
+                            <div class="arrow"></div>
+                        </div>
+                        <div class="custom-select__dropdown" id="consultantFilterDropdown">
+                            <div class="custom-select__search">
+                                <input type="text" placeholder="Search..." id="consultantSearchInput">
+                            </div>
+                            <div class="custom-select__list" id="consultantList">
+                                <!-- Options injected here -->
+                            </div>
+                        </div>
+                    </div>
                     <select id="sortSelect" class="sort-select">
                         <option value="date-desc">Newest First</option>
                         <option value="date-asc">Oldest First</option>
