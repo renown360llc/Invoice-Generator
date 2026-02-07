@@ -53,40 +53,80 @@ function calculateStats(invoices) {
     const currentMonth = now.getMonth()
     const currentYear = now.getFullYear()
 
-    // This month's invoices
+    // Helper: Sum totals by currency
+    const sumByCurrency = (list) => {
+        const totals = {}
+        list.forEach(inv => {
+            const curr = inv.invoice_meta?.currency || 'USD'
+            totals[curr] = (totals[curr] || 0) + (inv.totals?.total || 0)
+        })
+        return totals
+    }
+
+    // Filter lists
     const thisMonth = invoices.filter(inv => {
-        const date = new Date(inv.created_at)
-        return date.getMonth() === currentMonth && date.getFullYear() === currentYear
+        const d = new Date(inv.created_at)
+        return d.getMonth() === currentMonth && d.getFullYear() === currentYear
     })
 
-    // This year's invoices
     const thisYear = invoices.filter(inv => {
-        const date = new Date(inv.created_at)
-        return date.getFullYear() === currentYear
+        const d = new Date(inv.created_at)
+        return d.getFullYear() === currentYear
     })
 
-    // Calculate totals
-    const monthlyRevenue = thisMonth.reduce((sum, inv) => sum + (inv.totals?.total || 0), 0)
-    const yearlyRevenue = thisYear.reduce((sum, inv) => sum + (inv.totals?.total || 0), 0)
-    const avgInvoice = invoices.length > 0
-        ? invoices.reduce((sum, inv) => sum + (inv.totals?.total || 0), 0) / invoices.length
-        : 0
+    // Calculate aggregate buckets
+    const monthlyRevenue = sumByCurrency(thisMonth)
+    const yearlyRevenue = sumByCurrency(thisYear)
+
+    // Calculate Average Invoice Size per Currency
+    // (Total Revenue in Currency X) / (Count of Invoices in Currency X)
+    const totalRevenueAllTime = sumByCurrency(invoices)
+    const avgInvoice = {}
+
+    Object.keys(totalRevenueAllTime).forEach(curr => {
+        const count = invoices.filter(inv => (inv.invoice_meta?.currency || 'USD') === curr).length
+        if (count > 0) {
+            avgInvoice[curr] = totalRevenueAllTime[curr] / count
+        }
+    })
 
     return {
         monthlyRevenue,
         yearlyRevenue,
-        totalInvoices: invoices.length,
         avgInvoice,
+        totalInvoices: invoices.length,
         thisMonthCount: thisMonth.length
     }
 }
 
 // Update stats cards
 function updateStatsCards(stats) {
-    document.getElementById('monthlyRevenue').textContent = formatCurrency(stats.monthlyRevenue)
+    // Helper to render stacked currency values
+    const renderStacked = (totalsObj) => {
+        const entries = Object.entries(totalsObj)
+        if (entries.length === 0) return formatCurrency(0, 'USD') // Default
+
+        // Sort alphabetically to keep UI stable (CAD, USD...)
+        entries.sort((a, b) => a[0].localeCompare(b[0]))
+
+        // If single currency, render standard large font
+        if (entries.length === 1) {
+            return formatCurrency(entries[0][1], entries[0][0])
+        }
+
+        // If multiple, render stacked with smaller font to fit card
+        return entries.map(([curr, amount]) => {
+            return `<div style="font-size: 0.75em; line-height: 1.4; margin-bottom: 2px;">
+                ${formatCurrency(amount, curr)}
+            </div>`
+        }).join('')
+    }
+
+    document.getElementById('monthlyRevenue').innerHTML = renderStacked(stats.monthlyRevenue)
+    document.getElementById('yearlyRevenue').innerHTML = renderStacked(stats.yearlyRevenue)
+    document.getElementById('avgInvoice').innerHTML = renderStacked(stats.avgInvoice)
+
     document.getElementById('totalInvoices').textContent = stats.totalInvoices
-    document.getElementById('yearlyRevenue').textContent = formatCurrency(stats.yearlyRevenue)
-    document.getElementById('avgInvoice').textContent = formatCurrency(stats.avgInvoice)
 
     // Update change indicators
     document.getElementById('monthlyChange').textContent = `${stats.thisMonthCount} this month`
@@ -121,7 +161,7 @@ function renderRecentInvoices(invoices) {
             <td><strong>${escapeHtml(invoice.invoice_number)}</strong></td>
             <td>${escapeHtml(invoice.client_info?.name || 'N/A')}</td>
             <td>${formatDate(invoice.created_at)}</td>
-            <td><strong>${formatCurrency(invoice.totals?.total || 0)}</strong></td>
+            <td><strong>${formatCurrency(invoice.totals?.total || 0, invoice.invoice_meta?.currency)}</strong></td>
             <td>
                 <div class="action-pills">
                     <button class="action-pill action-pill--edit" onclick="viewInvoice('${escapeHtml(invoice.invoice_number)}')" title="Edit Invoice">

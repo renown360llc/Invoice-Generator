@@ -7,14 +7,7 @@ import { formatCurrency, formatDate, parseDateToInput, showToast } from './utils
 
 // ... (rest of imports/code)
 
-// In fillFormWithData:
-// Meta
-if (data.invoice_meta) {
-    document.getElementById('invoiceDate').value = parseDateToInput(data.invoice_meta.date);
-    document.getElementById('dueDate').value = parseDateToInput(data.invoice_meta.dueDate);
-    document.getElementById('paymentTerms').value = data.invoice_meta.terms || 'Net 30';
-    document.getElementById('currency').value = data.invoice_meta.currency || 'USD';
-}
+
 
 // Re-using the logic from app-main.js but cleanly componentized
 
@@ -49,7 +42,7 @@ export function gatherFormData() {
             email: document.getElementById('businessEmail').value,
             phone: document.getElementById('businessPhone').value,
             address: document.getElementById('businessAddress').value,
-            logo: document.querySelector('.paper-logo')?.src // Preview image source as proxy for state
+            logo: document.querySelector('.paper-logo')?.src
         },
         client_info: {
             name: document.getElementById('clientName').value,
@@ -60,6 +53,8 @@ export function gatherFormData() {
         invoice_meta: {
             date: formatDate(document.getElementById('invoiceDate').value),
             dueDate: formatDate(document.getElementById('dueDate').value),
+            dateRaw: document.getElementById('invoiceDate').value,
+            dueDateRaw: document.getElementById('dueDate').value,
             terms: document.getElementById('paymentTerms').value,
             currency: document.getElementById('currency').value
         },
@@ -323,8 +318,8 @@ export function fillFormWithData(data) {
 
     // Meta
     if (data.invoice_meta) {
-        document.getElementById('invoiceDate').value = parseDateToInput(data.invoice_meta.date);
-        document.getElementById('dueDate').value = parseDateToInput(data.invoice_meta.dueDate);
+        document.getElementById('invoiceDate').value = data.invoice_meta.dateRaw || parseDateToInput(data.invoice_meta.date);
+        document.getElementById('dueDate').value = data.invoice_meta.dueDateRaw || parseDateToInput(data.invoice_meta.dueDate);
         document.getElementById('paymentTerms').value = data.invoice_meta.terms || 'Net 30';
         document.getElementById('currency').value = data.invoice_meta.currency || 'USD';
     }
