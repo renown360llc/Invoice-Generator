@@ -72,6 +72,7 @@ async function init() {
     } else {
         setDefaultDates();
         await initializeInvoiceNumber();
+        document.getElementById('notes').value = 'Thank you for your business!'; // Set default note
         addItem(); // UI module
         updatePreview(state);
     }

@@ -155,8 +155,8 @@ function renderPaper(state) {
                     ${renderItemDetails(item)}
                 </div>
                 <div class="paper-item-metrics">
-                    <div class="paper-item-metric"><div>Qty</div><div>${item.qty}</div></div>
-                    <div class="paper-item-metric"><div>Rate</div><div>${formatCurrency(item.rate, data.invoice_meta.currency)}</div></div>
+                    <div class="paper-item-metric"><div>${item.qty}</div></div>
+                    <div class="paper-item-metric"><div>${formatCurrency(item.rate, data.invoice_meta.currency)}</div></div>
                 </div>
                 <div class="paper-item-amount">${item.amountDisplay}</div>
             </div>
