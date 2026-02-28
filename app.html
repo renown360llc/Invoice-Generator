@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Invoice Generator Pro</title>
+    <title>Create Invoice - Invoice Generator Pro</title>
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -39,7 +39,7 @@
         <!-- Editor Panel -->
         <aside class="editor">
             <header class="editor__header">
-                <h1 class="editor__title">Invoice Generator</h1>
+                <h1 class="editor__title">Create Invoice</h1>
                 <div class="editor__actions">
                     <button type="button" id="newBtn" class="btn btn--outline btn--sm">New</button>
                     <button type="button" id="saveBtn" class="btn btn--outline btn--sm">Save</button>
@@ -201,8 +201,13 @@
 
                 <!-- Line Items Section -->
                 <section class="form-section">
-                    <div class="form-section__header">
-                        <h2 class="form-section__title">Line Items</h2>
+                    <div class="form-section__header"
+                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+                        <h2 class="form-section__title" style="margin: 0;">Line Items</h2>
+                        <button type="button" id="pullTimesheetsBtn" class="btn btn--outline btn--sm"
+                            style="display: flex; align-items: center; gap: 6px; padding: 6px 12px; font-size: 13px;">
+                            <span>⚡</span> Pull Consultant Timesheets
+                        </button>
                     </div>
                     <div id="itemsContainer" class="items-container">
                         <!-- Dynamic items here -->
@@ -304,6 +309,47 @@
                 </div>
             </div>
         </main>
+    </div>
+
+    <!-- Timesheet Generator Modal -->
+    <div id="timesheetModal" class="modal"
+        style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center; padding: 1rem;">
+        <div class="modal-content"
+            style="background: white; border-radius: 1rem; padding: 2rem; width: 100%; max-width: 600px; max-height: 90vh; overflow-y: auto; position: relative;">
+            <button class="modal-close" id="closeTimesheetBtn"
+                style="position: absolute; top: 1.5rem; right: 1.5rem; background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--gray-500);">&times;</button>
+            <h3 style="font-size: 1.25rem; font-weight: 700; margin-bottom: 0.5rem; color: #1e293b;">Generate Line Items
+            </h3>
+            <p style="color: var(--gray-500); font-size: 14px; margin-bottom: 1.5rem;">Select the billing period and
+                pull pending timesheets. Hours come from timesheets only. Invoice number is linked automatically after save.</p>
+
+            <div
+                style="display: grid; grid-template-columns: 1fr 1fr auto; gap: 1rem; margin-bottom: 1rem; background: #f8fafc; padding: 1rem; border-radius: 8px; align-items: end;">
+                <div class="form-field">
+                    <label class="form-field__label">Period Start</label>
+                    <input type="date" id="tsPeriodStart" class="form-field__input">
+                </div>
+                <div class="form-field">
+                    <label class="form-field__label">Period End</label>
+                    <input type="date" id="tsPeriodEnd" class="form-field__input">
+                </div>
+                <button type="button" id="loadTimesheetsBtn" class="btn btn--outline" style="height: 40px;">Load</button>
+            </div>
+            <p id="timesheetSelectionMeta" style="font-size: 12px; color: var(--text-secondary); margin-bottom: 0.75rem;">No timesheets loaded.</p>
+
+            <div id="timesheetConsultantsList" style="margin-bottom: 1.5rem;">
+                <div style="text-align: center; color: var(--gray-500); padding: 2rem;">Select a date range and click Load.
+                </div>
+            </div>
+
+            <div
+                style="display: flex; gap: 1rem; justify-content: flex-end; padding-top: 1rem; border-top: 1px solid #e2e8f0;">
+                <button type="button" id="cancelTimesheetBtn" class="btn btn--outline">Cancel</button>
+                <button type="button" id="generateTimesheetBtn" class="btn btn--primary">
+                    <span style="margin-right: 6px;">⚡</span> Generate Items
+                </button>
+            </div>
+        </div>
     </div>
 
     <!-- Toast -->

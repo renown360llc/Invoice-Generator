@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Consultants - Invoice Generator Pro</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <link rel="stylesheet" href="styles/variables.css">
+    <link rel="stylesheet" href="styles/sidebar.css?v=1">
+    <link rel="stylesheet" href="styles/dashboard.css?v=11">
+
+    <style>
+        body {
+            display: none;
+        }
+
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 4px 10px;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            line-height: 1;
+        }
+
+        .status-active {
+            background: #dcfce7;
+            color: #166534;
+        }
+
+        .status-inactive {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .status-missing {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .filters-meta {
+            margin-top: 0.65rem;
+            font-size: 0.8125rem;
+            color: var(--text-secondary);
+        }
+
+        .period-controls {
+            display: inline-flex;
+            gap: 0.5rem;
+            align-items: center;
+        }
+
+        .form-field__error {
+            min-height: 1rem;
+            font-size: 0.75rem;
+            color: #dc2626;
+            line-height: 1.2;
+        }
+
+        body.modal-open {
+            overflow: hidden;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.45);
+            backdrop-filter: blur(4px);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+            padding: 1.5rem;
+            animation: modalOverlayIn 0.2s ease-out;
+        }
+
+        .modal.is-open {
+            display: flex;
+        }
+
+        .modal-content {
+            width: min(860px, 100%);
+            max-height: min(92vh, 760px);
+            background: #ffffff;
+            border: 1px solid var(--surface-glass-border);
+            border-radius: 20px;
+            box-shadow: 0 24px 70px rgba(15, 23, 42, 0.2);
+            overflow: hidden;
+            transform: translateY(16px) scale(0.98);
+            opacity: 0;
+            transition: transform 0.2s ease, opacity 0.2s ease;
+        }
+
+        .modal.is-open .modal-content {
+            transform: translateY(0) scale(1);
+            opacity: 1;
+        }
+
+        .modal-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 1rem;
+            padding: 1.5rem 1.75rem 1.125rem;
+            border-bottom: 1px solid var(--surface-border-subtle);
+            background: linear-gradient(180deg, #fff8f6 0%, #ffffff 100%);
+        }
+
+        .modal-title {
+            font-size: 1.625rem;
+            line-height: 1.15;
+            font-weight: 800;
+            color: var(--text-primary);
+            letter-spacing: -0.02em;
+        }
+
+        .modal-subtitle {
+            margin-top: 0.25rem;
+            font-size: 0.8125rem;
+            color: var(--text-secondary);
+        }
+
+        .modal-close {
+            width: 38px;
+            height: 38px;
+            border-radius: 999px;
+            border: 1px solid var(--surface-glass-border);
+            background: #ffffff;
+            font-size: 1.75rem;
+            line-height: 1;
+            cursor: pointer;
+            color: var(--text-secondary);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.15s ease;
+        }
+
+        .modal-close:hover {
+            color: var(--text-primary);
+            border-color: #d1d5db;
+            background: #f9fafb;
+        }
+
+        .modal-body {
+            padding: 1.5rem 1.75rem 1.625rem;
+            overflow-y: auto;
+            max-height: calc(92vh - 110px);
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 1rem 1.125rem;
+        }
+
+        .form-grid-full {
+            grid-column: 1 / -1;
+        }
+
+        .form-field {
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 0.45rem;
+        }
+
+        .form-field__label {
+            font-size: 0.8125rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            letter-spacing: 0.01em;
+        }
+
+        .form-field__required {
+            color: var(--primary);
+        }
+
+        .form-field__input {
+            width: 100%;
+            height: 42px;
+            border: 1px solid var(--surface-glass-border);
+            border-radius: 10px;
+            background: #ffffff;
+            padding: 0 0.875rem;
+            font-size: 0.875rem;
+            color: var(--text-primary);
+            font-family: var(--font-sans);
+            transition: border-color 0.15s ease, box-shadow 0.15s ease;
+        }
+
+        .form-field__input:hover {
+            border-color: #d1d5db;
+        }
+
+        .form-field__input:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(255, 107, 74, 0.12);
+        }
+
+        .form-field__input::placeholder {
+            color: var(--text-tertiary);
+        }
+
+        .form-field__hint {
+            font-size: 0.75rem;
+            color: var(--text-tertiary);
+            line-height: 1.35;
+        }
+
+        .modal-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 0.75rem;
+            margin-top: 1.375rem;
+            padding-top: 1.125rem;
+            border-top: 1px solid var(--surface-border-subtle);
+        }
+
+        .modal-actions .btn {
+            height: 42px;
+            min-width: 138px;
+            font-size: 0.875rem;
+            font-weight: 600;
+        }
+
+        .modal-actions .btn--outline {
+            min-width: 112px;
+        }
+
+        @keyframes modalOverlayIn {
+            from {
+                opacity: 0;
+            }
+
+            to {
+                opacity: 1;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .modal {
+                padding: 0.75rem;
+            }
+
+            .modal-content {
+                max-height: calc(100vh - 1.5rem);
+                border-radius: 16px;
+            }
+
+            .modal-header {
+                padding: 1.125rem 1rem 0.875rem;
+            }
+
+            .modal-title {
+                font-size: 1.25rem;
+            }
+
+            .modal-body {
+                padding: 1rem;
+                max-height: calc(100vh - 132px);
+            }
+
+            .form-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .modal-actions {
+                flex-direction: column-reverse;
+            }
+
+            .modal-actions .btn {
+                width: 100%;
+            }
+        }
+
+        /* Sorting */
+        .table th[data-sort] {
+            padding: 0;
+        }
+
+        .sort-button {
+            width: 100%;
+            height: 100%;
+            padding: 0.875rem 1.25rem;
+            border: none;
+            background: transparent;
+            display: flex;
+            align-items: center;
+            gap: 0.35rem;
+            font: inherit;
+            color: inherit;
+            cursor: pointer;
+        }
+
+        .sort-button:hover {
+            background: #f9fafb;
+        }
+
+        .sort-icon {
+            font-size: 0.75rem;
+            color: var(--text-tertiary);
+        }
+
+        .sort-button.is-active .sort-icon {
+            color: var(--primary);
+        }
+    </style>
+    <script type="module">
+        import { requireAuth } from './src/auth.js';
+        requireAuth().then(user => {
+            if (user) document.body.style.display = 'block';
+        });
+    </script>
+</head>
+
+<body>
+    <!-- Main Content -->
+    <main class="dashboard">
+        <div class="dashboard__container">
+            <!-- Header -->
+            <div class="dashboard__header">
+                <div>
+                    <h1 class="dashboard__title">Consultants</h1>
+                    <p class="dashboard__subtitle">Manage consultant profiles, rates, and billing attributes used across CRM and invoicing.</p>
+                </div>
+                <div>
+                    <button id="addConsultantBtn" class="btn btn--primary">
+                        <svg class="btn-icon" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd"
+                                d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z"
+                                clip-rule="evenodd" />
+                        </svg>
+                        Add Consultant
+                    </button>
+                </div>
+            </div>
+
+            <!-- List Section -->
+            <div class="section">
+                <div class="invoices-filter-bar">
+                    <div class="period-controls">
+                        <select id="yearFilter" class="sort-select" aria-label="Filter year"></select>
+                        <select id="monthFilter" class="sort-select" aria-label="Filter month"></select>
+                        <button id="allMonthsToggleBtn" class="btn btn--outline btn--sm" type="button">All Months: OFF</button>
+                    </div>
+                    <select id="statusFilter" class="sort-select">
+                        <option value="all">All Statuses</option>
+                        <option value="active" selected>Active Only</option>
+                        <option value="inactive">Inactive Only</option>
+                    </select>
+                    <select id="clientFilter" class="sort-select" aria-label="Filter by client">
+                        <option value="all">All Clients</option>
+                    </select>
+                    <select id="w2Filter" class="sort-select" aria-label="Filter by W2 company">
+                        <option value="all">All W2 Companies</option>
+                    </select>
+                    <select id="currencyFilter" class="sort-select" aria-label="Filter by currency">
+                        <option value="all">All Currencies</option>
+                    </select>
+                    <input type="text" id="searchInput" class="search-input" placeholder="Search consultants...">
+                    <button id="resetFiltersBtn" class="btn btn--ghost" style="padding:0.5rem 0.75rem;" type="button">Clear All</button>
+                </div>
+                <p id="consultantsFilterSummary" class="filters-meta">0 filters applied</p>
+
+                <div class="table-container">
+                    <table class="table" id="consultantsTable">
+                        <thead>
+                            <tr>
+                                <th data-sort="name"><button class="sort-button" data-sort="name">Name <span class="sort-icon">↕</span></button></th>
+                                <th data-sort="client"><button class="sort-button" data-sort="client">Client / W2 <span class="sort-icon">↕</span></button></th>
+                                <th data-sort="start_date"><button class="sort-button" data-sort="start_date">Start Date <span class="sort-icon">↕</span></button></th>
+                                <th data-sort="end_date"><button class="sort-button" data-sort="end_date">End Date <span class="sort-icon">↕</span></button></th>
+                                <th data-sort="bill_rate"><button class="sort-button" data-sort="bill_rate">Rates (Bill / Comm) <span class="sort-icon">↕</span></button></th>
+                                <th data-sort="status"><button class="sort-button" data-sort="status">Status <span class="sort-icon">↕</span></button></th>
+                                <th data-sort="coverage"><button class="sort-button" data-sort="coverage">Coverage <span class="sort-icon">↕</span></button></th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="consultantsBody">
+                            <tr>
+                                <td colspan="8" class="table__empty">
+                                    <div class="empty-state">
+                                        <span class="empty-state__icon">👥</span>
+                                        <p class="empty-state__text">Loading consultants...</p>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Consultant Form Modal -->
+    <div id="consultantModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div>
+                    <h3 class="modal-title" id="modalTitle">Add New Consultant</h3>
+                    <p class="modal-subtitle">Create a consultant profile for invoice and timesheet tracking.</p>
+                </div>
+                <button class="modal-close" id="closeModalBtn" aria-label="Close modal">&times;</button>
+            </div>
+
+            <div class="modal-body">
+                <form id="consultantForm">
+                    <input type="hidden" id="consultantId">
+                    <div class="form-grid">
+                        <div class="form-field form-grid-full">
+                            <label class="form-field__label">
+                                Full Name <span class="form-field__required">*</span>
+                            </label>
+                            <input type="text" id="name" class="form-field__input" required placeholder="e.g. John Doe">
+                            <div id="nameError" class="form-field__error"></div>
+                        </div>
+
+                        <div class="form-field">
+                            <label class="form-field__label">Assigned Client</label>
+                            <input type="text" id="client" class="form-field__input" placeholder="e.g. Acme Corp">
+                        </div>
+
+                        <div class="form-field">
+                            <label class="form-field__label">W2 Company</label>
+                            <input type="text" id="w2Company" class="form-field__input" placeholder="e.g. TechStaffing LLC">
+                        </div>
+
+                        <div class="form-field">
+                            <label class="form-field__label">
+                                Start Date <span class="form-field__required">*</span>
+                            </label>
+                            <input type="date" id="startDate" class="form-field__input" required>
+                            <div id="startDateError" class="form-field__error"></div>
+                        </div>
+
+                        <div class="form-field">
+                            <label class="form-field__label">End Date (Optional)</label>
+                            <input type="date" id="endDate" class="form-field__input">
+                            <small class="form-field__hint">If set, consultant auto-becomes inactive after this date.</small>
+                            <div id="endDateError" class="form-field__error"></div>
+                        </div>
+
+                        <div class="form-field">
+                            <label class="form-field__label">Bill Rate ($/hr)</label>
+                            <input type="number" id="billRate" class="form-field__input" min="0.01" step="0.01"
+                                placeholder="0.00">
+                            <small class="form-field__hint">Enter either Bill Rate or Referral Commission.</small>
+                            <div id="billRateError" class="form-field__error"></div>
+                        </div>
+
+                        <div class="form-field">
+                            <label class="form-field__label">Currency <span class="form-field__required">*</span></label>
+                            <select id="currency" class="form-field__input" required>
+                                <option value="USD">USD — $</option>
+                                <option value="EUR">EUR — €</option>
+                                <option value="GBP">GBP — £</option>
+                                <option value="CAD">CAD — $</option>
+                                <option value="AUD">AUD — $</option>
+                                <option value="INR">INR — ₹</option>
+                            </select>
+                            <div id="currencyError" class="form-field__error"></div>
+                        </div>
+
+                        <div class="form-field">
+                            <label class="form-field__label">Referral Commission ($/hr)</label>
+                            <input type="number" id="commissionRate" class="form-field__input" min="0.01" step="0.01"
+                                placeholder="0.00">
+                            <div id="commissionRateError" class="form-field__error"></div>
+                        </div>
+                    </div>
+
+                    <div class="modal-actions">
+                        <button type="button" id="deleteConsultantBtn" class="btn btn--ghost" style="display:none;">Delete</button>
+                        <button type="button" id="cancelBtn" class="btn btn--outline">Cancel</button>
+                        <button type="submit" id="saveBtn" class="btn btn--primary">Save Consultant</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notification system -->
+    <div id="toastContainer" class="toast-container"></div>
+
+    <!-- Core Scripts -->
+    <script type="module" src="src/consultants-main.js"></script>
+</body>
+
+</html>

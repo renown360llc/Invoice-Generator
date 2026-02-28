@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Timesheets - Invoice Generator Pro</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <link rel="stylesheet" href="styles/variables.css">
+    <link rel="stylesheet" href="styles/sidebar.css?v=1">
+    <link rel="stylesheet" href="styles/dashboard.css?v=11">
+
+    <style>
+        body {
+            display: none;
+        }
+
+        body.modal-open {
+            overflow: hidden;
+        }
+
+        .ts-filter-bar {
+            display: grid;
+            grid-template-columns: repeat(9, minmax(0, 1fr)) auto;
+            gap: 0.75rem;
+            margin-bottom: 1rem;
+        }
+
+        @media (max-width: 1100px) {
+            .ts-filter-bar {
+                grid-template-columns: repeat(4, minmax(0, 1fr));
+            }
+        }
+
+        @media (max-width: 720px) {
+            .ts-filter-bar {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+        }
+
+        @media (max-width: 520px) {
+            .ts-filter-bar {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .ts-inline-controls {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .ts-inline-controls input {
+            width: 90px;
+        }
+
+        .ts-inline-controls select {
+            width: 110px;
+        }
+
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            border-radius: 999px;
+            padding: 0.25rem 0.5rem;
+            font-size: 0.72rem;
+            font-weight: 600;
+        }
+
+        .status-pending {
+            background: #fff7ed;
+            color: #9a3412;
+        }
+
+        .status-invoiced {
+            background: #dcfce7;
+            color: #166534;
+        }
+
+        .status-mixed {
+            background: #e2e8f0;
+            color: #334155;
+        }
+
+        .filters-meta {
+            margin-top: 0.45rem;
+            font-size: 0.8125rem;
+            color: var(--text-secondary);
+        }
+
+        .modal {
+            position: fixed;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.45);
+            backdrop-filter: blur(4px);
+            z-index: 1200;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+        }
+
+        .modal.is-open {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 14px;
+            padding: 1.5rem;
+            width: 100%;
+            max-width: 520px;
+            max-height: 90vh;
+            overflow-y: auto;
+            position: relative;
+            border: 1px solid var(--surface-glass-border);
+            box-shadow: var(--shadow-paper);
+        }
+    </style>
+    <script type="module">
+        import { requireAuth } from './src/auth.js';
+        requireAuth().then(user => {
+            if (user) document.body.style.display = 'block';
+        });
+    </script>
+</head>
+
+<body>
+    <main class="dashboard">
+        <div class="dashboard__container">
+            <div class="dashboard__header">
+                <div>
+                    <h1 class="dashboard__title">Timesheets</h1>
+                    <p class="dashboard__subtitle">Edit monthly consultant hours before invoicing, with one consistent CRM filter workflow.</p>
+                </div>
+            </div>
+
+            <div class="section">
+                <div class="ts-filter-bar">
+                    <select id="yearFilter" class="sort-select" aria-label="Filter year"></select>
+                    <select id="monthFilter" class="sort-select" aria-label="Filter month"></select>
+                    <button id="allMonthsToggleBtn" class="btn btn--outline btn--sm" type="button">All Months: OFF</button>
+                    <select id="statusFilter" class="sort-select" aria-label="Filter status">
+                        <option value="all">All Status</option>
+                        <option value="pending">Pending</option>
+                        <option value="invoiced">Invoiced</option>
+                    </select>
+                    <select id="clientFilter" class="sort-select" aria-label="Filter client">
+                        <option value="all">All Clients</option>
+                    </select>
+                    <select id="w2Filter" class="sort-select" aria-label="Filter W2 company">
+                        <option value="all">All W2 Companies</option>
+                    </select>
+                    <select id="currencyFilter" class="sort-select" aria-label="Filter currency">
+                        <option value="all">All Currencies</option>
+                    </select>
+                    <input type="text" id="searchInput" class="search-input" placeholder="Search consultant, client, W2...">
+                    <button id="resetFiltersBtn" class="btn btn--ghost" type="button">Clear All</button>
+                </div>
+                <p id="timesheetMeta" style="color: var(--text-secondary); font-size: 0.85rem;">Loading...</p>
+                <p id="timesheetFilterSummary" class="filters-meta">0 filters applied</p>
+            </div>
+
+            <div class="section">
+                <div class="table-container">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Consultant</th>
+                                <th>Client</th>
+                                <th>W2 Company</th>
+                                <th>Period Start</th>
+                                <th>Period End</th>
+                                <th>Hours</th>
+                                <th>Status</th>
+                                <th>Invoice #</th>
+                                <th>Currency</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="timesheetBody">
+                            <tr>
+                                <td colspan="10" class="table__empty">Loading...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <div id="toast" class="toast" role="status" aria-live="polite" aria-atomic="true"></div>
+
+    <!-- Timesheet Modal -->
+    <div id="tsModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="tsModalTitle">
+        <div class="modal-content">
+            <button class="modal-close" id="tsModalClose"
+                style="position: absolute; top: 1rem; right: 1rem; background: none; border: none; font-size: 1.4rem; cursor: pointer; color: #9CA3AF;">×</button>
+            <h3 id="tsModalTitle" style="font-size: 1.25rem; font-weight: 700; margin-bottom: 0.75rem;">Edit Timesheet</h3>
+            <p id="tsModalSubtitle" style="color: #6B7280; font-size: 0.9rem; margin-bottom: 1rem;">Update hours, period, status, and invoice reference.</p>
+
+            <div class="form-field">
+                <label class="form-field__label">Consultant</label>
+                <input type="text" id="tsModalConsultant" class="form-field__input" readonly>
+            </div>
+
+            <div class="form-grid" style="margin-top: 1rem;">
+                <div class="form-field">
+                    <label class="form-field__label">Period Start</label>
+                    <input type="date" id="tsModalStart" class="form-field__input">
+                </div>
+                <div class="form-field">
+                    <label class="form-field__label">Period End</label>
+                    <input type="date" id="tsModalEnd" class="form-field__input">
+                </div>
+            </div>
+
+            <div class="form-grid" style="margin-top: 1rem;">
+                <div class="form-field">
+                    <label class="form-field__label">Hours</label>
+                    <input type="number" id="tsModalHours" class="form-field__input" min="0" step="0.25">
+                </div>
+                <div class="form-field">
+                    <label class="form-field__label">Status</label>
+                    <select id="tsModalStatus" class="form-field__input">
+                        <option value="pending">pending</option>
+                        <option value="invoiced">invoiced</option>
+                    </select>
+                    <small class="form-field__hint">Use pending for manual entries. Invoiced is normally set automatically when an invoice is saved.</small>
+                </div>
+            </div>
+
+            <div class="form-field" style="margin-top:1rem;">
+                <label class="form-field__label">Invoice # (auto-linked)</label>
+                <input type="text" id="tsModalInvoice" class="form-field__input" placeholder="Linked automatically from invoices" readonly>
+            </div>
+
+            <div style="display:flex; gap:0.75rem; justify-content:flex-end; margin-top:1.5rem;">
+                <button id="tsModalDelete" class="btn btn--ghost" style="display:none;">Delete</button>
+                <button id="tsModalCancel" class="btn btn--outline">Cancel</button>
+                <button id="tsModalSave" class="btn btn--primary">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="src/timesheets-main.js"></script>
+</body>
+
+</html>

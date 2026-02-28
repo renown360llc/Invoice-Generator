@@ -38,11 +38,29 @@ export async function loadLayout(activeLink = '') {
                     Dashboard
                 </a>
 
+                <div class="sidebar__section-label">CRM</div>
+
+                <a href="consultants.html" class="sidebar__link ${activeLink === 'consultants' ? 'sidebar__link--active' : ''}">
+                    <svg class="sidebar__icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/>
+                    </svg>
+                    Consultants
+                </a>
+
+                <a href="timesheets.html" class="sidebar__link ${activeLink === 'timesheets' ? 'sidebar__link--active' : ''}">
+                    <svg class="sidebar__icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M4 7h16M4 12h10M4 17h7"/>
+                    </svg>
+                    Timesheets
+                </a>
+
+                <div class="sidebar__section-label">Invoicing</div>
+
                 <a href="app.html" class="sidebar__link ${activeLink === 'app' ? 'sidebar__link--active' : ''}">
                     <svg class="sidebar__icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M12 4v16m8-8H4"/>
                     </svg>
-                    New Invoice
+                    Create Invoice
                 </a>
 
                 <a href="invoices.html" class="sidebar__link ${activeLink === 'invoices' ? 'sidebar__link--active' : ''}">
@@ -57,6 +75,15 @@ export async function loadLayout(activeLink = '') {
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414A1 1 0 0120 8.414V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2"/>
                     </svg>
                     Templates
+                </a>
+
+                <div class="sidebar__section-label">Insights</div>
+
+                <a href="analytics.html" class="sidebar__link ${activeLink === 'analytics' ? 'sidebar__link--active' : ''}">
+                    <svg class="sidebar__icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M3 3v18h18M8 14l3-3 3 2 4-5"/>
+                    </svg>
+                    Analytics
                 </a>
 
                 <div class="sidebar__section-label">Account</div>
@@ -207,9 +234,12 @@ export async function loadLayout(activeLink = '') {
 function getPageTitle(activeLink) {
     const titles = {
         'dashboard': 'Dashboard',
-        'app': 'New Invoice',
+        'app': 'Create Invoice',
         'invoices': 'Invoices',
         'templates': 'Templates',
+        'consultants': 'Consultants',
+        'analytics': 'Analytics',
+        'timesheets': 'Timesheets',
         'profile': 'Profile',
         '': 'Welcome'
     };

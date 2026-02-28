@@ -1,575 +1,925 @@
-import { getCurrentUser, signOut } from './auth.js'
-import { getInvoices, getInvoice, updateInvoiceStatus } from './database.js'
-import { supabase } from './config.js'
-import { generatePDF } from './modules/pdf.js'
-import './security.js'
+import { getCurrentUser } from './auth.js';
+import { getInvoices, updateInvoiceStatus } from './database.js';
+import { supabase } from './config.js';
+import { generatePDF } from './modules/pdf.js';
+import { dbGetConsultants } from './modules/db-consultants.js';
+import { debounce, showToast } from './modules/utils.js';
+import './security.js';
+
+const STORAGE_KEY = 'invoice_pro_invoice_filters_v2';
+const ITEMS_PER_PAGE = 20;
+const DEFAULT_FILTERS = {
+    search: '',
+    consultant: 'all',
+    status: 'all',
+    currency: 'all',
+    due: 'all',
+    amount: 'all',
+    sort: 'date-desc'
+};
+
+const state = {
+    user: null,
+    allInvoices: [],
+    filteredInvoices: [],
+    consultantsById: new Map(),
+    filters: loadFilters(),
+    currentPage: 1,
+    invoiceToDelete: null,
+    invoiceToPay: null,
+    channel: null
+};
+
+const els = {};
+
+document.addEventListener('DOMContentLoaded', init);
 
-// State
-let allInvoices = []
-let filteredInvoices = []
-let currentPage = 1
-const itemsPerPage = 20
-let invoiceToDelete = null
-let invoiceToPay = null // tracks invoice being marked as paid
-
-// Check authentication
-async function checkAuth() {
-    const user = await getCurrentUser()
-    if (!user) {
-        window.location.href = '/login.html'
-        return null
-    }
-    return user
-}
-
-// Helper to escape HTML and prevent XSS
-function escapeHtml(unsafe) {
-    if (unsafe === null || unsafe === undefined) return '';
-    return String(unsafe)
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#039;");
-}
-
-// Show toast notification
-function showToast(message, type = 'info') {
-    const toast = document.getElementById('toast')
-    toast.textContent = message
-    toast.className = `toast toast--${type} toast--show`
-    setTimeout(() => {
-        toast.classList.remove('toast--show')
-    }, 3000)
-}
-
-// Format currency
-function formatCurrency(amount) {
-    return new Intl.NumberFormat('en-US', {
-        style: 'currency',
-        currency: 'USD'
-    }).format(amount)
-}
-
-// Format date — uses invoice_meta date (user-entered), falls back to created_at
-function formatDate(dateString) {
-    if (!dateString) return '—'
-    return new Date(dateString).toLocaleDateString('en-US', {
-        month: 'short',
-        day: 'numeric',
-        year: 'numeric'
-    })
-}
-
-// Return a colored status badge HTML
-function renderStatusBadge(status) {
-    const map = {
-        draft: { label: 'Draft', bg: '#F3F4F6', color: '#6B7280' },
-        sent: { label: 'Sent', bg: '#DBEAFE', color: '#1D4ED8' },
-        paid: { label: 'Paid', bg: '#D1FAE5', color: '#065F46' },
-        overdue: { label: 'Overdue', bg: '#FEE2E2', color: '#B91C1C' },
-    }
-    const s = map[status?.toLowerCase()] || map.draft
-    return `<span style="display:inline-block;padding:2px 10px;border-radius:99px;font-size:0.75rem;font-weight:600;background:${s.bg};color:${s.color}">${s.label}</span>`
-}
-
-// State for consultant filter
-let selectedConsultant = '';
-
-// Populate Consultant Filter (Custom Dropdown)
-function populateConsultantFilter() {
-    const list = document.getElementById('consultantList');
-    list.innerHTML = '';
-
-    // Add "All Consultants" option
-    const allOption = document.createElement('div');
-    allOption.className = `custom-select__option ${selectedConsultant === '' ? 'selected' : ''}`;
-    allOption.textContent = 'All Consultants';
-    allOption.onclick = () => selectConsultant('', 'All Consultants');
-    list.appendChild(allOption);
-
-    const consultants = new Set();
-    allInvoices.forEach(inv => {
-        if (inv.items && Array.isArray(inv.items)) {
-            inv.items.forEach(item => {
-                if (item.consultant && item.consultant.trim()) {
-                    consultants.add(item.consultant.trim());
-                }
-            });
-        }
-    });
-
-    const sortedConsultants = Array.from(consultants).sort((a, b) => a.localeCompare(b));
-    sortedConsultants.forEach(consultant => {
-        const option = document.createElement('div');
-        option.className = `custom-select__option ${selectedConsultant === consultant ? 'selected' : ''}`;
-        option.textContent = consultant;
-        option.onclick = () => selectConsultant(consultant, consultant);
-        list.appendChild(option);
-    });
-}
-
-// Select Consultant Helper
-function selectConsultant(value, label) {
-    selectedConsultant = value;
-
-    // Update Trigger Text
-    const triggerSpan = document.querySelector('.custom-select__trigger span');
-    if (triggerSpan) triggerSpan.textContent = label;
-
-    // Close Dropdown
-    document.getElementById('consultantFilterContainer').classList.remove('open');
-
-    // Re-render list to update selection styles
-    populateConsultantFilter();
-
-    // Apply Filters
-    currentPage = 1;
-    applyFilters();
-    renderInvoices();
-}
-
-// Filter Options in Dropdown
-function filterConsultantOptions(query) {
-    const options = document.querySelectorAll('.custom-select__option');
-    options.forEach(option => {
-        if (option.textContent.toLowerCase().includes(query.toLowerCase())) {
-            option.style.display = 'block';
-        } else {
-            option.style.display = 'none';
-        }
-    });
-}
-
-// Unified Filter Application
-function applyFilters() {
-    const searchQuery = document.getElementById('searchInput').value.toLowerCase();
-    const sortSelect = document.getElementById('sortSelect').value;
-
-    filteredInvoices = allInvoices.filter(inv => {
-        // 1. Search Filter
-        const matchesSearch = !searchQuery ||
-            inv.invoice_number.toLowerCase().includes(searchQuery) ||
-            inv.client_info?.name?.toLowerCase().includes(searchQuery);
-
-        // 2. Consultant Filter
-        let matchesConsultant = true;
-        if (selectedConsultant) {
-            matchesConsultant = inv.items?.some(item =>
-                item.consultant && item.consultant.trim() === selectedConsultant
-            );
-        }
-
-        return matchesSearch && matchesConsultant;
-    });
-
-    // 3. Sort
-    sortInvoices(sortSelect, false); // false = don't re-render yet
-}
-
-// Search invoices (Delegates to applyFilters)
-function searchInvoices() {
-    currentPage = 1;
-    applyFilters();
-    renderInvoices();
-}
-
-// Sort invoices
-function sortInvoices(sortBy, render = true) {
-    switch (sortBy) {
-        case 'date-desc':
-            filteredInvoices.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
-            break
-        case 'date-asc':
-            filteredInvoices.sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
-            break
-        case 'amount-desc':
-            filteredInvoices.sort((a, b) => (b.totals?.total || 0) - (a.totals?.total || 0))
-            break
-        case 'amount-asc':
-            filteredInvoices.sort((a, b) => (a.totals?.total || 0) - (b.totals?.total || 0))
-            break
-        case 'client-asc':
-            filteredInvoices.sort((a, b) => {
-                const nameA = a.client_info?.name || ''
-                const nameB = b.client_info?.name || ''
-                return nameA.localeCompare(nameB)
-            })
-            break
-    }
-    if (render) renderInvoices()
-}
-
-// Render invoices table
-function renderInvoices() {
-    console.log('DEBUG: renderInvoices called, count:', filteredInvoices.length);
-    const tbody = document.getElementById('invoicesBody')
-
-    if (filteredInvoices.length === 0) {
-        console.log('DEBUG: Rendering empty state');
-        tbody.innerHTML = `
-            <tr>
-                <td colspan="5" class="table__empty">
-                    <div class="empty-state">
-                        <span class="empty-state__icon">📭</span>
-                        <p class="empty-state__text">No invoices found</p>
-                        <a href="app.html" class="btn btn--primary btn--sm">Create your first invoice</a>
-                    </div>
-                </td>
-            </tr>
-        `
-        document.getElementById('pagination').innerHTML = ''
-        return
-    }
-
-    // Pagination
-    const startIndex = (currentPage - 1) * itemsPerPage
-    const endIndex = startIndex + itemsPerPage
-    const pageInvoices = filteredInvoices.slice(startIndex, endIndex)
-
-    // Render table rows
-    tbody.innerHTML = filteredInvoices.map(invoice => {
-        const invoiceDate = invoice.invoice_meta?.dateRaw || invoice.invoice_meta?.date || invoice.created_at
-        const status = invoice.status || 'draft'
-        // Determine overdue: sent but past due date and not paid
-        let effectiveStatus = status
-        if (status === 'sent' && invoice.invoice_meta?.dueDateRaw) {
-            const due = new Date(invoice.invoice_meta.dueDateRaw)
-            if (due < new Date()) effectiveStatus = 'overdue'
-        }
-
-        // Build quick action buttons based on current status
-        let statusActions = ''
-        if (effectiveStatus === 'draft') {
-            statusActions = `<button class="action-pill action-pill--sent" onclick="markAsSent('${invoice.id}')">✉ Sent</button>`
-        } else if (effectiveStatus === 'sent' || effectiveStatus === 'overdue') {
-            statusActions = `<button class="action-pill action-pill--paid" onclick="markAsPaid('${invoice.id}')">✓ Paid</button>`
-        } else if (effectiveStatus === 'paid') {
-            statusActions = `<button class="action-pill action-pill--unmark" onclick="unmarkPaid('${invoice.id}')">↩ Unmark</button>`
-        }
-
-        return `
-            <tr>
-                <td>${escapeHtml(invoice.invoice_number)}</td>
-                <td>${escapeHtml(invoice.client_info?.name || 'N/A')}</td>
-                <td>${formatDate(invoiceDate)}</td>
-                <td>${renderStatusBadge(effectiveStatus)}</td>
-                <td>${formatCurrency(invoice.totals?.total || 0)}</td>
-                <td>
-                    <div class="action-pills">
-                        ${statusActions}
-                        <button class="action-pill action-pill--edit" onclick="viewInvoice('${escapeHtml(invoice.invoice_number)}')">Edit</button>
-                        <button class="action-pill action-pill--download" onclick="downloadPDF('${escapeHtml(invoice.invoice_number)}')">PDF</button>
-                        <button class="action-pill action-pill--email" onclick="emailInvoice('${escapeHtml(invoice.invoice_number)}')">Email</button>
-                        <button class="action-pill action-pill--delete" onclick="deleteInvoice('${invoice.id}')">Del</button>
-                    </div>
-                </td>
-            </tr>
-        `
-    }).join('')
-
-    // Render pagination
-    renderPagination()
-}
-
-// Render pagination
-function renderPagination() {
-    const totalPages = Math.ceil(filteredInvoices.length / itemsPerPage)
-    const pagination = document.getElementById('pagination')
-
-    if (totalPages <= 1) {
-        pagination.innerHTML = ''
-        return
-    }
-
-    let html = ''
-
-    // Previous button
-    if (currentPage > 1) {
-        html += `<button class="btn btn--sm" onclick="goToPage(${currentPage - 1})">← Previous</button>`
-    }
-
-    // Page numbers
-    for (let i = 1; i <= totalPages; i++) {
-        if (i === currentPage) {
-            html += `<button class="btn btn--primary btn--sm">${i}</button>`
-        } else if (i === 1 || i === totalPages || Math.abs(i - currentPage) <= 1) {
-            html += `<button class="btn btn--sm" onclick="goToPage(${i})">${i}</button>`
-        } else if (Math.abs(i - currentPage) === 2) {
-            html += `<span style="padding: 0.5rem;">...</span>`
-        }
-    }
-
-    // Next button
-    if (currentPage < totalPages) {
-        html += `<button class="btn btn--sm" onclick="goToPage(${currentPage + 1})">Next →</button>`
-    }
-
-    pagination.innerHTML = html
-}
-
-// Global functions
-window.goToPage = function (page) {
-    currentPage = page
-    renderInvoices()
-}
-
-window.viewInvoice = function (invoiceNumber) {
-    window.location.href = `app.html?invoice_number=${invoiceNumber}`
-}
-
-window.emailInvoice = async function (invoiceNumber) {
-    try {
-        const data = await getInvoice(invoiceNumber);
-        if (!data) throw new Error('Invoice not found');
-
-        const subject = `Invoice ${data.invoice_number} from ${data.business_info.name}`;
-        const total = data.totals.totalDisplay || `$${data.totals.total}`;
-        const body = `Hi ${data.client_info.name},\n\nPlease find attached invoice ${data.invoice_number} for ${total}.\n\nThank you,\n${data.business_info.name}`;
-        const mailto = `mailto:${data.client_info.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-        window.location.href = mailto;
-        showToast('Opening email client...', 'success');
-    } catch (e) {
-        console.error(e);
-        showToast('Error: ' + e.message, 'error');
-    }
-}
-
-window.downloadPDF = async function (invoiceNumber) {
-    try {
-        showToast('Generating PDF...', 'info');
-        const data = await getInvoice(invoiceNumber);
-        if (!data) throw new Error('Invoice not found');
-
-        generatePDF(data);
-        showToast('Download started', 'success');
-    } catch (e) {
-        console.error(e);
-        showToast('Error: ' + e.message, 'error');
-    }
-}
-
-window.deleteInvoice = function (invoiceId) {
-    invoiceToDelete = invoiceId
-    document.getElementById('deleteModal').style.display = 'flex'
-}
-
-// ── Status Quick Actions ──────────────────────────────────────────────────────
-
-window.markAsSent = async function (invoiceId) {
-    try {
-        await updateInvoiceStatus(invoiceId, 'sent')
-        showToast('Marked as Sent', 'success')
-        await loadInvoices()
-    } catch (e) {
-        showToast('Error: ' + e.message, 'error')
-    }
-}
-
-window.unmarkPaid = async function (invoiceId) {
-    try {
-        await updateInvoiceStatus(invoiceId, 'sent')
-        showToast('Moved back to Sent', 'success')
-        await loadInvoices()
-    } catch (e) {
-        showToast('Error: ' + e.message, 'error')
-    }
-}
-
-window.markAsPaid = function (invoiceId) {
-    invoiceToPay = invoiceId
-    // Default the date picker to today
-    const today = new Date().toISOString().split('T')[0]
-    document.getElementById('paidDateInput').value = today
-    document.getElementById('paidDateModal').style.display = 'flex'
-}
-
-// Delete confirmation
-document.getElementById('confirmDelete').addEventListener('click', async () => {
-    if (!invoiceToDelete) return
-
-    try {
-        const { error } = await supabase
-            .from('invoices')
-            .delete()
-            .eq('id', invoiceToDelete)
-
-        if (error) throw error
-
-        showToast('Invoice deleted successfully', 'success')
-
-        // Reload invoices
-        await loadInvoices()
-
-        // Close modal
-        document.getElementById('deleteModal').style.display = 'none'
-        invoiceToDelete = null
-
-    } catch (error) {
-        console.error('Delete error:', error)
-        showToast('Error deleting invoice', 'error')
-    }
-})
-
-document.getElementById('cancelDelete').addEventListener('click', () => {
-    document.getElementById('deleteModal').style.display = 'none'
-    invoiceToDelete = null
-})
-
-// ── Paid Date Modal ───────────────────────────────────────────────────────────
-
-document.getElementById('confirmPaidDate').addEventListener('click', async () => {
-    if (!invoiceToPay) return
-    const paidDate = document.getElementById('paidDateInput').value
-    if (!paidDate) {
-        showToast('Please select a payment date', 'error')
-        return
-    }
-    try {
-        await updateInvoiceStatus(invoiceToPay, 'paid', paidDate)
-        showToast('Marked as Paid ✓', 'success')
-        document.getElementById('paidDateModal').style.display = 'none'
-        invoiceToPay = null
-        await loadInvoices()
-    } catch (e) {
-        showToast('Error: ' + e.message, 'error')
-    }
-})
-
-document.getElementById('cancelPaidDate').addEventListener('click', () => {
-    document.getElementById('paidDateModal').style.display = 'none'
-    invoiceToPay = null
-})
-
-// Load invoices
-async function loadInvoices(currentUser = null) {
-    try {
-        // If not passed, try to get it (though init should pass it)
-        const user = currentUser || await getCurrentUser();
-
-        allInvoices = await getInvoices(user)
-
-        filteredInvoices = [...allInvoices]
-
-        // Apply current sort
-        const sortSelect = document.getElementById('sortSelect')
-
-        // Populate filter based on loaded data
-        populateConsultantFilter();
-
-        // Initial filter application (handles default sort)
-        applyFilters();
-        renderInvoices();
-
-    } catch (error) {
-        console.error('Load invoices error:', error)
-        showToast('Error loading invoices', 'error')
-    }
-}
-
-// Initialize
 async function init() {
-    try {
-        // Check authentication
-        const user = await checkAuth()
-        if (!user) return
-
-        // Update user name
-        const userName = user.user_metadata?.full_name || user.email.split('@')[0]
-        const userNameEl = document.getElementById('userName')
-        if (userNameEl) userNameEl.textContent = userName
-
-        // Load invoices
-        await loadInvoices(user)
-
-        // Setup event listeners
-        document.getElementById('searchInput').addEventListener('input', () => {
-            searchInvoices();
-        });
-
-        // Custom Dropdown Listeners
-        const trigger = document.getElementById('consultantFilterTrigger');
-        const searchInput = document.getElementById('consultantSearchInput');
-
-        if (trigger) {
-            trigger.addEventListener('click', (e) => {
-                e.stopPropagation(); // Prevent closing immediately
-                const container = document.getElementById('consultantFilterContainer');
-                container.classList.toggle('open');
-
-                if (container.classList.contains('open')) {
-                    searchInput.focus();
-                }
-            });
-        }
-
-        if (searchInput) {
-            searchInput.addEventListener('click', (e) => e.stopPropagation()); // Prevent closing when clicking search
-            searchInput.addEventListener('input', (e) => {
-                filterConsultantOptions(e.target.value);
-            });
-        }
-
-        document.getElementById('sortSelect').addEventListener('change', (e) => {
-            sortInvoices(e.target.value);
-        });
-
-    } catch (error) {
-        console.error('Initialization error:', error);
-        showToast('Error loading page', 'error');
-    }
-}
-
-// Global Event Delegation for dynamic elements (Nav, etc.)
-document.addEventListener('click', (e) => {
-    // User Menu Toggle
-    const userMenuBtn = e.target.closest('#userMenuBtn');
-    if (userMenuBtn) {
-        document.getElementById('userMenu').classList.toggle('show');
+    state.user = await getCurrentUser();
+    if (!state.user) {
         return;
     }
 
-    // Close Menu (Click outside)
-    if (!e.target.closest('#userMenu') && !e.target.closest('#userMenuBtn')) {
-        const userMenu = document.getElementById('userMenu');
-        if (userMenu) userMenu.classList.remove('show');
+    cacheElements();
+    hydrateFilterControls();
+    bindEvents();
+    await loadInvoices();
+    setupBroadcastSync();
+}
+
+function cacheElements() {
+    els.searchInput = document.getElementById('searchInput');
+    els.consultantFilter = document.getElementById('consultantFilter');
+    els.statusFilter = document.getElementById('statusFilter');
+    els.currencyFilter = document.getElementById('currencyFilter');
+    els.dueFilter = document.getElementById('dueFilter');
+    els.amountFilter = document.getElementById('amountFilter');
+    els.sortSelect = document.getElementById('sortSelect');
+    els.clearFiltersBtn = document.getElementById('clearFiltersBtn');
+    els.filtersMeta = document.getElementById('filtersMeta');
+
+    els.refreshBtn = document.getElementById('refreshBtn');
+
+    els.tableBody = document.getElementById('invoicesBody');
+    els.pagination = document.getElementById('pagination');
+
+    els.deleteModal = document.getElementById('deleteModal');
+    els.deleteInvoiceMeta = document.getElementById('deleteInvoiceMeta');
+    els.confirmDeleteBtn = document.getElementById('confirmDelete');
+    els.cancelDeleteBtn = document.getElementById('cancelDelete');
+
+    els.paidModal = document.getElementById('paidDateModal');
+    els.paidDateInput = document.getElementById('paidDateInput');
+    els.confirmPaidBtn = document.getElementById('confirmPaidDate');
+    els.cancelPaidBtn = document.getElementById('cancelPaidDate');
+}
+
+function hydrateFilterControls() {
+    if (els.searchInput) els.searchInput.value = state.filters.search;
+    if (els.statusFilter) els.statusFilter.value = state.filters.status;
+    if (els.currencyFilter) els.currencyFilter.value = state.filters.currency;
+    if (els.dueFilter) els.dueFilter.value = state.filters.due;
+    if (els.amountFilter) els.amountFilter.value = state.filters.amount;
+    if (els.sortSelect) els.sortSelect.value = state.filters.sort;
+}
+
+function bindEvents() {
+    els.searchInput?.addEventListener('input', debounce((event) => {
+        state.filters.search = String(event.target.value || '').trim();
+        state.currentPage = 1;
+        persistFilters();
+        applyFiltersAndRender();
+    }, 180));
+
+    els.consultantFilter?.addEventListener('change', (event) => {
+        state.filters.consultant = event.target.value;
+        state.currentPage = 1;
+        persistFilters();
+        applyFiltersAndRender();
+    });
+
+    els.statusFilter?.addEventListener('change', (event) => {
+        state.filters.status = event.target.value;
+        state.currentPage = 1;
+        persistFilters();
+        applyFiltersAndRender();
+    });
+
+    els.currencyFilter?.addEventListener('change', (event) => {
+        state.filters.currency = event.target.value;
+        state.currentPage = 1;
+        persistFilters();
+        applyFiltersAndRender();
+    });
+
+    els.sortSelect?.addEventListener('change', (event) => {
+        state.filters.sort = event.target.value;
+        state.currentPage = 1;
+        persistFilters();
+        applyFiltersAndRender();
+    });
+
+    els.dueFilter?.addEventListener('change', (event) => {
+        state.filters.due = event.target.value;
+        state.currentPage = 1;
+        persistFilters();
+        applyFiltersAndRender();
+    });
+
+    els.amountFilter?.addEventListener('change', (event) => {
+        state.filters.amount = event.target.value;
+        state.currentPage = 1;
+        persistFilters();
+        applyFiltersAndRender();
+    });
+
+    els.clearFiltersBtn?.addEventListener('click', () => {
+        state.filters = { ...DEFAULT_FILTERS };
+        state.currentPage = 1;
+        hydrateFilterControls();
+        populateConsultantFilterOptions();
+        populateCurrencyFilterOptions();
+        persistFilters();
+        applyFiltersAndRender();
+    });
+
+    els.refreshBtn?.addEventListener('click', async () => {
+        els.refreshBtn.disabled = true;
+        try {
+            await loadInvoices();
+            showToast('Invoices refreshed', 'success');
+        } finally {
+            els.refreshBtn.disabled = false;
+        }
+    });
+
+    els.tableBody?.addEventListener('click', async (event) => {
+        const target = event.target;
+        if (!(target instanceof HTMLElement)) return;
+
+        const button = target.closest('[data-action]');
+        if (!(button instanceof HTMLButtonElement)) return;
+
+        const action = button.dataset.action;
+        const invoiceId = button.dataset.id;
+        if (!action || !invoiceId) return;
+
+        const invoice = state.allInvoices.find((entry) => entry.id === invoiceId);
+        if (!invoice) {
+            showToast('Invoice no longer exists in memory. Refresh and try again.', 'error');
+            return;
+        }
+
+        if (action === 'edit') {
+            window.location.href = `app.html?invoice_number=${encodeURIComponent(invoice.invoice_number)}`;
+            return;
+        }
+
+        if (action === 'download') {
+            generatePDF(invoice);
+            showToast('PDF download started', 'success');
+            return;
+        }
+
+        if (action === 'email') {
+            handleEmailInvoice(invoice);
+            return;
+        }
+
+        if (action === 'delete') {
+            openDeleteModal(invoice);
+            return;
+        }
+
+        if (action === 'mark-sent') {
+            await updateStatus(invoice, 'sent');
+            return;
+        }
+
+        if (action === 'mark-paid') {
+            openPaidModal(invoice);
+            return;
+        }
+
+        if (action === 'reopen') {
+            await updateStatus(invoice, 'sent');
+        }
+    });
+
+    els.pagination?.addEventListener('click', (event) => {
+        const target = event.target;
+        if (!(target instanceof HTMLElement)) return;
+
+        const button = target.closest('[data-page]');
+        if (!(button instanceof HTMLButtonElement)) return;
+
+        const page = Number(button.dataset.page);
+        if (!Number.isFinite(page) || page < 1) return;
+
+        state.currentPage = page;
+        renderTable();
+        renderPagination();
+        persistFilters();
+        renderFiltersMeta();
+    });
+
+    els.confirmDeleteBtn?.addEventListener('click', async () => {
+        if (!state.invoiceToDelete) return;
+
+        const invoice = state.invoiceToDelete;
+        els.confirmDeleteBtn.disabled = true;
+
+        try {
+            await unlinkTimesheetsForInvoice(invoice);
+
+            const { error } = await supabase
+                .from('invoices')
+                .delete()
+                .eq('id', invoice.id)
+                .eq('user_id', state.user.id);
+
+            if (error) throw error;
+
+            closeDeleteModal();
+            showToast(`Invoice ${invoice.invoice_number} deleted`, 'success');
+            await loadInvoices();
+        } catch (err) {
+            console.error(err);
+            showToast('Failed to delete invoice', 'error');
+        } finally {
+            els.confirmDeleteBtn.disabled = false;
+        }
+    });
+
+    els.cancelDeleteBtn?.addEventListener('click', closeDeleteModal);
+
+    els.confirmPaidBtn?.addEventListener('click', async () => {
+        if (!state.invoiceToPay) return;
+
+        const paidDate = String(els.paidDateInput?.value || '').trim();
+        if (!paidDate) {
+            showToast('Please select a payment date', 'error');
+            return;
+        }
+
+        els.confirmPaidBtn.disabled = true;
+        try {
+            await updateInvoiceStatus(state.invoiceToPay.id, 'paid', paidDate);
+            await markTimesheetsInvoiced(state.invoiceToPay);
+            closePaidModal();
+            showToast(`Invoice ${state.invoiceToPay.invoice_number} marked as paid`, 'success');
+            await loadInvoices();
+        } catch (err) {
+            console.error(err);
+            showToast('Failed to update invoice status', 'error');
+        } finally {
+            els.confirmPaidBtn.disabled = false;
+        }
+    });
+
+    els.cancelPaidBtn?.addEventListener('click', closePaidModal);
+
+    document.addEventListener('keydown', (event) => {
+        if (event.key !== 'Escape') return;
+        closeDeleteModal();
+        closePaidModal();
+    });
+}
+
+async function loadInvoices() {
+    setLoadingTable();
+
+    try {
+        const [invoices, consultants] = await Promise.all([
+            getInvoices(state.user),
+            dbGetConsultants().catch(() => [])
+        ]);
+
+        state.allInvoices = Array.isArray(invoices) ? invoices : [];
+        state.consultantsById = new Map((consultants || []).map((consultant) => [String(consultant.id), consultant]));
+
+        populateConsultantFilterOptions();
+        populateCurrencyFilterOptions();
+        applyFiltersAndRender();
+    } catch (err) {
+        console.error(err);
+        state.allInvoices = [];
+        state.filteredInvoices = [];
+        setEmptyTable('Failed to load invoices. Please refresh.');
+        renderPagination();
+        renderFiltersMeta();
+        showToast('Error loading invoices', 'error');
+    }
+}
+
+function populateConsultantFilterOptions() {
+    if (!els.consultantFilter) return;
+
+    const options = extractConsultantOptions();
+    const html = ['<option value="all">All Consultants</option>'];
+
+    options.forEach((option) => {
+        html.push(`<option value="${escapeHtml(option.value)}">${escapeHtml(option.label)}</option>`);
+    });
+
+    els.consultantFilter.innerHTML = html.join('');
+
+    const optionValues = new Set(options.map((option) => option.value));
+    if (state.filters.consultant !== 'all' && !optionValues.has(state.filters.consultant)) {
+        state.filters.consultant = 'all';
+        persistFilters();
     }
 
-    // Close Custom Dropdown (Click outside)
-    if (!e.target.closest('#consultantFilterContainer')) {
-        const dropdown = document.getElementById('consultantFilterContainer');
-        if (dropdown) dropdown.classList.remove('open');
+    els.consultantFilter.value = state.filters.consultant;
+}
+
+function populateCurrencyFilterOptions() {
+    if (!els.currencyFilter) return;
+
+    const currencies = new Set(['USD', 'EUR', 'GBP', 'CAD', 'AUD', 'INR']);
+    state.allInvoices.forEach((invoice) => currencies.add(getInvoiceCurrency(invoice)));
+
+    const sorted = Array.from(currencies).sort((a, b) => a.localeCompare(b));
+    const html = ['<option value="all">All Currencies</option>'];
+
+    sorted.forEach((currency) => {
+        html.push(`<option value="${escapeHtml(currency)}">${escapeHtml(currency)}</option>`);
+    });
+
+    els.currencyFilter.innerHTML = html.join('');
+
+    if (state.filters.currency !== 'all' && !currencies.has(state.filters.currency)) {
+        state.filters.currency = 'all';
+        persistFilters();
     }
 
-    // Logout
-    const logoutBtn = e.target.closest('#logoutBtn');
-    if (logoutBtn) {
-        e.preventDefault();
-        signOut();
+    els.currencyFilter.value = state.filters.currency;
+}
+
+function applyFiltersAndRender() {
+    const query = state.filters.search.toLowerCase();
+
+    state.filteredInvoices = state.allInvoices.filter((invoice) => {
+        if (query) {
+            const clientName = String(invoice.client_info?.name || '').toLowerCase();
+            const invoiceNumber = String(invoice.invoice_number || '').toLowerCase();
+            if (!clientName.includes(query) && !invoiceNumber.includes(query)) {
+                return false;
+            }
+        }
+
+        const status = getEffectiveStatus(invoice);
+        if (state.filters.status !== 'all' && status !== state.filters.status) {
+            return false;
+        }
+
+        const currency = getInvoiceCurrency(invoice);
+        if (state.filters.currency !== 'all' && currency !== state.filters.currency) {
+            return false;
+        }
+
+        if (!invoiceMatchesDue(invoice, state.filters.due)) {
+            return false;
+        }
+
+        if (!invoiceMatchesAmount(invoice, state.filters.amount)) {
+            return false;
+        }
+
+        if (!invoiceMatchesConsultant(invoice, state.filters.consultant)) {
+            return false;
+        }
+
+        return true;
+    });
+
+    sortInvoices(state.filteredInvoices, state.filters.sort);
+
+    const totalPages = Math.max(1, Math.ceil(state.filteredInvoices.length / ITEMS_PER_PAGE));
+    if (state.currentPage > totalPages) state.currentPage = totalPages;
+    if (state.currentPage < 1) state.currentPage = 1;
+
+    renderTable();
+    renderPagination();
+    renderFiltersMeta();
+}
+
+function sortInvoices(list, sortBy) {
+    const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
+
+    list.sort((a, b) => {
+        if (sortBy === 'date-desc') {
+            return getInvoiceDateTimestamp(b) - getInvoiceDateTimestamp(a);
+        }
+
+        if (sortBy === 'date-asc') {
+            return getInvoiceDateTimestamp(a) - getInvoiceDateTimestamp(b);
+        }
+
+        if (sortBy === 'amount-desc') {
+            return getInvoiceAmount(b) - getInvoiceAmount(a);
+        }
+
+        if (sortBy === 'amount-asc') {
+            return getInvoiceAmount(a) - getInvoiceAmount(b);
+        }
+
+        if (sortBy === 'client-asc') {
+            return collator.compare(String(a.client_info?.name || ''), String(b.client_info?.name || ''));
+        }
+
+        if (sortBy === 'invoice-asc') {
+            return collator.compare(String(a.invoice_number || ''), String(b.invoice_number || ''));
+        }
+
+        return 0;
+    });
+}
+
+function renderTable() {
+    if (!els.tableBody) return;
+
+    if (state.filteredInvoices.length === 0) {
+        setEmptyTable('No invoices found for selected filters.');
+        return;
     }
-});
 
-// Initialize on page load
-init()
+    const startIndex = (state.currentPage - 1) * ITEMS_PER_PAGE;
+    const pageInvoices = state.filteredInvoices.slice(startIndex, startIndex + ITEMS_PER_PAGE);
 
-// Real-time Sync
-const channel = new BroadcastChannel('app_channel');
-channel.onmessage = (event) => {
-    if (event.data.type === 'invoice_saved') {
-        console.log('Received sync event, reloading...');
-        loadInvoices();
-        showToast('List updated', 'success');
+    els.tableBody.innerHTML = pageInvoices.map((invoice) => {
+        const invoiceDate = formatDate(getInvoiceDateRaw(invoice) || invoice.created_at);
+        const dueDate = formatDate(getDueDateRaw(invoice));
+        const status = getEffectiveStatus(invoice);
+        const currency = getInvoiceCurrency(invoice);
+        const amount = formatMoney(getInvoiceAmount(invoice), currency);
+
+        return `
+            <tr>
+                <td>${escapeHtml(invoice.invoice_number || '—')}</td>
+                <td>${escapeHtml(invoice.client_info?.name || 'N/A')}</td>
+                <td>${invoiceDate}</td>
+                <td>${dueDate}</td>
+                <td>${renderStatusChip(status)}</td>
+                <td>${currency}</td>
+                <td>${amount}</td>
+                <td>
+                    <div class="actions-row">
+                        ${renderStatusAction(invoice, status)}
+                        <button class="action-btn" data-action="edit" data-id="${invoice.id}">Edit</button>
+                        <button class="action-btn" data-action="download" data-id="${invoice.id}">PDF</button>
+                        <button class="action-btn" data-action="email" data-id="${invoice.id}">Email</button>
+                        <button class="action-btn action-btn--danger" data-action="delete" data-id="${invoice.id}">Delete</button>
+                    </div>
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
+
+function renderStatusAction(invoice, effectiveStatus) {
+    if (effectiveStatus === 'draft') {
+        return `<button class="action-btn action-btn--primary" data-action="mark-sent" data-id="${invoice.id}">Mark Sent</button>`;
     }
-};
 
-// Refresh Button
-const refreshBtn = document.getElementById('refreshBtn');
-if (refreshBtn) {
-    refreshBtn.addEventListener('click', () => {
-        refreshBtn.classList.add('spinning');
-        loadInvoices().then(() => {
-            setTimeout(() => refreshBtn.classList.remove('spinning'), 500);
-            showToast('Refreshed');
+    if (effectiveStatus === 'sent' || effectiveStatus === 'overdue') {
+        return `<button class="action-btn action-btn--primary" data-action="mark-paid" data-id="${invoice.id}">Mark Paid</button>`;
+    }
+
+    if (effectiveStatus === 'paid') {
+        return `<button class="action-btn" data-action="reopen" data-id="${invoice.id}">Set Sent</button>`;
+    }
+
+    return '';
+}
+
+function renderPagination() {
+    if (!els.pagination) return;
+
+    const totalPages = Math.ceil(state.filteredInvoices.length / ITEMS_PER_PAGE);
+    if (totalPages <= 1) {
+        els.pagination.innerHTML = '';
+        return;
+    }
+
+    const parts = [];
+
+    if (state.currentPage > 1) {
+        parts.push(`<button class="btn btn--sm" data-page="${state.currentPage - 1}">← Previous</button>`);
+    }
+
+    for (let page = 1; page <= totalPages; page += 1) {
+        if (page === state.currentPage) {
+            parts.push(`<button class="btn btn--primary btn--sm" disabled>${page}</button>`);
+            continue;
+        }
+
+        if (page === 1 || page === totalPages || Math.abs(page - state.currentPage) <= 1) {
+            parts.push(`<button class="btn btn--sm" data-page="${page}">${page}</button>`);
+            continue;
+        }
+
+        if (Math.abs(page - state.currentPage) === 2) {
+            parts.push('<span style="padding: 0.5rem;">...</span>');
+        }
+    }
+
+    if (state.currentPage < totalPages) {
+        parts.push(`<button class="btn btn--sm" data-page="${state.currentPage + 1}">Next →</button>`);
+    }
+
+    els.pagination.innerHTML = parts.join('');
+}
+
+function renderFiltersMeta() {
+    if (!els.filtersMeta) return;
+
+    const appliedFilters = [
+        state.filters.search,
+        state.filters.consultant !== 'all' ? state.filters.consultant : '',
+        state.filters.status !== 'all' ? state.filters.status : '',
+        state.filters.currency !== 'all' ? state.filters.currency : '',
+        state.filters.due !== 'all' ? state.filters.due : '',
+        state.filters.amount !== 'all' ? state.filters.amount : ''
+    ].filter(Boolean).length;
+
+    const totalPages = Math.max(1, Math.ceil(state.filteredInvoices.length / ITEMS_PER_PAGE));
+
+    els.filtersMeta.textContent = `${appliedFilters} filter${appliedFilters === 1 ? '' : 's'} applied • ${state.filteredInvoices.length}/${state.allInvoices.length} invoices • Page ${state.currentPage}/${totalPages}`;
+}
+
+function setLoadingTable() {
+    if (!els.tableBody) return;
+
+    els.tableBody.innerHTML = `
+        <tr>
+            <td colspan="8" class="table__empty">
+                <div class="empty-state">
+                    <span class="empty-state__icon">⏳</span>
+                    <p class="empty-state__text">Loading invoices...</p>
+                </div>
+            </td>
+        </tr>
+    `;
+}
+
+function setEmptyTable(message) {
+    if (!els.tableBody) return;
+
+    els.tableBody.innerHTML = `
+        <tr>
+            <td colspan="8" class="table__empty">
+                <div class="empty-state">
+                    <span class="empty-state__icon">📭</span>
+                    <p class="empty-state__text">${escapeHtml(message)}</p>
+                    <a href="app.html" class="btn btn--primary btn--sm">Create invoice</a>
+                </div>
+            </td>
+        </tr>
+    `;
+}
+
+function openDeleteModal(invoice) {
+    state.invoiceToDelete = invoice;
+    if (els.deleteInvoiceMeta) {
+        els.deleteInvoiceMeta.textContent = `Invoice ${invoice.invoice_number || '—'} • Client ${invoice.client_info?.name || 'N/A'}`;
+    }
+    if (els.deleteModal) {
+        els.deleteModal.style.display = 'flex';
+    }
+}
+
+function closeDeleteModal() {
+    state.invoiceToDelete = null;
+    if (els.deleteModal) {
+        els.deleteModal.style.display = 'none';
+    }
+}
+
+function openPaidModal(invoice) {
+    state.invoiceToPay = invoice;
+    if (els.paidDateInput) {
+        els.paidDateInput.value = new Date().toISOString().slice(0, 10);
+    }
+    if (els.paidModal) {
+        els.paidModal.style.display = 'flex';
+    }
+}
+
+function closePaidModal() {
+    state.invoiceToPay = null;
+    if (els.paidModal) {
+        els.paidModal.style.display = 'none';
+    }
+}
+
+async function updateStatus(invoice, nextStatus) {
+    try {
+        await updateInvoiceStatus(invoice.id, nextStatus);
+
+        if (nextStatus === 'sent' || nextStatus === 'paid') {
+            await markTimesheetsInvoiced(invoice);
+        }
+
+        showToast(`Invoice ${invoice.invoice_number} updated to ${nextStatus}`, 'success');
+        await loadInvoices();
+    } catch (err) {
+        console.error(err);
+        showToast('Failed to update invoice status', 'error');
+    }
+}
+
+function handleEmailInvoice(invoice) {
+    const email = String(invoice.client_info?.email || '').trim();
+    if (!email) {
+        showToast('Client email is missing', 'error');
+        return;
+    }
+
+    const subject = `Invoice ${invoice.invoice_number} from ${invoice.business_info?.name || 'Your Company'}`;
+    const total = formatMoney(getInvoiceAmount(invoice), getInvoiceCurrency(invoice));
+    const body = `Hi ${invoice.client_info?.name || ''},\n\nPlease find attached invoice ${invoice.invoice_number} for ${total}.\n\nThank you,\n${invoice.business_info?.name || ''}`;
+
+    window.location.href = `mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    showToast('Opening email client...', 'success');
+}
+
+async function unlinkTimesheetsForInvoice(invoice) {
+    const patch = {
+        invoice_id: null,
+        invoice_number: null,
+        status: 'pending'
+    };
+
+    const tableExistsGuard = (error) => {
+        if (!error) return;
+        if (error.code === '42P01') return;
+        throw error;
+    };
+
+    const { error: byIdError } = await supabase
+        .from('timesheets')
+        .update(patch)
+        .eq('user_id', state.user.id)
+        .eq('invoice_id', invoice.id);
+
+    tableExistsGuard(byIdError);
+
+    const { error: byNumberError } = await supabase
+        .from('timesheets')
+        .update(patch)
+        .eq('user_id', state.user.id)
+        .eq('invoice_number', invoice.invoice_number);
+
+    tableExistsGuard(byNumberError);
+}
+
+async function markTimesheetsInvoiced(invoice) {
+    const patch = {
+        status: 'invoiced',
+        invoice_number: invoice.invoice_number
+    };
+
+    const tableExistsGuard = (error) => {
+        if (!error) return;
+        if (error.code === '42P01') return;
+        throw error;
+    };
+
+    const { error: byIdError } = await supabase
+        .from('timesheets')
+        .update(patch)
+        .eq('user_id', state.user.id)
+        .eq('invoice_id', invoice.id);
+
+    tableExistsGuard(byIdError);
+
+    const { error: byNumberError } = await supabase
+        .from('timesheets')
+        .update(patch)
+        .eq('user_id', state.user.id)
+        .eq('invoice_number', invoice.invoice_number);
+
+    tableExistsGuard(byNumberError);
+}
+
+function extractConsultantOptions() {
+    const map = new Map();
+
+    state.allInvoices.forEach((invoice) => {
+        const items = Array.isArray(invoice.items) ? invoice.items : [];
+        items.forEach((item) => {
+            const consultantId = String(item.consultant_id || '').trim();
+            const consultantName = String(item.consultant || '').trim();
+
+            if (consultantId) {
+                const key = `id:${consultantId}`;
+                const canonicalName = consultantName || state.consultantsById.get(consultantId)?.name || `Consultant ${consultantId.slice(0, 8)}`;
+                if (!map.has(key)) {
+                    map.set(key, { value: key, label: canonicalName });
+                }
+                return;
+            }
+
+            if (!consultantName) return;
+            const key = `name:${consultantName.toLowerCase()}`;
+            if (!map.has(key)) {
+                map.set(key, { value: key, label: consultantName });
+            }
         });
     });
+
+    return Array.from(map.values()).sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: 'base' }));
+}
+
+function invoiceMatchesConsultant(invoice, consultantFilter) {
+    if (!consultantFilter || consultantFilter === 'all') return true;
+
+    const items = Array.isArray(invoice.items) ? invoice.items : [];
+    if (consultantFilter.startsWith('id:')) {
+        const id = consultantFilter.slice(3);
+        return items.some((item) => String(item.consultant_id || '').trim() === id);
+    }
+
+    if (consultantFilter.startsWith('name:')) {
+        const targetName = consultantFilter.slice(5);
+        return items.some((item) => String(item.consultant || '').trim().toLowerCase() === targetName);
+    }
+
+    return true;
+}
+
+function invoiceMatchesDue(invoice, dueFilter) {
+    if (!dueFilter || dueFilter === 'all') return true;
+    const status = getEffectiveStatus(invoice);
+
+    const dueTimestamp = Date.parse(getDueDateRaw(invoice));
+    if (Number.isNaN(dueTimestamp)) {
+        return dueFilter === 'no-due';
+    }
+
+    const today = new Date();
+    const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
+    const ms7 = 7 * 24 * 60 * 60 * 1000;
+    const ms30 = 30 * 24 * 60 * 60 * 1000;
+
+    if (dueFilter === 'overdue') {
+        return status !== 'paid' && dueTimestamp < todayStart;
+    }
+
+    if (dueFilter === 'next-7') {
+        return status !== 'paid' && dueTimestamp >= todayStart && dueTimestamp <= todayStart + ms7;
+    }
+
+    if (dueFilter === 'next-30') {
+        return status !== 'paid' && dueTimestamp >= todayStart && dueTimestamp <= todayStart + ms30;
+    }
+
+    if (dueFilter === 'no-due') {
+        return false;
+    }
+
+    return true;
+}
+
+function invoiceMatchesAmount(invoice, amountFilter) {
+    if (!amountFilter || amountFilter === 'all') return true;
+
+    const amount = getInvoiceAmount(invoice);
+    if (amountFilter === 'under-1000') return amount < 1000;
+    if (amountFilter === '1000-5000') return amount >= 1000 && amount <= 5000;
+    if (amountFilter === '5000-10000') return amount > 5000 && amount <= 10000;
+    if (amountFilter === 'over-10000') return amount > 10000;
+
+    return true;
+}
+
+function getInvoiceAmount(invoice) {
+    return Number(invoice.totals?.total) || 0;
+}
+
+function getInvoiceCurrency(invoice) {
+    return String(invoice.invoice_meta?.currency || 'USD').toUpperCase();
+}
+
+function getInvoiceDateRaw(invoice) {
+    return String(invoice.invoice_meta?.dateRaw || invoice.invoice_meta?.date || '').trim();
+}
+
+function getDueDateRaw(invoice) {
+    return String(invoice.invoice_meta?.dueDateRaw || invoice.invoice_meta?.dueDate || '').trim();
+}
+
+function getInvoiceDateTimestamp(invoice) {
+    const raw = getInvoiceDateRaw(invoice);
+    const parsed = Date.parse(raw);
+    if (!Number.isNaN(parsed)) return parsed;
+
+    const created = Date.parse(String(invoice.created_at || ''));
+    if (!Number.isNaN(created)) return created;
+
+    return 0;
+}
+
+function getEffectiveStatus(invoice) {
+    const status = String(invoice.status || 'draft').toLowerCase();
+    if (status !== 'sent') {
+        return status === 'paid' ? 'paid' : status === 'draft' ? 'draft' : 'draft';
+    }
+
+    const dueRaw = getDueDateRaw(invoice);
+    const dueTs = Date.parse(dueRaw);
+    if (Number.isNaN(dueTs)) return 'sent';
+
+    const today = new Date();
+    const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
+    return dueTs < todayStart ? 'overdue' : 'sent';
+}
+
+function renderStatusChip(status) {
+    const normalized = String(status || 'draft').toLowerCase();
+
+    if (normalized === 'sent') {
+        return '<span class="status-chip status-chip--sent">Sent</span>';
+    }
+
+    if (normalized === 'paid') {
+        return '<span class="status-chip status-chip--paid">Paid</span>';
+    }
+
+    if (normalized === 'overdue') {
+        return '<span class="status-chip status-chip--overdue">Overdue</span>';
+    }
+
+    return '<span class="status-chip status-chip--draft">Draft</span>';
+}
+
+function formatMoney(amount, currency) {
+    try {
+        return new Intl.NumberFormat('en-US', {
+            style: 'currency',
+            currency: currency || 'USD'
+        }).format(Number(amount) || 0);
+    } catch (err) {
+        return `${currency || 'USD'} ${(Number(amount) || 0).toFixed(2)}`;
+    }
+}
+
+function formatDate(dateString) {
+    if (!dateString) return '—';
+    const parsed = Date.parse(String(dateString));
+    if (Number.isNaN(parsed)) return '—';
+
+    return new Date(parsed).toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric'
+    });
+}
+
+function setupBroadcastSync() {
+    state.channel = new BroadcastChannel('app_channel');
+    state.channel.onmessage = async (event) => {
+        if (event.data?.type !== 'invoice_saved') return;
+        await loadInvoices();
+        showToast('Invoice list updated', 'success');
+    };
+}
+
+function loadFilters() {
+    try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return { ...DEFAULT_FILTERS };
+
+        const parsed = JSON.parse(raw);
+        return {
+            ...DEFAULT_FILTERS,
+            search: String(parsed.search || ''),
+            consultant: String(parsed.consultant || 'all'),
+            status: String(parsed.status || 'all'),
+            currency: String(parsed.currency || 'all').toUpperCase() === 'ALL' ? 'all' : String(parsed.currency || 'all').toUpperCase(),
+            due: String(parsed.due || 'all'),
+            amount: String(parsed.amount || 'all'),
+            sort: String(parsed.sort || DEFAULT_FILTERS.sort)
+        };
+    } catch (err) {
+        return { ...DEFAULT_FILTERS };
+    }
+}
+
+function persistFilters() {
+    try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(state.filters));
+    } catch (err) {
+        console.warn('Failed to persist invoice filters', err);
+    }
+}
+
+function escapeHtml(value) {
+    return String(value || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
 }

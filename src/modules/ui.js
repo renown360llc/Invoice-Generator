@@ -16,6 +16,14 @@ export function gatherFormData() {
     document.querySelectorAll('.item-card').forEach(card => {
         const qty = parseFloat(card.querySelector('.item-qty').value) || 0;
         const rate = parseFloat(card.querySelector('.item-rate').value) || 0;
+        const timesheetIdsRaw = card.querySelector('.item-timesheet-ids')?.value || '[]';
+        let timesheetIds = [];
+        try {
+            const parsed = JSON.parse(timesheetIdsRaw);
+            if (Array.isArray(parsed)) timesheetIds = parsed;
+        } catch (e) {
+            timesheetIds = [];
+        }
         items.push({
             desc: card.querySelector('.item-desc').value,
             qty: qty,
@@ -24,6 +32,8 @@ export function gatherFormData() {
             amountDisplay: card.querySelector('[data-amount]').textContent,
             client: card.querySelector('.item-client').value,
             consultant: card.querySelector('.item-consultant').value,
+            consultant_id: card.querySelector('.item-consultant-id')?.value || '',
+            timesheet_ids: timesheetIds,
             period: card.querySelector('.item-period').value,
             notes: card.querySelector('.item-notes').value
         });
@@ -337,6 +347,8 @@ export function addItem() {
             </div>
         </div>
         <div class="item-card__details">
+             <input type="hidden" class="item-consultant-id" value="">
+             <input type="hidden" class="item-timesheet-ids" value="[]">
              <div class="form-field"><input type="text" class="form-field__input item-client" placeholder="Client (optional)"></div>
              <div class="form-field"><input type="text" class="form-field__input item-consultant" placeholder="Consultant (optional)"></div>
              <div class="form-field"><input type="text" class="form-field__input item-period" placeholder="Billing Period (optional)"></div>
@@ -431,6 +443,10 @@ export function fillFormWithData(data) {
             lastCard.querySelector('.item-rate').value = itemData.rate || 0;
             lastCard.querySelector('.item-client').value = itemData.client || '';
             lastCard.querySelector('.item-consultant').value = itemData.consultant || '';
+            const consultantIdInput = lastCard.querySelector('.item-consultant-id');
+            if (consultantIdInput) consultantIdInput.value = itemData.consultant_id || '';
+            const timesheetIdsInput = lastCard.querySelector('.item-timesheet-ids');
+            if (timesheetIdsInput) timesheetIdsInput.value = JSON.stringify(itemData.timesheet_ids || []);
             lastCard.querySelector('.item-period').value = itemData.period || '';
             lastCard.querySelector('.item-notes').value = itemData.notes || '';
         });

@@ -21,6 +21,104 @@
         body {
             display: none;
         }
+
+        .invoices-filters-grid {
+            display: grid;
+            grid-template-columns: repeat(9, minmax(0, 1fr));
+            gap: 0.75rem;
+            margin-bottom: 0.75rem;
+        }
+
+        #searchInput {
+            grid-column: span 2;
+        }
+
+        .filters-meta {
+            margin-top: 0.35rem;
+            font-size: 0.8125rem;
+            color: var(--text-secondary);
+        }
+
+        .actions-row {
+            display: flex;
+            gap: 0.375rem;
+            flex-wrap: wrap;
+        }
+
+        .action-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid var(--surface-glass-border);
+            border-radius: 8px;
+            padding: 0.3rem 0.55rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+            background: white;
+            color: var(--text-primary);
+            cursor: pointer;
+        }
+
+        .action-btn:hover {
+            background: #f8fafc;
+        }
+
+        .action-btn--primary {
+            background: var(--primary);
+            border-color: var(--primary);
+            color: white;
+        }
+
+        .action-btn--danger {
+            background: #fff1f2;
+            border-color: #fecdd3;
+            color: #be123c;
+        }
+
+        .status-chip {
+            display: inline-flex;
+            align-items: center;
+            border-radius: 999px;
+            padding: 0.25rem 0.5rem;
+            font-size: 0.72rem;
+            font-weight: 600;
+        }
+
+        .status-chip--draft {
+            background: #f3f4f6;
+            color: #4b5563;
+        }
+
+        .status-chip--sent {
+            background: #dbeafe;
+            color: #1d4ed8;
+        }
+
+        .status-chip--paid {
+            background: #dcfce7;
+            color: #166534;
+        }
+
+        .status-chip--overdue {
+            background: #fee2e2;
+            color: #b91c1c;
+        }
+
+        @media (max-width: 1200px) {
+            .invoices-filters-grid {
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+            }
+
+            #searchInput {
+                grid-column: span 1;
+            }
+        }
+
+        @media (max-width: 760px) {
+            .invoices-filters-grid {
+                grid-template-columns: 1fr;
+            }
+        }
     </style>
     <script type="module">
         import { requireAuth } from './src/auth.js';
@@ -40,8 +138,8 @@
             <!-- Header -->
             <div class="dashboard__header">
                 <div>
-                    <h1 class="dashboard__title">All Invoices</h1>
-                    <p class="dashboard__subtitle">Manage and track your invoices</p>
+                    <h1 class="dashboard__title">Invoices</h1>
+                    <p class="dashboard__subtitle">Track created invoices, payment status, and linked timesheet coverage.</p>
                 </div>
                 <div style="display: flex; gap: 0.5rem;">
                     <button id="refreshBtn" class="btn btn--outline" title="Refresh List">
@@ -60,31 +158,49 @@
 
             <!-- Search & Filters -->
             <div class="section">
-                <div class="invoices-filter-bar">
+                <div class="invoices-filters-grid">
+                    <select id="statusFilter" class="sort-select" aria-label="Filter by status">
+                        <option value="all">All Status</option>
+                        <option value="draft">Draft</option>
+                        <option value="sent">Sent</option>
+                        <option value="paid">Paid</option>
+                        <option value="overdue">Overdue</option>
+                    </select>
+                    <select id="consultantFilter" class="sort-select" aria-label="Filter by consultant">
+                        <option value="all">All Consultants</option>
+                    </select>
+                    <select id="currencyFilter" class="sort-select" aria-label="Filter by currency">
+                        <option value="all">All Currencies</option>
+                    </select>
+                    <select id="dueFilter" class="sort-select" aria-label="Filter by due date">
+                        <option value="all">All Due Dates</option>
+                        <option value="overdue">Overdue</option>
+                        <option value="next-7">Due in 7 Days</option>
+                        <option value="next-30">Due in 30 Days</option>
+                        <option value="no-due">No Due Date</option>
+                    </select>
+                    <select id="amountFilter" class="sort-select" aria-label="Filter by amount">
+                        <option value="all">All Amounts</option>
+                        <option value="under-1000">Under 1,000</option>
+                        <option value="1000-5000">1,000 to 5,000</option>
+                        <option value="5000-10000">5,000 to 10,000</option>
+                        <option value="over-10000">Over 10,000</option>
+                    </select>
                     <input type="text" id="searchInput" class="search-input"
-                        placeholder="Search by invoice # or client name...">
-                    <div id="consultantFilterContainer" class="custom-select" style="min-width: 180px;">
-                        <div class="custom-select__trigger" id="consultantFilterTrigger">
-                            <span>All Consultants</span>
-                            <div class="arrow"></div>
-                        </div>
-                        <div class="custom-select__dropdown" id="consultantFilterDropdown">
-                            <div class="custom-select__search">
-                                <input type="text" placeholder="Search..." id="consultantSearchInput">
-                            </div>
-                            <div class="custom-select__list" id="consultantList">
-                                <!-- Options injected here -->
-                            </div>
-                        </div>
-                    </div>
+                        placeholder="Search invoice # or client...">
                     <select id="sortSelect" class="sort-select">
                         <option value="date-desc">Newest First</option>
                         <option value="date-asc">Oldest First</option>
                         <option value="amount-desc">Highest Amount</option>
                         <option value="amount-asc">Lowest Amount</option>
                         <option value="client-asc">Client A-Z</option>
+                        <option value="invoice-asc">Invoice # A-Z</option>
                     </select>
+                    <button id="clearFiltersBtn" class="btn btn--ghost" type="button">
+                        Clear All
+                    </button>
                 </div>
+                <p id="filtersMeta" class="filters-meta">0 filters applied</p>
 
                 <!-- Invoices Table -->
                 <div class="table-container">
@@ -93,15 +209,17 @@
                             <tr>
                                 <th>Invoice #</th>
                                 <th>Client</th>
-                                <th>Date</th>
+                                <th>Invoice Date</th>
+                                <th>Due Date</th>
                                 <th>Status</th>
+                                <th>Currency</th>
                                 <th>Amount</th>
                                 <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody id="invoicesBody">
                             <tr>
-                                <td colspan="6" class="table__empty">
+                                <td colspan="8" class="table__empty">
                                     <div class="empty-state">
                                         <span class="empty-state__icon">⏳</span>
                                         <p class="empty-state__text">Loading invoices...</p>
@@ -124,8 +242,9 @@
         style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center;">
         <div style="background: white; border-radius: 1rem; padding: 2rem; max-width: 400px; margin: 1rem;">
             <h3 style="font-size: 1.25rem; font-weight: 700; margin-bottom: 0.5rem;">Delete Invoice?</h3>
+            <p id="deleteInvoiceMeta" style="color: var(--text-secondary); font-size: 0.8125rem; margin-bottom: 0.5rem;"></p>
             <p style="color: var(--gray-600); margin-bottom: 1.5rem;">This action cannot be undone. The invoice will be
-                permanently deleted.</p>
+                permanently deleted and linked timesheets will be set back to pending.</p>
             <div style="display: flex; gap: 1rem; justify-content: flex-end;">
                 <button id="cancelDelete" class="btn"
                     style="background: var(--gray-200); color: var(--gray-700);">Cancel</button>
