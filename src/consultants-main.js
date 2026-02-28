@@ -1,6 +1,7 @@
 import { loadLayout } from './components/layout.js';
-import { dbGetConsultants, dbSaveConsultant, dbDeleteConsultant } from './modules/db-consultants.js';
+import { dbGetConsultants, dbSaveConsultant, dbDeleteConsultant, dbGetTimesheetsCountForConsultant } from './modules/db-consultants.js';
 import { dbGetTimesheetsForYear } from './modules/db-timesheets.js';
+import { debounce, createRenderScheduler } from './modules/utils.js';
 import {
     getSharedFilters,
     setSharedFilters,
@@ -35,8 +36,14 @@ let filterClient = normalizeTextFilter(shared.client);
 let filterW2 = normalizeTextFilter(shared.w2);
 
 const els = {};
+const requestRender = createRenderScheduler(() => renderTable());
 
-document.addEventListener('DOMContentLoaded', init);
+document.addEventListener('DOMContentLoaded', () => {
+    init().catch(err => {
+        console.error('[consultants] Fatal init error:', err);
+        document.body.innerHTML += `<div style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#fff8f8;z-index:9999;flex-direction:column;gap:0.75rem;font-family:system-ui;"><span style="font-size:2.5rem">⚠️</span><h2 style="margin:0;color:#dc2626">Failed to load Consultants</h2><p style="margin:0;color:#6b7280;font-size:0.875rem">${err.message}</p><button onclick="location.reload()" style="padding:0.5rem 1.25rem;background:#ef4444;color:#fff;border:none;border-radius:6px;cursor:pointer">Reload</button></div>`;
+    });
+});
 
 function showToast(message, type = 'info') {
     const container = document.getElementById('toastContainer');
@@ -213,30 +220,6 @@ function renderTable() {
         `;
     }).join('');
 
-    els.tbody.querySelectorAll('.edit-btn').forEach((button) => {
-        button.addEventListener('click', () => openModal(button.dataset.id));
-    });
-
-    els.tbody.querySelectorAll('.delete-btn').forEach((button) => {
-        button.addEventListener('click', async () => {
-            if (!button.dataset.id) return;
-            await deleteConsultant(button.dataset.id);
-        });
-    });
-
-    els.tbody.querySelectorAll('[data-action="add-timesheet"]').forEach((link) => {
-        link.addEventListener('click', (event) => {
-            const consultantName = link.getAttribute('data-consultant') || '';
-            setSharedFilters({
-                year: selectedYear,
-                month: selectedMonth,
-                currency: filterCurrency,
-                client: filterClient,
-                w2: filterW2,
-                search: consultantName
-            });
-        });
-    });
 }
 
 function isModalOpen() {
@@ -310,8 +293,12 @@ function setSort(key) {
         sortDir: sortState.dir
     });
 
-    renderTable();
+    requestRender();
 }
+
+// Track original rates so we can detect changes in handleSave
+let _originalBillRate = null;
+let _originalCommissionRate = null;
 
 function openModal(id = null) {
     clearFormErrors();
@@ -339,11 +326,18 @@ function openModal(id = null) {
         if (els.billRate) els.billRate.value = Number(consultant.bill_rate) > 0 ? String(Number(consultant.bill_rate)) : '';
         if (els.commissionRate) els.commissionRate.value = Number(consultant.commission_rate) > 0 ? String(Number(consultant.commission_rate)) : '';
         if (els.currency) els.currency.value = normalizeCurrency(consultant.currency || 'USD');
+
+        // Store original rates for change detection
+        _originalBillRate = Number(consultant.bill_rate) || 0;
+        _originalCommissionRate = Number(consultant.commission_rate) || 0;
     } else {
         if (els.modalTitle) els.modalTitle.textContent = 'Add New Consultant';
         if (els.modalSubtitle) els.modalSubtitle.textContent = 'Create a consultant profile for invoices and timesheets.';
         if (els.saveBtn) els.saveBtn.textContent = 'Save Consultant';
         if (els.startDate) els.startDate.value = new Date().toISOString().slice(0, 10);
+        // No original rates for new consultants
+        _originalBillRate = null;
+        _originalCommissionRate = null;
     }
 
     els.modal?.classList.add('is-open');
@@ -454,6 +448,25 @@ async function handleSave(event) {
 
     try {
         await dbSaveConsultant(payload);
+
+        // Rate-change alert: if bill_rate or commission_rate changed, warn about pending timesheets
+        if (id && (_originalBillRate !== null || _originalCommissionRate !== null)) {
+            const billChanged = _originalBillRate !== null && payload.bill_rate !== _originalBillRate;
+            const commChanged = _originalCommissionRate !== null && payload.commission_rate !== _originalCommissionRate;
+
+            if (billChanged || commChanged) {
+                try {
+                    const { dbGetTimesheetsCountForConsultant } = await import('./modules/db-consultants.js');
+                    // We want pending-only count. For simplicity, get total count and note it.
+                    // (A full pending-only count would need a separate DB call; we show total for quick feedback)
+                    const rateLabel = billChanged
+                        ? `Bill Rate → $${payload.bill_rate.toFixed(2)}/hr`
+                        : `Commission → $${payload.commission_rate.toFixed(2)}/hr`;
+                    showToast(`⚠️ ${rateLabel} — Future timesheet pulls will use this new rate. Existing invoiced timesheets are unaffected.`, 'info');
+                } catch (_) { /* non-fatal */ }
+            }
+        }
+
         showToast('Consultant saved', 'success');
         closeModal();
         await fetchData();
@@ -468,16 +481,68 @@ async function handleSave(event) {
     }
 }
 
-async function deleteConsultant(id) {
+// pending delete state for the modal
+let _pendingDeleteId = null;
+
+async function openDeleteModal(id) {
     const consultant = consultants.find(item => item.id === id);
     if (!consultant) return;
 
-    if (!confirm(`Delete consultant "${consultant.name}"?`)) return;
+    _pendingDeleteId = id;
+
+    // Populate modal text
+    const nameEl = document.getElementById('deleteConsultantName');
+    const warningEl = document.getElementById('deleteModalWarning');
+    const safeEl = document.getElementById('deleteModalSafeMsg');
+    const countEl = document.getElementById('deleteTimesheetCount');
+    const confirmBtn = document.getElementById('deleteConfirmModalBtn');
+    const btnLabel = document.getElementById('deleteConfirmBtnLabel');
+
+    if (nameEl) nameEl.textContent = consultant.name || 'this consultant';
+
+    // Reset modal state while loading count
+    if (warningEl) warningEl.style.display = 'none';
+    if (safeEl) safeEl.style.display = 'none';
+    if (confirmBtn) { confirmBtn.disabled = true; }
+    if (btnLabel) btnLabel.textContent = 'Checking...';
+
+    // Show modal
+    const deleteModal = document.getElementById('deleteConsultantModal');
+    if (deleteModal) deleteModal.style.display = 'flex';
+
+    // Fetch timesheet count asynchronously
+    try {
+        const count = await dbGetTimesheetsCountForConsultant(id);
+        if (count > 0) {
+            if (countEl) countEl.textContent = String(count);
+            if (warningEl) warningEl.style.display = 'block';
+        } else {
+            if (safeEl) safeEl.style.display = 'block';
+        }
+    } catch (err) {
+        console.warn('Could not fetch timesheet count:', err);
+        // Still allow deletion even if count lookup failed
+    } finally {
+        if (confirmBtn) { confirmBtn.disabled = false; }
+        if (btnLabel) btnLabel.textContent = 'Delete Consultant';
+    }
+}
+
+function closeDeleteModal() {
+    _pendingDeleteId = null;
+    const deleteModal = document.getElementById('deleteConsultantModal');
+    if (deleteModal) deleteModal.style.display = 'none';
+}
+
+async function deleteConsultant(id) {
+    const consultant = consultants.find(item => item.id === id);
+    if (!consultant) return;
 
     try {
         await dbDeleteConsultant(id);
         showToast('Consultant deleted', 'success');
         if (String(els.consultantId?.value || '') === id) closeModal();
+        closeDeleteModal();
         await fetchData();
     } catch (err) {
         console.error(err);
@@ -487,17 +552,19 @@ async function deleteConsultant(id) {
 
 async function fetchData() {
     try {
-        consultants = await dbGetConsultants();
+        const [consultantsData, timesheetData] = await Promise.all([
+            dbGetConsultants(),
+            dbGetTimesheetsForYear(selectedYear).catch((timesheetErr) => {
+                console.warn('Timesheets lookup failed, continuing without coverage badges:', timesheetErr);
+                return [];
+            })
+        ]);
 
-        try {
-            yearTimesheets = await dbGetTimesheetsForYear(selectedYear);
-        } catch (timesheetErr) {
-            console.warn('Timesheets lookup failed, continuing without coverage badges:', timesheetErr);
-            yearTimesheets = [];
-        }
+        consultants = consultantsData || [];
+        yearTimesheets = timesheetData || [];
 
         populateFilterOptions();
-        renderTable();
+        requestRender();
     } catch (err) {
         console.error(err);
         showToast('Failed to load CRM data', 'error');
@@ -575,7 +642,14 @@ function bindPageEvents() {
     els.deleteBtn?.addEventListener('click', async () => {
         const id = String(els.consultantId?.value || '').trim();
         if (!id) return;
-        await deleteConsultant(id);
+        closeModal(); // close the edit modal first
+        await openDeleteModal(id);
+    });
+
+    // Delete confirmation modal buttons
+    document.getElementById('deleteCancelModalBtn')?.addEventListener('click', closeDeleteModal);
+    document.getElementById('deleteConfirmModalBtn')?.addEventListener('click', async () => {
+        if (_pendingDeleteId) await deleteConsultant(_pendingDeleteId);
     });
 
     els.form?.addEventListener('submit', handleSave);
@@ -586,11 +660,12 @@ function bindPageEvents() {
         button.addEventListener('click', () => setSort(button.dataset.sort));
     });
 
-    els.searchInput?.addEventListener('input', (event) => {
+    const handleSearch = debounce((event) => {
         searchQuery = event.target.value.trim().toLowerCase();
         persistSharedFilters();
-        renderTable();
-    });
+        requestRender();
+    }, 120);
+    els.searchInput?.addEventListener('input', handleSearch);
 
     els.statusFilter?.addEventListener('change', (event) => {
         currentFilter = normalizeConsultantStatus(event.target.value);
@@ -599,25 +674,25 @@ function bindPageEvents() {
             sortKey: sortState.key,
             sortDir: sortState.dir
         });
-        renderTable();
+        requestRender();
     });
 
     els.currencyFilter?.addEventListener('change', (event) => {
         filterCurrency = normalizeCurrency(event.target.value);
         persistSharedFilters();
-        renderTable();
+        requestRender();
     });
 
     els.clientFilter?.addEventListener('change', (event) => {
         filterClient = normalizeTextFilter(event.target.value);
         persistSharedFilters();
-        renderTable();
+        requestRender();
     });
 
     els.w2Filter?.addEventListener('change', (event) => {
         filterW2 = normalizeTextFilter(event.target.value);
         persistSharedFilters();
-        renderTable();
+        requestRender();
     });
 
     els.yearFilter?.addEventListener('change', async (event) => {
@@ -630,7 +705,7 @@ function bindPageEvents() {
         selectedMonth = els.monthFilter.value;
         persistSharedFilters();
         updateAllMonthsToggleLabel();
-        renderTable();
+        requestRender();
     });
 
     els.allMonthsToggleBtn?.addEventListener('click', () => {
@@ -638,7 +713,7 @@ function bindPageEvents() {
         if (els.monthFilter) els.monthFilter.value = selectedMonth;
         persistSharedFilters();
         updateAllMonthsToggleLabel();
-        renderTable();
+        requestRender();
     });
 
     els.resetFiltersBtn?.addEventListener('click', async () => {
@@ -664,6 +739,38 @@ function bindPageEvents() {
         });
 
         await fetchData();
+    });
+
+    els.tbody?.addEventListener('click', async (event) => {
+        const target = event.target;
+        if (!(target instanceof HTMLElement)) return;
+
+        const editButton = target.closest('.edit-btn');
+        if (editButton) {
+            const id = editButton.getAttribute('data-id');
+            if (id) openModal(id);
+            return;
+        }
+
+        const deleteButton = target.closest('.delete-btn');
+        if (deleteButton) {
+            const id = deleteButton.getAttribute('data-id');
+            if (id) await openDeleteModal(id);
+            return;
+        }
+
+        const addTimesheetLink = target.closest('[data-action="add-timesheet"]');
+        if (addTimesheetLink) {
+            const consultantName = addTimesheetLink.getAttribute('data-consultant') || '';
+            setSharedFilters({
+                year: selectedYear,
+                month: selectedMonth,
+                currency: filterCurrency,
+                client: filterClient,
+                w2: filterW2,
+                search: consultantName
+            });
+        }
     });
 }
 

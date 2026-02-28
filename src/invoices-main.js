@@ -6,6 +6,41 @@ import { dbGetConsultants } from './modules/db-consultants.js';
 import { debounce, showToast } from './modules/utils.js';
 import './security.js';
 
+// ── Linked timesheets helper ──────────────────────────────────────────────────
+async function fetchLinkedTimesheets(invoiceId, invoiceNumber) {
+    if (!invoiceId && !invoiceNumber) return [];
+
+    const ids = new Set();
+    const conditions = [];
+    if (invoiceId) conditions.push(`invoice_id.eq.${invoiceId}`);
+    if (invoiceNumber) conditions.push(`invoice_number.eq.${invoiceNumber}`);
+
+    const { data, error } = await supabase
+        .from('timesheets')
+        .select(`
+            id,
+            period_start,
+            period_end,
+            hours_worked,
+            status,
+            invoice_number,
+            consultants ( id, name, client, bill_rate, currency )
+        `)
+        .or(conditions.join(','));
+
+    if (error) {
+        console.warn('Could not fetch linked timesheets:', error);
+        return [];
+    }
+    // Deduplicate by id
+    const seen = new Set();
+    return (data || []).filter(row => {
+        if (seen.has(row.id)) return false;
+        seen.add(row.id);
+        return true;
+    });
+}
+
 const STORAGE_KEY = 'invoice_pro_invoice_filters_v2';
 const ITEMS_PER_PAGE = 20;
 const DEFAULT_FILTERS = {
@@ -32,7 +67,12 @@ const state = {
 
 const els = {};
 
-document.addEventListener('DOMContentLoaded', init);
+document.addEventListener('DOMContentLoaded', () => {
+    init().catch(err => {
+        console.error('[invoices] Fatal init error:', err);
+        document.body.innerHTML += `<div style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#fff8f8;z-index:9999;flex-direction:column;gap:0.75rem;font-family:system-ui;"><span style="font-size:2.5rem">⚠️</span><h2 style="margin:0;color:#dc2626">Failed to load Invoices</h2><p style="margin:0;color:#6b7280;font-size:0.875rem">${err.message}</p><button onclick="location.reload()" style="padding:0.5rem 1.25rem;background:#ef4444;color:#fff;border:none;border-radius:6px;cursor:pointer">Reload</button></div>`;
+    });
+});
 
 async function init() {
     state.user = await getCurrentUser();
@@ -203,6 +243,66 @@ function bindEvents() {
 
         if (action === 'reopen') {
             await updateStatus(invoice, 'sent');
+        }
+
+        if (action === 'expand-ts') {
+            const panelRow = document.getElementById(`ts-panel-${invoiceId}`);
+            const contentEl = document.getElementById(`ts-panel-content-${invoiceId}`);
+            if (!panelRow) return;
+
+            const isOpen = panelRow.style.display !== 'none';
+            if (isOpen) {
+                panelRow.style.display = 'none';
+                button.textContent = '🔗 TS';
+                button.style.color = '#6b7280';
+                return;
+            }
+
+            panelRow.style.display = '';
+            button.textContent = '▲ TS';
+            button.style.color = '#3b82f6';
+
+            // Only fetch once (already populated check)
+            if (contentEl && contentEl.dataset.loaded === '1') return;
+
+            try {
+                const invNumber = button.dataset.invNumber || '';
+                const rows = await fetchLinkedTimesheets(invoiceId, invNumber);
+                if (!contentEl) return;
+
+                if (rows.length === 0) {
+                    contentEl.innerHTML = '<span style="color:#9ca3af;">No linked timesheets for this invoice.</span>';
+                } else {
+                    const cols = rows.map(row => {
+                        const c = Array.isArray(row.consultants) ? row.consultants[0] : (row.consultants || {});
+                        const currency = (c.currency || 'USD').toUpperCase();
+                        const rate = Number(c.bill_rate || 0).toFixed(2);
+                        const hours = Number(row.hours_worked || 0).toFixed(2);
+                        const amount = (Number(hours) * Number(c.bill_rate || 0)).toFixed(2);
+                        return `
+                            <div style="display:grid;grid-template-columns:1.5fr 1.5fr 1fr 0.75fr 0.75fr 0.75fr;gap:0.5rem;padding:0.5rem 0;border-bottom:1px solid #f1f5f9;align-items:center;font-size:0.8125rem;">
+                                <span style="font-weight:600;color:#111827;">${escapeHtml(c.name || '—')}</span>
+                                <span style="color:#374151;">${escapeHtml(c.client || '—')}</span>
+                                <span style="color:#6b7280;">${row.period_start || '—'} → ${row.period_end || '—'}</span>
+                                <span style="text-align:right;">${hours} hrs</span>
+                                <span style="text-align:right;">${currency} ${rate}/hr</span>
+                                <span style="text-align:right;font-weight:600;color:#111827;">${currency} ${amount}</span>
+                            </div>`;
+                    }).join('');
+
+                    contentEl.innerHTML = `
+                        <div style="margin-bottom:0.5rem;font-weight:600;color:#374151;font-size:0.75rem;letter-spacing:0.05em;text-transform:uppercase;">Linked Timesheets</div>
+                        <div style="display:grid;grid-template-columns:1.5fr 1.5fr 1fr 0.75fr 0.75fr 0.75fr;gap:0.5rem;padding:0.35rem 0;font-size:0.7rem;font-weight:600;color:#9ca3af;text-transform:uppercase;letter-spacing:0.04em;">
+                            <span>Consultant</span><span>Client</span><span>Period</span><span style="text-align:right;">Hours</span><span style="text-align:right;">Rate</span><span style="text-align:right;">Amount</span>
+                        </div>
+                        ${cols}
+                    `;
+                }
+                contentEl.dataset.loaded = '1';
+            } catch (err) {
+                if (contentEl) contentEl.innerHTML = '<span style="color:#ef4444;">Failed to load timesheets.</span>';
+            }
+            return;
         }
     });
 
@@ -455,7 +555,7 @@ function renderTable() {
         const amount = formatMoney(getInvoiceAmount(invoice), currency);
 
         return `
-            <tr>
+            <tr data-invoice-id="${invoice.id}">
                 <td>${escapeHtml(invoice.invoice_number || '—')}</td>
                 <td>${escapeHtml(invoice.client_info?.name || 'N/A')}</td>
                 <td>${invoiceDate}</td>
@@ -470,6 +570,14 @@ function renderTable() {
                         <button class="action-btn" data-action="download" data-id="${invoice.id}">PDF</button>
                         <button class="action-btn" data-action="email" data-id="${invoice.id}">Email</button>
                         <button class="action-btn action-btn--danger" data-action="delete" data-id="${invoice.id}">Delete</button>
+                        <button class="action-btn" data-action="expand-ts" data-id="${invoice.id}" data-inv-number="${escapeHtml(invoice.invoice_number || '')}" title="View linked timesheets" style="background:transparent;border:1px dashed #d1d5db;color:#6b7280;font-size:0.75rem;">🔗 TS</button>
+                    </div>
+                </td>
+            </tr>
+            <tr id="ts-panel-${invoice.id}" style="display:none;">
+                <td colspan="8" style="padding:0;">
+                    <div style="background:#f8fafc;border-top:1px solid #e2e8f0;border-bottom:1px solid #e2e8f0;padding:0.875rem 1.25rem;">
+                        <div id="ts-panel-content-${invoice.id}" style="font-size:0.8125rem;color:#6b7280;">Loading...</div>
                     </div>
                 </td>
             </tr>

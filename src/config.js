@@ -16,8 +16,61 @@ if (!supabaseUrl || !supabaseAnonKey || supabaseUrl.includes('your-project-id'))
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
+const USER_CACHE_TTL_MS = 60 * 1000
+let cachedUser
+let cacheTimestamp = 0
+let inflightUserPromise = null
+
+function setCachedUser(user) {
+    cachedUser = user || null
+    cacheTimestamp = Date.now()
+}
+
+export function invalidateCurrentUserCache() {
+    cachedUser = undefined
+    cacheTimestamp = 0
+    inflightUserPromise = null
+}
+
+supabase.auth.onAuthStateChange((_event, session) => {
+    setCachedUser(session?.user || null)
+})
+
 // Helper to get current user
-export async function getCurrentUser() {
-    const { data: { user } } = await supabase.auth.getUser()
-    return user
+export async function getCurrentUser(options = {}) {
+    const force = Boolean(options.force)
+    const isCacheValid = !force
+        && cachedUser !== undefined
+        && (Date.now() - cacheTimestamp) < USER_CACHE_TTL_MS
+
+    if (isCacheValid) {
+        return cachedUser
+    }
+
+    if (inflightUserPromise && !force) {
+        return inflightUserPromise
+    }
+
+    inflightUserPromise = (async () => {
+        // Prefer session lookup first for fast local reads.
+        const { data: { session } } = await supabase.auth.getSession()
+        if (session?.user) {
+            setCachedUser(session.user)
+            return cachedUser
+        }
+
+        const { data: { user }, error } = await supabase.auth.getUser()
+        if (error) {
+            console.warn('getCurrentUser fallback failed:', error.message)
+            setCachedUser(null)
+            return null
+        }
+
+        setCachedUser(user || null)
+        return cachedUser
+    })().finally(() => {
+        inflightUserPromise = null
+    })
+
+    return inflightUserPromise
 }

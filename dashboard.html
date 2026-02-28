@@ -13,7 +13,7 @@
 
   <link rel="stylesheet" href="styles/variables.css">
   <link rel="stylesheet" href="styles/sidebar.css?v=1">
-  <link rel="stylesheet" href="styles/dashboard.css?v=10">
+  <link rel="stylesheet" href="styles/dashboard.css?v=11">
 
   <style>
     /* Utilities and initial paint helpers */
@@ -96,19 +96,22 @@
   <!-- Main Content -->
   <main id="mainContent" class="dashboard" role="main">
     <div class="dashboard__container">
-      <!-- Header -->
-      <div class="dashboard__header">
-        <div>
-          <h1 class="dashboard__title">Welcome back, <span id="userNameDisplay">there</span>! 👋</h1>
-          <p class="dashboard__subtitle">Here's what's happening with your invoices</p>
+      <!-- Hero Header -->
+      <div class="dash-hero">
+        <div class="dash-hero__left">
+          <p class="dash-hero__greeting">Good day 👋</p>
+          <h1 class="dash-hero__title">Welcome back, <span id="userNameDisplay">there</span>!</h1>
+          <p class="dash-hero__subtitle">Here's what's happening with your business today</p>
         </div>
-        <div class="dashboard__actions">
-          <button id="menuToggle" class="btn btn--ghost" aria-label="Open menu" title="Open menu"><span
+        <div class="dash-hero__actions">
+          <button id="menuToggle" class="btn btn--ghost" aria-label="Open menu" style="display:none;"><span
               class="btn-emoji" aria-hidden="true">☰</span></button>
-          <button id="refreshBtn" class="btn btn--outline dashboard__refresh" title="Refresh Dashboard"
-            aria-label="Refresh dashboard">
-            <span class="btn-emoji" aria-hidden="true">🔄</span>
-            <span class="btn-text">Refresh</span>
+          <button id="refreshBtn" class="btn btn--outline" title="Refresh Dashboard" aria-label="Refresh dashboard">
+            <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            Refresh
           </button>
           <a href="app.html" class="btn btn--primary">
             <svg class="btn-icon" fill="currentColor" viewBox="0 0 20 20">
@@ -121,175 +124,222 @@
           <button id="themeToggle" class="btn btn--ghost" aria-label="Toggle theme" title="Toggle theme"><span
               class="btn-emoji" aria-hidden="true">🌙</span></button>
           <span id="lastUpdated" class="last-updated" aria-live="polite">Last updated: —</span>
-        </div>
-      </div>
-    </div>
+        </div><!-- End dash-hero__actions -->
+      </div><!-- End dash-hero -->
+      <!-- container continues to wrap stats and sections -->
 
-    <!-- Stats Cards — 6 KPI Grid -->
-    <section class="stats-grid" aria-label="Key stats">
-      <div class="stat-card">
-        <div class="stat-card__header">
-          <span class="stat-card__label">This Month</span>
-          <span class="stat-card__icon">💰</span>
+      <!-- Stats Cards — 6 KPI Grid -->
+      <section class="stats-grid" aria-label="Key stats">
+
+        <div class="stat-card stat-card--blue">
+          <div class="stat-card__accent"></div>
+          <div class="stat-card__icon-wrap">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <div class="stat-card__label">This Month</div>
+          <div class="stat-card__value" id="monthlyRevenue"><span class="skeleton"
+              style="display:inline-block;height:1em;width:5ch;border-radius:4px;"></span></div>
+          <div class="stat-card__change" id="monthlyChange">—</div>
         </div>
-        <div class="stat-card__value" id="monthlyRevenue"><span class="skeleton"
-            style="display:inline-block;height:1em;width:5ch;border-radius:4px;"></span></div>
-        <div class="stat-card__change" id="monthlyChange">—</div>
+
+        <div class="stat-card stat-card--violet">
+          <div class="stat-card__accent"></div>
+          <div class="stat-card__icon-wrap">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+          </div>
+          <div class="stat-card__label">Total Invoices</div>
+          <div class="stat-card__value" id="totalInvoices"><span class="skeleton"
+              style="display:inline-block;height:1em;width:5ch;border-radius:4px;"></span></div>
+          <div class="stat-card__change" id="invoiceChange">—</div>
+        </div>
+
+        <div class="stat-card stat-card--emerald">
+          <div class="stat-card__accent"></div>
+          <div class="stat-card__icon-wrap">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+            </svg>
+          </div>
+          <div class="stat-card__label">Sales Pipeline</div>
+          <div class="stat-card__value" id="yearlyRevenue"><span class="skeleton"
+              style="display:inline-block;height:1em;width:5ch;border-radius:4px;"></span></div>
+          <div class="stat-card__change" id="yearlyChange">—</div>
+        </div>
+
+        <div class="stat-card stat-card--amber">
+          <div class="stat-card__accent"></div>
+          <div class="stat-card__icon-wrap">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+            </svg>
+          </div>
+          <div class="stat-card__label">Conversion</div>
+          <div class="stat-card__value" id="conversionRate"><span class="skeleton"
+              style="display:inline-block;height:1em;width:5ch;border-radius:4px;"></span></div>
+          <div class="stat-card__change">—</div>
+        </div>
+
+        <div class="stat-card stat-card--rose">
+          <div class="stat-card__accent"></div>
+          <div class="stat-card__icon-wrap">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <div class="stat-card__label">Pending</div>
+          <div class="stat-card__value" id="activeTasks"><span class="skeleton"
+              style="display:inline-block;height:1em;width:5ch;border-radius:4px;"></span></div>
+          <div class="stat-card__change">—</div>
+        </div>
+
+        <!-- Active Consultants -->
+        <div class="stat-card stat-card--teal">
+          <div class="stat-card__accent"></div>
+          <div class="stat-card__icon-wrap">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+          </div>
+          <div class="stat-card__label">Active Consultants</div>
+          <div class="stat-card__value" id="activeConsultantsKpi"><span class="skeleton"
+              style="display:inline-block;height:1em;width:3ch;border-radius:4px;"></span></div>
+          <div class="stat-card__change" id="activeConsultantsChange">—</div>
+        </div>
+
+        <div class="stat-card stat-card--cyan">
+          <div class="stat-card__accent"></div>
+          <div class="stat-card__icon-wrap">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+            </svg>
+          </div>
+          <div class="stat-card__label">Outstanding A/R</div>
+          <div class="stat-card__value" id="outstandingReceivables"><span class="skeleton"
+              style="display:inline-block;height:1em;width:5ch;border-radius:4px;"></span></div>
+          <div class="stat-card__change" id="outstandingChange">—</div>
+        </div>
+
+      </section>
+
+      <!-- Recent Invoices -->
+      <div class="section">
+        <div class="section__header">
+          <h2 class="section__title">Recent Invoices</h2>
+          <a href="invoices.html" class="link"><span class="long-label">View all invoices</span><span
+              class="short-label" aria-hidden="true">View all →</span></a>
+        </div>
+        <div class="table-container">
+          <table class="table" id="recentInvoicesTable">
+            <thead>
+              <tr>
+                <th scope="col">Invoice #</th>
+                <th scope="col">Client</th>
+                <th scope="col">Date</th>
+                <th scope="col">Status</th>
+                <th scope="col" style="text-align: right;">Amount</th>
+                <th scope="col" style="text-align: right;">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="recentInvoicesBody">
+              <tr class="row-skeleton" aria-hidden="true">
+                <td data-label="Invoice #"><span class="skeleton"
+                    style="display:inline-block;height:0.85em;width:8ch;border-radius:4px;"></span></td>
+                <td data-label="Client"><span class="skeleton"
+                    style="display:inline-block;height:0.85em;width:14ch;border-radius:4px;"></span></td>
+                <td data-label="Date"><span class="skeleton"
+                    style="display:inline-block;height:0.85em;width:10ch;border-radius:4px;"></span></td>
+                <td data-label="Status"><span class="skeleton"
+                    style="display:inline-block;height:1.5em;width:6ch;border-radius:12px;"></span></td>
+                <td data-label="Amount"><span class="skeleton"
+                    style="display:inline-block;height:0.85em;width:9ch;border-radius:4px;"></span></td>
+                <td data-label="Actions"><span class="skeleton"
+                    style="display:inline-block;height:2.2em;width:12ch;border-radius:6px;"></span></td>
+              </tr>
+              <tr class="row-skeleton" aria-hidden="true">
+                <td data-label="Invoice #"><span class="skeleton"
+                    style="display:inline-block;height:0.85em;width:9ch;border-radius:4px;"></span></td>
+                <td data-label="Client"><span class="skeleton"
+                    style="display:inline-block;height:0.85em;width:12ch;border-radius:4px;"></span></td>
+                <td data-label="Date"><span class="skeleton"
+                    style="display:inline-block;height:0.85em;width:8ch;border-radius:4px;"></span></td>
+                <td data-label="Status"><span class="skeleton"
+                    style="display:inline-block;height:1.5em;width:5ch;border-radius:12px;"></span></td>
+                <td data-label="Amount"><span class="skeleton"
+                    style="display:inline-block;height:0.85em;width:7ch;border-radius:4px;"></span></td>
+                <td data-label="Actions"><span class="skeleton"
+                    style="display:inline-block;height:2.2em;width:10ch;border-radius:6px;"></span></td>
+              </tr>
+              <tr class="row-skeleton" aria-hidden="true">
+                <td data-label="Invoice #"><span class="skeleton"
+                    style="display:inline-block;height:0.85em;width:7ch;border-radius:4px;"></span></td>
+                <td data-label="Client"><span class="skeleton"
+                    style="display:inline-block;height:0.85em;width:10ch;border-radius:4px;"></span></td>
+                <td data-label="Date"><span class="skeleton"
+                    style="display:inline-block;height:0.85em;width:9ch;border-radius:4px;"></span></td>
+                <td data-label="Status"><span class="skeleton"
+                    style="display:inline-block;height:1.5em;width:7ch;border-radius:12px;"></span></td>
+                <td data-label="Amount"><span class="skeleton"
+                    style="display:inline-block;height:0.85em;width:8ch;border-radius:4px;"></span></td>
+                <td data-label="Actions"><span class="skeleton"
+                    style="display:inline-block;height:2.2em;width:11ch;border-radius:6px;"></span></td>
+              </tr>
+              <tr>
+                <td colspan="6" class="table__empty">
+                  <div class="empty-state">
+                    <span class="empty-state__icon">📭</span>
+                    <p class="empty-state__text">No invoices yet</p>
+                    <a href="app.html" class="btn btn--primary btn--sm">Create your first
+                      invoice</a>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </div>
 
-      <div class="stat-card">
-        <div class="stat-card__header">
-          <span class="stat-card__label">Total Invoices</span>
-          <span class="stat-card__icon">📄</span>
+      <!-- Monthly Chart -->
+      <div class="section">
+        <div class="section__header section__header--with-controls">
+          <div>
+            <h2 class="section__title"
+              style="font-size: 0.8125rem; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.25rem;">
+              Revenue Overview</h2>
+            <div style="font-size: 1.625rem; font-weight: 800; color: var(--text-primary); line-height: 1;"><span
+                id="chartTotal">—</span></div>
+          </div>
+          <div class="segmented" role="group" aria-label="Revenue range">
+            <button type="button" class="segmented__btn is-active" data-range="30d" aria-pressed="true"
+              aria-controls="revenueChart">30D</button>
+            <button type="button" class="segmented__btn" data-range="90d" aria-pressed="false"
+              aria-controls="revenueChart">90D</button>
+            <button type="button" class="segmented__btn" data-range="ytd" aria-pressed="false"
+              aria-controls="revenueChart">YTD</button>
+          </div>
         </div>
-        <div class="stat-card__value" id="totalInvoices"><span class="skeleton"
-            style="display:inline-block;height:1em;width:5ch;border-radius:4px;"></span></div>
-        <div class="stat-card__change" id="invoiceChange">—</div>
-      </div>
-
-      <div class="stat-card">
-        <div class="stat-card__header">
-          <span class="stat-card__label">Sales Pipeline</span>
-          <span class="stat-card__icon">📈</span>
-        </div>
-        <div class="stat-card__value" id="yearlyRevenue"><span class="skeleton"
-            style="display:inline-block;height:1em;width:5ch;border-radius:4px;"></span></div>
-        <div class="stat-card__change" id="yearlyChange">—</div>
-      </div>
-
-      <div class="stat-card">
-        <div class="stat-card__header">
-          <span class="stat-card__label">Conversion</span>
-          <span class="stat-card__icon">🎯</span>
-        </div>
-        <div class="stat-card__value" id="conversionRate"><span class="skeleton"
-            style="display:inline-block;height:1em;width:5ch;border-radius:4px;"></span></div>
-        <div class="stat-card__change">—</div>
-      </div>
-
-      <div class="stat-card">
-        <div class="stat-card__header">
-          <span class="stat-card__label">Pending</span>
-          <span class="stat-card__icon">🕐</span>
-        </div>
-        <div class="stat-card__value" id="activeTasks"><span class="skeleton"
-            style="display:inline-block;height:1em;width:5ch;border-radius:4px;"></span></div>
-        <div class="stat-card__change">—</div>
-      </div>
-
-      <div class="stat-card">
-        <div class="stat-card__header">
-          <span class="stat-card__label">Avg Invoice</span>
-          <span class="stat-card__icon">💵</span>
-        </div>
-        <div class="stat-card__value" id="avgInvoice"><span class="skeleton"
-            style="display:inline-block;height:1em;width:5ch;border-radius:4px;"></span></div>
-        <div class="stat-card__change">—</div>
-      </div>
-    </section>
-
-    <!-- Recent Invoices -->
-    <div class="section">
-      <div class="section__header">
-        <h2 class="section__title">Recent Invoices</h2>
-        <a href="invoices.html" class="link"><span class="long-label">View all invoices</span><span class="short-label"
-            aria-hidden="true">View all →</span></a>
-      </div>
-      <div class="table-container">
-        <table class="table" id="recentInvoicesTable">
-          <thead>
-            <tr>
-              <th scope="col">Invoice #</th>
-              <th scope="col">Client</th>
-              <th scope="col">Date</th>
-              <th scope="col">Amount</th>
-              <th scope="col">Actions</th>
-            </tr>
-          </thead>
-          <tbody id="recentInvoicesBody">
-            <tr class="row-skeleton" aria-hidden="true">
-              <td data-label="Invoice #"><span class="skeleton"
-                  style="display:inline-block;height:0.85em;width:8ch;border-radius:4px;"></span></td>
-              <td data-label="Client"><span class="skeleton"
-                  style="display:inline-block;height:0.85em;width:14ch;border-radius:4px;"></span></td>
-              <td data-label="Date"><span class="skeleton"
-                  style="display:inline-block;height:0.85em;width:10ch;border-radius:4px;"></span></td>
-              <td data-label="Amount"><span class="skeleton"
-                  style="display:inline-block;height:0.85em;width:9ch;border-radius:4px;"></span></td>
-              <td data-label="Actions"><span class="skeleton"
-                  style="display:inline-block;height:2.2em;width:12ch;border-radius:6px;"></span></td>
-            </tr>
-            <tr class="row-skeleton" aria-hidden="true">
-              <td data-label="Invoice #"><span class="skeleton"
-                  style="display:inline-block;height:0.85em;width:9ch;border-radius:4px;"></span></td>
-              <td data-label="Client"><span class="skeleton"
-                  style="display:inline-block;height:0.85em;width:12ch;border-radius:4px;"></span></td>
-              <td data-label="Date"><span class="skeleton"
-                  style="display:inline-block;height:0.85em;width:8ch;border-radius:4px;"></span></td>
-              <td data-label="Amount"><span class="skeleton"
-                  style="display:inline-block;height:0.85em;width:7ch;border-radius:4px;"></span></td>
-              <td data-label="Actions"><span class="skeleton"
-                  style="display:inline-block;height:2.2em;width:10ch;border-radius:6px;"></span></td>
-            </tr>
-            <tr class="row-skeleton" aria-hidden="true">
-              <td data-label="Invoice #"><span class="skeleton"
-                  style="display:inline-block;height:0.85em;width:7ch;border-radius:4px;"></span></td>
-              <td data-label="Client"><span class="skeleton"
-                  style="display:inline-block;height:0.85em;width:10ch;border-radius:4px;"></span></td>
-              <td data-label="Date"><span class="skeleton"
-                  style="display:inline-block;height:0.85em;width:9ch;border-radius:4px;"></span></td>
-              <td data-label="Amount"><span class="skeleton"
-                  style="display:inline-block;height:0.85em;width:8ch;border-radius:4px;"></span></td>
-              <td data-label="Actions"><span class="skeleton"
-                  style="display:inline-block;height:2.2em;width:11ch;border-radius:6px;"></span></td>
-            </tr>
-            <tr>
-              <td colspan="5" class="table__empty">
-                <div class="empty-state">
-                  <span class="empty-state__icon">📭</span>
-                  <p class="empty-state__text">No invoices yet</p>
-                  <a href="app.html" class="btn btn--primary btn--sm">Create your first
-                    invoice</a>
-                </div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-
-    <!-- Monthly Chart -->
-    <div class="section">
-      <div class="section__header section__header--with-controls">
-        <div>
-          <h2 class="section__title"
-            style="font-size: 0.8125rem; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.25rem;">
-            Revenue Overview</h2>
-          <div style="font-size: 1.625rem; font-weight: 800; color: var(--text-primary); line-height: 1;"><span
-              id="chartTotal">—</span></div>
-        </div>
-        <div class="segmented" role="group" aria-label="Revenue range">
-          <button type="button" class="segmented__btn is-active" data-range="30d" aria-pressed="true"
-            aria-controls="revenueChart">30D</button>
-          <button type="button" class="segmented__btn" data-range="90d" aria-pressed="false"
-            aria-controls="revenueChart">90D</button>
-          <button type="button" class="segmented__btn" data-range="ytd" aria-pressed="false"
-            aria-controls="revenueChart">YTD</button>
-        </div>
-      </div>
-      <figure class="chart-container">
-        <div class="chart-skeleton" aria-hidden="true">
-          <span class="skeleton"></span>
-          <span class="skeleton"></span>
-          <span class="skeleton"></span>
-          <span class="skeleton"></span>
-          <span class="skeleton"></span>
-        </div>
-        <canvas id="revenueChart" aria-describedby="revenueChartDesc"></canvas>
-        <figcaption id="revenueChartDesc" class="visually-hidden">Revenue for the last 12 months.</figcaption>
-      </figure>
-    </div>
-    </div>
+        <figure class="chart-container">
+          <div class="chart-skeleton" aria-hidden="true">
+            <span class="skeleton"></span>
+            <span class="skeleton"></span>
+            <span class="skeleton"></span>
+            <span class="skeleton"></span>
+            <span class="skeleton"></span>
+          </div>
+          <canvas id="revenueChart" aria-describedby="revenueChartDesc"></canvas>
+          <figcaption id="revenueChartDesc" class="visually-hidden">Revenue for the last 12 months.</figcaption>
+        </figure>
+      </div><!-- End dashboard__container -->
   </main>
 
   <!-- Modals and Toasts -->
@@ -320,7 +370,7 @@
     import { loadLayout } from './src/components/layout.js';
     loadLayout('dashboard');
   </script>
-  <script type="module" src="src/dashboard-main.js"></script>
+  <script type="module" src="src/dashboard-main.js?v=2"></script>
   <script type="module">
     // Enhance responsive tables by adding data-label attributes from the header
     function enhanceResponsiveTable(table) {

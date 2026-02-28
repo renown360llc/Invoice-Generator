@@ -14,6 +14,35 @@ export function debounce(func, wait) {
     };
 }
 
+export function createRenderScheduler(renderFn) {
+    let rafId = null;
+
+    const schedule = () => {
+        if (rafId !== null) return;
+
+        const raf = typeof requestAnimationFrame === 'function'
+            ? requestAnimationFrame
+            : (cb) => setTimeout(cb, 16);
+
+        rafId = raf(() => {
+            rafId = null;
+            renderFn();
+        });
+    };
+
+    schedule.cancel = () => {
+        if (rafId === null) return;
+        if (typeof cancelAnimationFrame === 'function') {
+            cancelAnimationFrame(rafId);
+        } else {
+            clearTimeout(rafId);
+        }
+        rafId = null;
+    };
+
+    return schedule;
+}
+
 export function hexToRgb(hex) {
     const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
     return result ? {

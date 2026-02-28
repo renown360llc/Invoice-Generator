@@ -6,7 +6,7 @@ import {
     dbUpsertTimesheets
 } from './modules/db-timesheets.js';
 import { dbGetConsultants } from './modules/db-consultants.js';
-import { showToast } from './modules/utils.js';
+import { showToast, debounce, createRenderScheduler } from './modules/utils.js';
 import {
     getSharedFilters,
     setSharedFilters,
@@ -32,6 +32,7 @@ let searchTerm = String(shared.search || '').trim().toLowerCase();
 
 let rawRows = [];
 let consultants = [];
+let rowsByConsultant = new Map();
 
 let modalMode = 'add';
 let modalTimesheetId = null;
@@ -39,8 +40,14 @@ let modalConsultantId = null;
 let modalDefaultPeriod = { start: '', end: '' };
 
 const els = {};
+const requestRender = createRenderScheduler(() => renderTable());
 
-document.addEventListener('DOMContentLoaded', init);
+document.addEventListener('DOMContentLoaded', () => {
+    init().catch(err => {
+        console.error('[timesheets] Fatal init error:', err);
+        document.body.innerHTML += `<div style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#fff8f8;z-index:9999;flex-direction:column;gap:0.75rem;font-family:system-ui;"><span style="font-size:2.5rem">⚠️</span><h2 style="margin:0;color:#dc2626">Failed to load Timesheets</h2><p style="margin:0;color:#6b7280;font-size:0.875rem">${err.message}</p><button onclick="location.reload()" style="padding:0.5rem 1.25rem;background:#ef4444;color:#fff;border:none;border-radius:6px;cursor:pointer">Reload</button></div>`;
+    });
+});
 
 async function init() {
     await loadLayout('timesheets');
@@ -113,7 +120,7 @@ function bindEvents() {
         selectedMonth = e.target.value;
         persistShared();
         updateAllMonthsToggleLabel();
-        renderTable();
+        requestRender();
     });
 
     els.allMonthsToggleBtn?.addEventListener('click', () => {
@@ -121,38 +128,39 @@ function bindEvents() {
         if (els.monthFilter) els.monthFilter.value = selectedMonth;
         persistShared();
         updateAllMonthsToggleLabel();
-        renderTable();
+        requestRender();
     });
 
     els.currencyFilter?.addEventListener('change', (e) => {
         selectedCurrency = normalizeCurrency(e.target.value);
         persistShared();
-        renderTable();
+        requestRender();
     });
 
     els.clientFilter?.addEventListener('change', (e) => {
         selectedClient = normalizeTextFilter(e.target.value);
         persistShared();
-        renderTable();
+        requestRender();
     });
 
     els.w2Filter?.addEventListener('change', (e) => {
         selectedW2 = normalizeTextFilter(e.target.value);
         persistShared();
-        renderTable();
+        requestRender();
     });
 
     els.statusFilter?.addEventListener('change', (e) => {
         selectedStatus = normalizeStatusFilter(e.target.value);
         persistShared();
-        renderTable();
+        requestRender();
     });
 
-    els.searchInput?.addEventListener('input', (e) => {
+    const handleSearch = debounce((e) => {
         searchTerm = e.target.value.trim().toLowerCase();
         persistShared();
-        renderTable();
-    });
+        requestRender();
+    }, 120);
+    els.searchInput?.addEventListener('input', handleSearch);
 
     els.resetFiltersBtn?.addEventListener('click', () => {
         const fresh = clearSharedFilters({ keepPeriod: false });
@@ -170,7 +178,7 @@ function bindEvents() {
 
         updateAllMonthsToggleLabel();
         populateFilterOptions();
-        renderTable();
+        requestRender();
     });
 
     document.addEventListener('click', async (e) => {
@@ -214,17 +222,25 @@ function bindEvents() {
             const ts = rawRows.find(r => r.id === id);
             if (!ts) return;
 
+            // Block editing of invoiced timesheets
+            if (ts.status === 'invoiced' && !editBtn.classList.contains('ts-edit-invoiced')) {
+                showToast('This timesheet is linked to an invoice. Edit the invoice to make changes.', 'error');
+                return;
+            }
+
             modalMode = 'edit';
             modalTimesheetId = id;
             modalConsultantId = consultantId;
 
+            const isInvoiced = ts.status === 'invoiced';
             openModal({
                 consultant: getConsultantName(consultantId),
                 start: ts.period_start,
                 end: ts.period_end,
                 hours: ts.hours,
                 status: ts.status,
-                invoice: ts.invoice_number || ''
+                invoice: ts.invoice_number || '',
+                locked: isInvoiced // passed to openModal to show a warning
             });
             return;
         }
@@ -264,13 +280,15 @@ async function refreshData() {
 
         consultants = consultantsData || [];
         rawRows = normalizeRows(rows);
+        rowsByConsultant = buildRowsIndex(rawRows);
         populateFilterOptions();
-        renderTable();
+        requestRender();
     } catch (err) {
         console.error(err);
         consultants = [];
         rawRows = [];
-        renderTable();
+        rowsByConsultant = new Map();
+        requestRender();
         showToast('Failed to load timesheets', 'error');
     }
 }
@@ -295,6 +313,18 @@ function normalizeRows(rows) {
             invoice_number: row.invoice_number || ''
         };
     });
+}
+
+function buildRowsIndex(rows) {
+    const index = new Map();
+    (rows || []).forEach((row) => {
+        const key = String(row.consultant_id || '');
+        if (!key) return;
+        const list = index.get(key) || [];
+        list.push(row);
+        index.set(key, list);
+    });
+    return index;
 }
 
 function populateFilterOptions() {
@@ -386,11 +416,9 @@ function getFilteredRows() {
         });
 
     const rows = visibleConsultants.map((consultant) => {
-        const consultantRows = rawRows.filter((r) => {
-            if (r.consultant_id !== consultant.id) return false;
-            if (!range.monthKey) return true;
-            return String(r.period_start || '').slice(0, 7) === range.monthKey;
-        });
+        const consultantRows = (rowsByConsultant.get(String(consultant.id)) || []).filter((row) => (
+            !range.monthKey || String(row.period_start || '').slice(0, 7) === range.monthKey
+        ));
 
         const hours = consultantRows.reduce((sum, row) => sum + row.hours, 0);
         const statuses = Array.from(new Set(consultantRows.map(r => r.status)));
@@ -466,17 +494,28 @@ function renderTable() {
 
     els.tbody.innerHTML = rows.map((row) => {
         const hasEntries = row.times.length > 0;
-        const actions = hasEntries
-            ? `
+        const isInvoiced = row.status === 'invoiced';
+
+        let actions;
+        if (!hasEntries) {
+            actions = `<button class="btn btn--primary btn--sm ts-add-row" data-consultant="${row.consultant_id}" data-start="${row.period_start}" data-end="${row.period_end}">Add</button>`;
+        } else if (isInvoiced) {
+            // Locked row — show invoice link and a subtle unlock hint
+            actions = `
+                <span style="font-size:0.75rem;color:#6b7280;display:inline-flex;align-items:center;gap:0.25rem;">🔒 Invoiced</span>
+                <button class="btn btn--ghost btn--sm ts-edit-row ts-edit-invoiced" title="This timesheet is invoiced. Click to view (editing blocked)." data-id="${row.primary.id}" data-consultant="${row.consultant_id}" style="color:#9ca3af;">View</button>
+            `;
+        } else {
+            actions = `
                 <button class="btn btn--outline btn--sm ts-edit-row" data-id="${row.primary.id}" data-consultant="${row.consultant_id}">Edit</button>
                 <button class="btn btn--ghost btn--sm ts-delete-row" data-id="${row.primary.id}">Delete</button>
-            `
-            : `
-                <button class="btn btn--primary btn--sm ts-add-row" data-consultant="${row.consultant_id}" data-start="${row.period_start}" data-end="${row.period_end}">Add</button>
             `;
+        }
+
+        const rowStyle = isInvoiced ? 'background:#fafafa; opacity:0.9;' : '';
 
         return `
-            <tr>
+            <tr style="${rowStyle}">
                 <td>
                     <div style="font-weight:600;">${escapeHtml(row.consultant_name)}</div>
                     <div style="font-size:12px;color:var(--text-tertiary);">${row.currency} ${(row.bill_rate || 0).toFixed(2)}/hr</div>

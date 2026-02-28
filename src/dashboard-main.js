@@ -1,8 +1,12 @@
 import { getCurrentUser, signOut } from './auth.js'
 import { getInvoices, getInvoice, updateInvoiceStatus } from './database.js'
+import { dbGetConsultants } from './modules/db-consultants.js'
 import { generatePDF } from './modules/pdf.js'
 import { formatCurrency } from './modules/utils.js'
 import './security.js'
+
+let allInvoicesCache = []
+let dashboardSearchQuery = ''
 
 // Check authentication
 async function checkAuth() {
@@ -90,10 +94,16 @@ function calculateStats(invoices) {
         }
     })
 
+    // Outstanding receivables = totals of sent/overdue (not yet paid) invoices
+    const outstanding = invoices.filter(inv => inv.status === 'sent' || inv.status === 'overdue');
+    const outstandingReceivables = sumByCurrency(outstanding);
+
     return {
         monthlyRevenue,
         yearlyRevenue,
         avgInvoice,
+        outstandingReceivables,
+        outstandingCount: outstanding.length,
         totalInvoices: invoices.length,
         thisMonthCount: thisMonth.length,
         conversionRate: (() => {
@@ -122,7 +132,7 @@ function updateStatsCards(stats) {
 
         // If multiple, render stacked with smaller font to fit card
         return entries.map(([curr, amount]) => {
-            return `<div style="font-size: 0.75em; line-height: 1.4; margin-bottom: 2px;">
+            return `<div style="font-size: 0.65em; line-height: 1.2; margin-bottom: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
                 ${formatCurrency(amount, curr)}
             </div>`
         }).join('')
@@ -130,7 +140,8 @@ function updateStatsCards(stats) {
 
     document.getElementById('monthlyRevenue').innerHTML = renderStacked(stats.monthlyRevenue)
     document.getElementById('yearlyRevenue').innerHTML = renderStacked(stats.yearlyRevenue)
-    document.getElementById('avgInvoice').innerHTML = renderStacked(stats.avgInvoice)
+    const avgEl = document.getElementById('avgInvoice')
+    if (avgEl) avgEl.innerHTML = renderStacked(stats.avgInvoice)
 
     document.getElementById('totalInvoices').textContent = stats.totalInvoices
 
@@ -141,6 +152,17 @@ function updateStatsCards(stats) {
     // Pending (Sent but not paid)
     const pendingEl = document.getElementById('activeTasks')
     if (pendingEl) pendingEl.textContent = stats.pendingCount
+
+    // Outstanding Receivables
+    const arEl = document.getElementById('outstandingReceivables')
+    const arChangeEl = document.getElementById('outstandingChange')
+    if (arEl) arEl.innerHTML = renderStacked(stats.outstandingReceivables)
+    if (arChangeEl) {
+        arChangeEl.textContent = stats.outstandingCount === 0
+            ? '✓ All invoices paid'
+            : `${stats.outstandingCount} invoice${stats.outstandingCount === 1 ? '' : 's'} awaiting payment`;
+        arChangeEl.style.color = stats.outstandingCount === 0 ? '#059669' : '#dc2626';
+    }
 
     // Update change indicators
     document.getElementById('monthlyChange').textContent = `${stats.thisMonthCount} this month`
@@ -155,9 +177,9 @@ function renderRecentInvoices(invoices) {
     if (invoices.length === 0) {
         tbody.innerHTML = `
             <tr>
-                <td colspan="5" class="table__empty">
+                <td colspan="6" class="table__empty">
                     <div class="empty-state">
-                        <span class="empty-state__icon">📭</span>
+                        <span class="empty-state__icon">💭</span>
                         <p class="empty-state__text">No invoices yet</p>
                         <a href="app.html" class="btn btn--primary btn--sm">Create your first invoice</a>
                     </div>
@@ -167,8 +189,31 @@ function renderRecentInvoices(invoices) {
         return
     }
 
-    // Show last 5 invoices
-    const recent = invoices.slice(0, 5)
+    const q = dashboardSearchQuery.trim().toLowerCase()
+    const filtered = q
+        ? invoices.filter((invoice) => {
+            const invoiceNo = String(invoice.invoice_number || '').toLowerCase()
+            const client = String(invoice.client_info?.name || '').toLowerCase()
+            return invoiceNo.includes(q) || client.includes(q)
+        })
+        : invoices
+
+    // Show last 5 invoices for current search result
+    const recent = filtered.slice(0, 5)
+
+    if (recent.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="6" class="table__empty">
+                    <div class="empty-state">
+                        <span class="empty-state__icon">🔎</span>
+                        <p class="empty-state__text">No invoices match "${escapeHtml(dashboardSearchQuery)}"</p>
+                    </div>
+                </td>
+            </tr>
+        `
+        return
+    }
 
     tbody.innerHTML = recent.map(invoice => {
         const invoiceDate = invoice.invoice_meta?.dateRaw || invoice.invoice_meta?.date || invoice.created_at
@@ -180,13 +225,26 @@ function renderRecentInvoices(invoices) {
             if (due < new Date()) effectiveStatus = 'overdue'
         }
 
-        let statusActions = ''
+        // Define status-based actions with clearer labels
+        let statusTransitionItems = ''
         if (effectiveStatus === 'draft') {
-            statusActions = `<button class="action-pill action-pill--sent" onclick="window.markAsSentDash('${invoice.id}')">✉ Sent</button>`
+            statusTransitionItems = `
+                <button class="dropdown-item" onclick="window.markAsSentDash('${invoice.id}')">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+                    Mark as Sent
+                </button>`
         } else if (effectiveStatus === 'sent' || effectiveStatus === 'overdue') {
-            statusActions = `<button class="action-pill action-pill--paid" onclick="window.markAsPaidDash('${invoice.id}')">✓ Paid</button>`
+            statusTransitionItems = `
+                <button class="dropdown-item" onclick="window.markAsPaidDash('${invoice.id}')">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                    Mark as Paid
+                </button>`
         } else if (effectiveStatus === 'paid') {
-            statusActions = `<button class="action-pill action-pill--unmark" onclick="window.unmarkPaidDash('${invoice.id}')">↩ Unmark</button>`
+            statusTransitionItems = `
+                <button class="dropdown-item" onclick="window.unmarkPaidDash('${invoice.id}')">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/></svg>
+                    Revert to Sent
+                </button>`
         }
 
         return `
@@ -194,12 +252,31 @@ function renderRecentInvoices(invoices) {
             <td><strong>${escapeHtml(invoice.invoice_number)}</strong></td>
             <td>${escapeHtml(invoice.client_info?.name || 'N/A')}</td>
             <td>${formatDate(invoiceDate)}</td>
-            <td><strong>${formatCurrency(invoice.totals?.total || 0, invoice.invoice_meta?.currency)}</strong></td>
-            <td>
-                <div class="action-pills">
-                    ${statusActions}
-                    <button class="action-pill action-pill--edit" onclick="viewInvoice('${escapeHtml(invoice.invoice_number)}')">Edit</button>
-                    <button class="action-pill action-pill--download" onclick="downloadPDF('${escapeHtml(invoice.invoice_number)}')">PDF</button>
+            <td>${renderDashboardStatusChip(effectiveStatus)}</td>
+            <td style="text-align: right;"><strong>${formatCurrency(invoice.totals?.total || 0, invoice.invoice_meta?.currency)}</strong></td>
+            <td style="text-align: right;">
+                <div class="row-actions">
+                    <button class="action-btn" onclick="window.toggleRowActions(event, '${invoice.id}')">
+                        Manage
+                        <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                    </button>
+                    <div id="dropdown-${invoice.id}" class="dropdown-menu">
+                        <div class="dropdown-label">Primary Actions</div>
+                        <button class="dropdown-item" onclick="viewInvoice('${escapeHtml(invoice.invoice_number)}')">
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                            View & Edit
+                        </button>
+                        <button class="dropdown-item" onclick="downloadPDF('${escapeHtml(invoice.invoice_number)}')">
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                            Download PDF
+                        </button>
+                        
+                        ${statusTransitionItems ? `
+                            <div class="dropdown-divider"></div>
+                            <div class="dropdown-label">Quick Status</div>
+                            ${statusTransitionItems}
+                        ` : ''}
+                    </div>
                 </div>
             </td>
         </tr>
@@ -207,8 +284,55 @@ function renderRecentInvoices(invoices) {
     }).join('')
 }
 
+/**
+ * Toggle the dropdown menu for a specific row
+ */
+window.toggleRowActions = function (event, id) {
+    event.stopPropagation();
+    const menu = document.getElementById(`dropdown-${id}`);
+
+    // Close any other open menus
+    document.querySelectorAll('.dropdown-menu.show').forEach(m => {
+        if (m.id !== `dropdown-${id}`) m.classList.remove('show');
+    });
+
+    menu.classList.toggle('show');
+};
+
+// Global click listener to close dropdowns
+document.addEventListener('click', () => {
+    document.querySelectorAll('.dropdown-menu.show').forEach(m => m.classList.remove('show'));
+});
+
+function renderDashboardStatusChip(status) {
+    const cfg = {
+        draft: { label: 'Draft', bg: '#f3f4f6', color: '#6b7280', border: '#e5e7eb' },
+        sent: { label: 'Sent', bg: '#eff6ff', color: '#2563eb', border: '#bfdbfe' },
+        overdue: { label: 'Overdue', bg: '#fef2f2', color: '#dc2626', border: '#fecaca' },
+        paid: { label: 'Paid', bg: '#f0fdf4', color: '#059669', border: '#a7f3d0' }
+    }[status] || { label: status, bg: '#f3f4f6', color: '#374151', border: '#e5e7eb' };
+    return `<span style="display:inline-block;padding:0.2rem 0.6rem;border-radius:999px;font-size:0.7rem;font-weight:700;letter-spacing:0.04em;background:${cfg.bg};color:${cfg.color};border:1px solid ${cfg.border};text-transform:uppercase">${cfg.label}</span>`;
+}
+
 // Create revenue chart — smooth area curve with hover tooltip + range filters
 let _chartInvoices = [] // store for re-render on filter change
+
+/**
+ * Extracts a reliable YYYY-MM-DD string from an invoice.
+ * - Prefers invoice_meta.dateRaw (bare YYYY-MM-DD, stored from <input type="date">)
+ * - Falls back to created_at (ISO timestamp), extracting LOCAL date components to avoid UTC shift
+ */
+function getInvoiceDateStr(inv) {
+    const raw = inv.invoice_meta?.dateRaw
+    if (raw && /^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw
+    // Fallback: timestamp → extract local components (avoids UTC midnight → previous day in EST)
+    const ts = inv.created_at
+    if (ts) {
+        const d = new Date(ts)
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    }
+    return ''
+}
 
 function createRevenueChart(invoices, range = 'ytd') {
     _chartInvoices = invoices
@@ -225,12 +349,11 @@ function createRevenueChart(invoices, range = 'ytd') {
         for (let i = 29; i >= 0; i--) {
             const d = new Date(now); d.setDate(d.getDate() - i)
             const key = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-            const dayKey = d.toISOString().slice(0, 10)
+            // Build key using LOCAL date components (not UTC) to avoid timezone shift
+            const dayKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
             labels.push(i % 5 === 0 ? key : '')  // Only show every 5th label
-            data.push(invoices.filter(inv => {
-                const invDate = (inv.invoice_meta?.dateRaw || inv.created_at || '').slice(0, 10)
-                return invDate === dayKey
-            }).reduce((s, inv) => s + (inv.totals?.total || 0), 0))
+            data.push(invoices.filter(inv => getInvoiceDateStr(inv) === dayKey)
+                .reduce((s, inv) => s + (inv.totals?.total || 0), 0))
         }
     } else if (range === '90d') {
         // Last 13 weeks
@@ -239,8 +362,11 @@ function createRevenueChart(invoices, range = 'ytd') {
             const to = new Date(now); to.setDate(to.getDate() - i * 7)
             labels.push(from.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }))
             data.push(invoices.filter(inv => {
-                const d = new Date(inv.invoice_meta?.dateRaw || inv.created_at)
-                return d >= from && d <= to
+                const ds = getInvoiceDateStr(inv)
+                if (!ds) return false
+                const [y, m, dd] = ds.split('-').map(Number)
+                const invDate = new Date(y, m - 1, dd, 12) // noon local — avoids DST edge
+                return invDate >= from && invDate <= to
             }).reduce((s, inv) => s + (inv.totals?.total || 0), 0))
         }
     } else {
@@ -251,8 +377,8 @@ function createRevenueChart(invoices, range = 'ytd') {
             const key = `${d.getFullYear()}-${mo}`
             labels.push(d.toLocaleDateString('en-US', { month: 'short' }))
             data.push(invoices.filter(inv => {
-                const invDate = inv.invoice_meta?.dateRaw || inv.created_at || ''
-                return invDate.slice(0, 7) === key
+                const ds = getInvoiceDateStr(inv)
+                return ds.slice(0, 7) === key
             }).reduce((s, inv) => s + (inv.totals?.total || 0), 0))
         }
     }
@@ -434,13 +560,14 @@ async function initDashboard() {
 
         // Load invoices
         const invoices = await getInvoices(user)
+        allInvoicesCache = invoices
 
         // Calculate and update stats
         const stats = calculateStats(invoices)
         updateStatsCards(stats)
 
         // Render recent invoices
-        renderRecentInvoices(invoices)
+        renderRecentInvoices(allInvoicesCache)
 
         // Create revenue chart
         createRevenueChart(invoices)
@@ -474,6 +601,30 @@ async function initDashboard() {
                 }
             })
         }
+
+        // ── Active Consultants KPI ────────────────────────────────────────
+        try {
+            const consultants = await dbGetConsultants();
+            const today = new Date().toISOString().slice(0, 10);
+            const active = consultants.filter(c => {
+                if (!c.end_date) return true; // No end date = active
+                return c.end_date >= today;   // End date is today or future = still active
+            });
+            const kpiEl = document.getElementById('activeConsultantsKpi');
+            const changeEl = document.getElementById('activeConsultantsChange');
+            if (kpiEl) kpiEl.textContent = String(active.length);
+            if (changeEl) {
+                const total = consultants.length;
+                const inactive = total - active.length;
+                changeEl.textContent = inactive > 0
+                    ? `${inactive} inactive of ${total} total`
+                    : `All ${total} active`;
+                changeEl.style.color = inactive > 0 ? '#d97706' : '#059669';
+            }
+        } catch (consultantErr) {
+            console.warn('Could not fetch consultant headcount:', consultantErr);
+        }
+        // ── End Active Consultants KPI ────────────────────────────────────
 
     } catch (error) {
         console.error('Dashboard initialization error:', error)
@@ -543,6 +694,12 @@ document.addEventListener('click', (e) => {
 
 // Initialize on page load
 initDashboard()
+
+document.addEventListener('dashboard:global-search', (event) => {
+    const query = String(event?.detail?.query || '')
+    dashboardSearchQuery = query
+    renderRecentInvoices(allInvoicesCache)
+})
 
 // Real-time Sync
 const channel = new BroadcastChannel('app_channel');

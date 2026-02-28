@@ -5,11 +5,62 @@
 
 import { hexToRgb, formatCurrency } from './utils.js';
 
-export function generatePDF(data) {
+const PDF_LIB_SOURCES = [
+    'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js',
+    'https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js'
+];
+
+let pdfLibrariesPromise = null;
+
+function loadScript(src) {
+    return new Promise((resolve, reject) => {
+        const existing = document.querySelector(`script[src="${src}"]`);
+        if (existing) {
+            if (existing.dataset.loaded === 'true') {
+                resolve();
+                return;
+            }
+            existing.addEventListener('load', () => resolve(), { once: true });
+            existing.addEventListener('error', () => reject(new Error(`Failed to load ${src}`)), { once: true });
+            return;
+        }
+
+        const script = document.createElement('script');
+        script.src = src;
+        script.defer = true;
+        script.addEventListener('load', () => {
+            script.dataset.loaded = 'true';
+            resolve();
+        }, { once: true });
+        script.addEventListener('error', () => reject(new Error(`Failed to load ${src}`)), { once: true });
+        document.head.appendChild(script);
+    });
+}
+
+async function ensurePdfLibraries() {
+    if (window.jspdf) return;
+    if (!pdfLibrariesPromise) {
+        pdfLibrariesPromise = (async () => {
+            for (const src of PDF_LIB_SOURCES) {
+                await loadScript(src);
+            }
+        })().finally(() => {
+            // Keep promise for current tick only; later calls can reuse already loaded globals.
+            pdfLibrariesPromise = null;
+        });
+    }
+    await pdfLibrariesPromise;
+}
+
+export async function generatePDF(data) {
     if (!window.jspdf) {
-        console.error('jsPDF not loaded');
-        alert('PDF library not loaded. Please refresh the page.');
-        return;
+        try {
+            await ensurePdfLibraries();
+        } catch (err) {
+            console.error('jsPDF load failed:', err);
+            alert('PDF library not loaded. Please refresh the page.');
+            return;
+        }
     }
 
     const { jsPDF } = window.jspdf;

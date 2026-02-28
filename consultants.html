@@ -329,7 +329,8 @@
             <div class="dashboard__header">
                 <div>
                     <h1 class="dashboard__title">Consultants</h1>
-                    <p class="dashboard__subtitle">Manage consultant profiles, rates, and billing attributes used across CRM and invoicing.</p>
+                    <p class="dashboard__subtitle">Manage consultant profiles, rates, and billing attributes used across
+                        CRM and invoicing.</p>
                 </div>
                 <div>
                     <button id="addConsultantBtn" class="btn btn--primary">
@@ -349,7 +350,8 @@
                     <div class="period-controls">
                         <select id="yearFilter" class="sort-select" aria-label="Filter year"></select>
                         <select id="monthFilter" class="sort-select" aria-label="Filter month"></select>
-                        <button id="allMonthsToggleBtn" class="btn btn--outline btn--sm" type="button">All Months: OFF</button>
+                        <button id="allMonthsToggleBtn" class="btn btn--outline btn--sm" type="button">All Months:
+                            OFF</button>
                     </div>
                     <select id="statusFilter" class="sort-select">
                         <option value="all">All Statuses</option>
@@ -366,7 +368,8 @@
                         <option value="all">All Currencies</option>
                     </select>
                     <input type="text" id="searchInput" class="search-input" placeholder="Search consultants...">
-                    <button id="resetFiltersBtn" class="btn btn--ghost" style="padding:0.5rem 0.75rem;" type="button">Clear All</button>
+                    <button id="resetFiltersBtn" class="btn btn--ghost" style="padding:0.5rem 0.75rem;"
+                        type="button">Clear All</button>
                 </div>
                 <p id="consultantsFilterSummary" class="filters-meta">0 filters applied</p>
 
@@ -374,13 +377,20 @@
                     <table class="table" id="consultantsTable">
                         <thead>
                             <tr>
-                                <th data-sort="name"><button class="sort-button" data-sort="name">Name <span class="sort-icon">↕</span></button></th>
-                                <th data-sort="client"><button class="sort-button" data-sort="client">Client / W2 <span class="sort-icon">↕</span></button></th>
-                                <th data-sort="start_date"><button class="sort-button" data-sort="start_date">Start Date <span class="sort-icon">↕</span></button></th>
-                                <th data-sort="end_date"><button class="sort-button" data-sort="end_date">End Date <span class="sort-icon">↕</span></button></th>
-                                <th data-sort="bill_rate"><button class="sort-button" data-sort="bill_rate">Rates (Bill / Comm) <span class="sort-icon">↕</span></button></th>
-                                <th data-sort="status"><button class="sort-button" data-sort="status">Status <span class="sort-icon">↕</span></button></th>
-                                <th data-sort="coverage"><button class="sort-button" data-sort="coverage">Coverage <span class="sort-icon">↕</span></button></th>
+                                <th data-sort="name"><button class="sort-button" data-sort="name">Name <span
+                                            class="sort-icon">↕</span></button></th>
+                                <th data-sort="client"><button class="sort-button" data-sort="client">Client / W2 <span
+                                            class="sort-icon">↕</span></button></th>
+                                <th data-sort="start_date"><button class="sort-button" data-sort="start_date">Start Date
+                                        <span class="sort-icon">↕</span></button></th>
+                                <th data-sort="end_date"><button class="sort-button" data-sort="end_date">End Date <span
+                                            class="sort-icon">↕</span></button></th>
+                                <th data-sort="bill_rate"><button class="sort-button" data-sort="bill_rate">Rates (Bill
+                                        / Comm) <span class="sort-icon">↕</span></button></th>
+                                <th data-sort="status"><button class="sort-button" data-sort="status">Status <span
+                                            class="sort-icon">↕</span></button></th>
+                                <th data-sort="coverage"><button class="sort-button" data-sort="coverage">Coverage <span
+                                            class="sort-icon">↕</span></button></th>
                                 <th>Actions</th>
                             </tr>
                         </thead>
@@ -430,7 +440,8 @@
 
                         <div class="form-field">
                             <label class="form-field__label">W2 Company</label>
-                            <input type="text" id="w2Company" class="form-field__input" placeholder="e.g. TechStaffing LLC">
+                            <input type="text" id="w2Company" class="form-field__input"
+                                placeholder="e.g. TechStaffing LLC">
                         </div>
 
                         <div class="form-field">
@@ -444,7 +455,8 @@
                         <div class="form-field">
                             <label class="form-field__label">End Date (Optional)</label>
                             <input type="date" id="endDate" class="form-field__input">
-                            <small class="form-field__hint">If set, consultant auto-becomes inactive after this date.</small>
+                            <small class="form-field__hint">If set, consultant auto-becomes inactive after this
+                                date.</small>
                             <div id="endDateError" class="form-field__error"></div>
                         </div>
 
@@ -457,7 +469,8 @@
                         </div>
 
                         <div class="form-field">
-                            <label class="form-field__label">Currency <span class="form-field__required">*</span></label>
+                            <label class="form-field__label">Currency <span
+                                    class="form-field__required">*</span></label>
                             <select id="currency" class="form-field__input" required>
                                 <option value="USD">USD — $</option>
                                 <option value="EUR">EUR — €</option>
@@ -478,11 +491,57 @@
                     </div>
 
                     <div class="modal-actions">
-                        <button type="button" id="deleteConsultantBtn" class="btn btn--ghost" style="display:none;">Delete</button>
+                        <button type="button" id="deleteConsultantBtn" class="btn btn--ghost"
+                            style="display:none;">Delete</button>
                         <button type="button" id="cancelBtn" class="btn btn--outline">Cancel</button>
                         <button type="submit" id="saveBtn" class="btn btn--primary">Save Consultant</button>
                     </div>
                 </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Cascade Delete Confirmation Modal ─────────────────────────── -->
+    <div id="deleteConsultantModal"
+        style="display:none; position:fixed; inset:0; background:rgba(15,23,42,0.5); backdrop-filter:blur(4px); z-index:2000; align-items:center; justify-content:center; padding:1.5rem;">
+        <div
+            style="background:#fff; border-radius:16px; box-shadow:0 24px 70px rgba(15,23,42,0.2); width:min(480px,100%); padding:2rem;">
+            <div style="display:flex; align-items:center; gap:0.75rem; margin-bottom:1rem;">
+                <div
+                    style="width:40px; height:40px; border-radius:50%; background:#fee2e2; display:flex; align-items:center; justify-content:center; flex-shrink:0; font-size:1.125rem;">
+                    🗑️</div>
+                <div>
+                    <h3 style="font-size:1.125rem; font-weight:800; color:#111827; margin:0;" id="deleteModalTitle">
+                        Delete Consultant?</h3>
+                    <p style="font-size:0.8125rem; color:#6b7280; margin:0.2rem 0 0;" id="deleteModalSubtitle">This
+                        action cannot be undone.</p>
+                </div>
+            </div>
+
+            <div id="deleteModalWarning"
+                style="display:none; background:#fef2f2; border:1px solid #fecaca; border-radius:8px; padding:0.75rem 1rem; margin-bottom:1.25rem; font-size:0.8125rem; color:#991b1b;">
+                ⚠️ <strong>Cascade Warning:</strong> Deleting this consultant will also permanently delete <strong
+                    id="deleteTimesheetCount">N</strong> timesheet record(s). This data cannot be recovered.
+            </div>
+
+            <div id="deleteModalSafeMsg"
+                style="display:none; background:#ecfdf5; border:1px solid #a7f3d0; border-radius:8px; padding:0.75rem 1rem; margin-bottom:1.25rem; font-size:0.8125rem; color:#065f46;">
+                ✓ This consultant has no linked timesheet records. Safe to delete.
+            </div>
+
+            <p style="font-size:0.8125rem; color:#374151; margin-bottom:1.5rem;">
+                You are about to delete <strong id="deleteConsultantName">—</strong>. All associated data will be
+                permanently removed.
+            </p>
+
+            <div style="display:flex; gap:0.75rem; justify-content:flex-end;">
+                <button id="deleteCancelModalBtn"
+                    style="padding:0.5rem 1.25rem; border-radius:8px; border:1px solid #e5e7eb; background:#fff; font-weight:600; cursor:pointer; font-size:0.875rem; color:#374151;">Cancel</button>
+                <button id="deleteConfirmModalBtn"
+                    style="padding:0.5rem 1.25rem; border-radius:8px; border:none; background:#dc2626; color:#fff; font-weight:700; cursor:pointer; font-size:0.875rem;"
+                    disabled>
+                    <span id="deleteConfirmBtnLabel">Delete Consultant</span>
+                </button>
             </div>
         </div>
     </div>

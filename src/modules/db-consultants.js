@@ -67,3 +67,25 @@ export async function dbGetActiveConsultants() {
         return true;
     });
 }
+
+/**
+ * Returns the total number of timesheet records linked to a consultant.
+ * Used to show a cascade warning before deleting.
+ */
+export async function dbGetTimesheetsCountForConsultant(consultantId) {
+    const user = await getCurrentUser();
+    if (!user) throw new Error('Not authenticated');
+
+    const { count, error } = await supabase
+        .from('timesheets')
+        .select('id', { count: 'exact', head: true })
+        .eq('consultant_id', consultantId)
+        .eq('user_id', user.id);
+
+    if (error) {
+        // If table doesn't exist yet, return 0 gracefully
+        if (error.code === '42P01') return 0;
+        throw error;
+    }
+    return count || 0;
+}

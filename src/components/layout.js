@@ -164,18 +164,16 @@ export async function loadLayout(activeLink = '') {
     // We inject the sidebar/header at the beginning and leave the closing tags for the page
     document.body.insertAdjacentHTML('afterbegin', sidebarHTML);
 
-    // Close the .app-shell__content and .app-shell at end of body
-    // We need to wrap all existing body content inside the shell
-    // Move all existing content (after our injected shell) into the content area
     const appContent = document.querySelector('.app-shell__content');
-    const allChildren = Array.from(document.body.children);
     const shellEl = document.querySelector('.app-shell');
+    const floatingChildren = Array.from(document.body.children).filter(child => child !== shellEl);
+    if (appContent && floatingChildren.length) {
+        const fragment = document.createDocumentFragment();
+        floatingChildren.forEach((child) => fragment.appendChild(child));
+        appContent.appendChild(fragment);
+    }
 
-    allChildren.forEach(child => {
-        if (child !== shellEl && child !== document.querySelector('.sidebar-toggle') && child !== document.querySelector('.sidebar-overlay')) {
-            appContent.appendChild(child);
-        }
-    });
+    bindGlobalHeaderSearch(activeLink);
 
     // ── Event Bindings ──
 
@@ -229,6 +227,83 @@ export async function loadLayout(activeLink = '') {
         sidebar?.classList.toggle('is-open');
         overlay?.classList.toggle('is-open');
     });
+
+    // Prefetch likely next navigation targets on user intent.
+    document.querySelectorAll('.sidebar__nav a[href$=".html"]').forEach((link) => {
+        const href = link.getAttribute('href');
+        if (!href) return;
+
+        const onIntent = () => prefetchPage(href);
+        link.addEventListener('mouseenter', onIntent, { once: true, passive: true });
+        link.addEventListener('focus', onIntent, { once: true, passive: true });
+    });
+}
+
+function prefetchPage(href) {
+    try {
+        const url = new URL(href, window.location.href);
+        if (url.origin !== window.location.origin) return;
+        if (!url.pathname.endsWith('.html')) return;
+
+        const selector = `link[rel="prefetch"][href="${url.pathname}"]`;
+        if (document.head.querySelector(selector)) return;
+
+        const link = document.createElement('link');
+        link.rel = 'prefetch';
+        link.as = 'document';
+        link.href = url.pathname;
+        document.head.appendChild(link);
+    } catch (err) {
+        // Ignore malformed href values.
+    }
+}
+
+function bindGlobalHeaderSearch(activeLink) {
+    const headerInput = document.querySelector('.top-header__search-input');
+    if (!(headerInput instanceof HTMLInputElement)) return;
+
+    const localInputSelectorMap = {
+        consultants: '#searchInput',
+        timesheets: '#searchInput',
+        analytics: '#consultantSearch',
+        invoices: '#searchInput'
+    };
+
+    const localSelector = localInputSelectorMap[activeLink];
+    const localInput = localSelector ? document.querySelector(localSelector) : null;
+
+    if (localInput instanceof HTMLInputElement) {
+        const syncFromLocal = () => {
+            if (headerInput.value !== localInput.value) {
+                headerInput.value = localInput.value;
+            }
+        };
+
+        headerInput.placeholder = localInput.getAttribute('placeholder') || 'Search...';
+        syncFromLocal();
+
+        localInput.addEventListener('input', syncFromLocal, { passive: true });
+        headerInput.addEventListener('input', () => {
+            if (localInput.value === headerInput.value) return;
+            localInput.value = headerInput.value;
+            localInput.dispatchEvent(new Event('input', { bubbles: true }));
+        });
+        return;
+    }
+
+    if (activeLink === 'dashboard') {
+        headerInput.placeholder = 'Search recent invoices...';
+        headerInput.addEventListener('input', () => {
+            document.dispatchEvent(new CustomEvent('dashboard:global-search', {
+                detail: { query: headerInput.value || '' }
+            }));
+        });
+        return;
+    }
+
+    headerInput.value = '';
+    headerInput.placeholder = 'Search is not available on this page';
+    headerInput.disabled = true;
 }
 
 function getPageTitle(activeLink) {

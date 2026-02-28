@@ -1,5 +1,5 @@
 import { loadLayout } from './components/layout.js';
-import { showToast } from './modules/utils.js';
+import { showToast, debounce, createRenderScheduler } from './modules/utils.js';
 import { dbGetTimesheetsForYear } from './modules/db-timesheets.js';
 import {
     getSharedFilters,
@@ -30,8 +30,14 @@ let pivotMetric = analyticsPrefs.pivotMetric === 'revenue' ? 'revenue' : 'hours'
 let rawRows = [];
 
 const els = {};
+const requestRender = createRenderScheduler(() => renderAll());
 
-document.addEventListener('DOMContentLoaded', init);
+document.addEventListener('DOMContentLoaded', () => {
+    init().catch(err => {
+        console.error('[analytics] Fatal init error:', err);
+        document.body.innerHTML += `<div style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#fff8f8;z-index:9999;flex-direction:column;gap:0.75rem;font-family:system-ui;"><span style="font-size:2.5rem">⚠️</span><h2 style="margin:0;color:#dc2626">Failed to load Analytics</h2><p style="margin:0;color:#6b7280;font-size:0.875rem">${err.message}</p><button onclick="location.reload()" style="padding:0.5rem 1.25rem;background:#ef4444;color:#fff;border:none;border-radius:6px;cursor:pointer">Reload</button></div>`;
+    });
+});
 
 async function init() {
     await loadLayout('analytics');
@@ -105,7 +111,7 @@ function bindEvents() {
         selectedMonth = els.monthFilter.value;
         persistShared();
         updateAllMonthsToggleLabel();
-        renderAll();
+        requestRender();
     });
 
     els.allMonthsToggleBtn?.addEventListener('click', () => {
@@ -113,38 +119,39 @@ function bindEvents() {
         if (els.monthFilter) els.monthFilter.value = selectedMonth;
         persistShared();
         updateAllMonthsToggleLabel();
-        renderAll();
+        requestRender();
     });
 
     els.currencyFilter?.addEventListener('change', () => {
         selectedCurrency = normalizeCurrency(els.currencyFilter.value);
         persistShared();
-        renderAll();
+        requestRender();
     });
 
     els.clientFilter?.addEventListener('change', () => {
         selectedClient = normalizeTextFilter(els.clientFilter.value);
         persistShared();
-        renderAll();
+        requestRender();
     });
 
     els.w2Filter?.addEventListener('change', () => {
         selectedW2 = normalizeTextFilter(els.w2Filter.value);
         persistShared();
-        renderAll();
+        requestRender();
     });
 
     els.statusFilter?.addEventListener('change', () => {
         selectedStatus = normalizeStatusFilter(els.statusFilter.value);
         persistShared();
-        renderAll();
+        requestRender();
     });
 
-    els.searchInput?.addEventListener('input', () => {
+    const handleSearch = debounce(() => {
         searchTerm = els.searchInput.value.trim().toLowerCase();
         persistShared();
-        renderAll();
-    });
+        requestRender();
+    }, 120);
+    els.searchInput?.addEventListener('input', handleSearch);
 
     els.refreshBtn?.addEventListener('click', async () => {
         await refreshData();
@@ -167,7 +174,7 @@ function bindEvents() {
 
         updateAllMonthsToggleLabel();
         populateFilterOptions();
-        renderAll();
+        requestRender();
     });
 
     els.exportCsvBtn?.addEventListener('click', () => {
@@ -221,11 +228,11 @@ async function refreshData() {
         const rows = await dbGetTimesheetsForYear(selectedYear);
         rawRows = normalizeRows(rows);
         populateFilterOptions();
-        renderAll();
+        requestRender();
     } catch (err) {
         console.error(err);
         rawRows = [];
-        renderAll();
+        requestRender();
         showToast('Failed to load analytics', 'error');
     }
 }

@@ -1,7 +1,8 @@
-import { supabase } from './config.js'
+import { supabase, getCurrentUser as getCurrentUserCached, invalidateCurrentUserCache } from './config.js'
 
 // Sign up new user
 export async function signUp(email, password, fullName) {
+    invalidateCurrentUserCache()
     const { data, error } = await supabase.auth.signUp({
         email,
         password,
@@ -22,6 +23,7 @@ export async function signUp(email, password, fullName) {
 
 // Sign in existing user
 export async function signIn(email, password) {
+    invalidateCurrentUserCache()
     const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password
@@ -37,6 +39,7 @@ export async function signIn(email, password) {
 
 // Sign in with Google
 export async function signInWithGoogle() {
+    invalidateCurrentUserCache()
     const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
@@ -50,6 +53,7 @@ export async function signInWithGoogle() {
 // Sign out
 export async function signOut() {
     const { error } = await supabase.auth.signOut()
+    invalidateCurrentUserCache()
     if (error) {
         console.error('Signout error:', error.message)
     }
@@ -58,8 +62,7 @@ export async function signOut() {
 
 // Get current user
 export async function getCurrentUser() {
-    const { data: { user } } = await supabase.auth.getUser()
-    return user
+    return getCurrentUserCached()
 }
 
 // Listen to auth state changes

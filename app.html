@@ -10,8 +10,9 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script defer
+        src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
 
     <link rel="stylesheet" href="styles/variables.css">
     <link rel="stylesheet" href="styles/sidebar.css?v=1">
@@ -36,15 +37,33 @@
     <!-- Navigation injected by layout.js -->
 
     <div class="app">
+        <!-- ── Invoice Lock Banner ─────────────────────────────────────── -->
+        <div id="invoiceLockBanner"
+            style="display:none; background:linear-gradient(90deg,#fef3c7,#fef9ec); border-bottom:1px solid #fbbf24; padding:0.625rem 1.5rem; display:none; align-items:center; gap:0.75rem; font-size:0.8125rem; font-weight:500; color:#92400e;">
+            <span style="font-size:1rem;">🔒</span>
+            <span id="invoiceLockBannerText">This invoice is <strong>paid</strong> — editing is locked to protect your
+                billing record.</span>
+            <button id="invoiceUnlockBtn"
+                style="margin-left:auto; padding:0.3rem 0.75rem; border-radius:6px; border:1px solid #f59e0b; background:#fffbeb; color:#92400e; cursor:pointer; font-size:0.75rem; font-weight:600;">🔓
+                Unlock to Edit</button>
+        </div>
+
+        <!-- ── Unsaved Changes Banner ──────────────────────────────────── -->
+        <div id="unsavedBanner"
+            style="display:none; background:#eff6ff; border-bottom:1px solid #bfdbfe; padding:0.5rem 1.5rem; align-items:center; gap:0.75rem; font-size:0.8125rem; color:#1e40af; font-weight:500;">
+            <span>●</span> You have unsaved changes.
+        </div>
+
         <!-- Editor Panel -->
         <aside class="editor">
             <header class="editor__header">
-                <h1 class="editor__title">Create Invoice</h1>
+                <h1 class="editor__title" id="editorTitle">Create Invoice</h1>
                 <div class="editor__actions">
                     <button type="button" id="newBtn" class="btn btn--outline btn--sm">New</button>
                     <button type="button" id="saveBtn" class="btn btn--outline btn--sm">Save</button>
                 </div>
             </header>
+
 
             <!-- Template Bar -->
             <div class="template-bar">
@@ -321,7 +340,8 @@
             <h3 style="font-size: 1.25rem; font-weight: 700; margin-bottom: 0.5rem; color: #1e293b;">Generate Line Items
             </h3>
             <p style="color: var(--gray-500); font-size: 14px; margin-bottom: 1.5rem;">Select the billing period and
-                pull pending timesheets. Hours come from timesheets only. Invoice number is linked automatically after save.</p>
+                pull pending timesheets. Hours come from timesheets only. Invoice number is linked automatically after
+                save.</p>
 
             <div
                 style="display: grid; grid-template-columns: 1fr 1fr auto; gap: 1rem; margin-bottom: 1rem; background: #f8fafc; padding: 1rem; border-radius: 8px; align-items: end;">
@@ -333,12 +353,15 @@
                     <label class="form-field__label">Period End</label>
                     <input type="date" id="tsPeriodEnd" class="form-field__input">
                 </div>
-                <button type="button" id="loadTimesheetsBtn" class="btn btn--outline" style="height: 40px;">Load</button>
+                <button type="button" id="loadTimesheetsBtn" class="btn btn--outline"
+                    style="height: 40px;">Load</button>
             </div>
-            <p id="timesheetSelectionMeta" style="font-size: 12px; color: var(--text-secondary); margin-bottom: 0.75rem;">No timesheets loaded.</p>
+            <p id="timesheetSelectionMeta"
+                style="font-size: 12px; color: var(--text-secondary); margin-bottom: 0.75rem;">No timesheets loaded.</p>
 
             <div id="timesheetConsultantsList" style="margin-bottom: 1.5rem;">
-                <div style="text-align: center; color: var(--gray-500); padding: 2rem;">Select a date range and click Load.
+                <div style="text-align: center; color: var(--gray-500); padding: 2rem;">Select a date range and click
+                    Load.
                 </div>
             </div>
 
@@ -355,11 +378,57 @@
     <!-- Toast -->
     <div id="toast" class="toast"></div>
 
+    <!-- ── New Invoice Confirmation Modal ─────────────────────────────── -->
+    <div id="newInvoiceModal"
+        style="display:none; position:fixed; inset:0; background:rgba(15,23,42,0.45); backdrop-filter:blur(4px); z-index:2000; align-items:center; justify-content:center; padding:1.5rem;">
+        <div
+            style="background:#fff; border-radius:16px; box-shadow:0 24px 70px rgba(15,23,42,0.2); width:min(440px,100%); padding:2rem;">
+            <h3 style="font-size:1.25rem; font-weight:800; color:#111827; margin-bottom:0.5rem;">Start a New Invoice?
+            </h3>
+            <p style="color:#6b7280; font-size:0.875rem; margin-bottom:0.25rem;" id="newInvoiceModalBody">Any unsaved
+                changes will be lost.</p>
+            <p style="color:#6b7280; font-size:0.8125rem; margin-bottom:1.5rem;">Make sure you have saved your current
+                work before continuing.</p>
+            <div style="display:flex; gap:0.75rem; justify-content:flex-end;">
+                <button id="newInvoiceCancelBtn"
+                    style="padding:0.5rem 1.25rem; border-radius:8px; border:1px solid #e5e7eb; background:#fff; font-weight:600; cursor:pointer; font-size:0.875rem;">Keep
+                    Editing</button>
+                <button id="newInvoiceConfirmBtn"
+                    style="padding:0.5rem 1.25rem; border-radius:8px; border:none; background:#ef4444; color:#fff; font-weight:600; cursor:pointer; font-size:0.875rem;">Discard
+                    & Start New</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Unlock Invoice Confirmation Modal ──────────────────────────── -->
+    <div id="unlockInvoiceModal"
+        style="display:none; position:fixed; inset:0; background:rgba(15,23,42,0.45); backdrop-filter:blur(4px); z-index:2000; align-items:center; justify-content:center; padding:1.5rem;">
+        <div
+            style="background:#fff; border-radius:16px; box-shadow:0 24px 70px rgba(15,23,42,0.2); width:min(460px,100%); padding:2rem;">
+            <h3 style="font-size:1.25rem; font-weight:800; color:#111827; margin-bottom:0.5rem;">⚠️ Unlock This Invoice?
+            </h3>
+            <p style="color:#6b7280; font-size:0.875rem; margin-bottom:0.5rem;">This invoice has been
+                <strong>paid</strong>. Unlocking will allow edits and revert it to <strong>Draft</strong> status.</p>
+            <p
+                style="color:#92400e; font-size:0.8125rem; background:#fef3c7; border-radius:8px; padding:0.625rem 0.875rem; margin-bottom:1.5rem;">
+                Only unlock if you need to make corrections. Make sure to re-mark as Paid when done.</p>
+            <div style="display:flex; gap:0.75rem; justify-content:flex-end;">
+                <button id="unlockCancelBtn"
+                    style="padding:0.5rem 1.25rem; border-radius:8px; border:1px solid #e5e7eb; background:#fff; font-weight:600; cursor:pointer; font-size:0.875rem;">Keep
+                    Locked</button>
+                <button id="unlockConfirmBtn"
+                    style="padding:0.5rem 1.25rem; border-radius:8px; border:none; background:#f59e0b; color:#fff; font-weight:600; cursor:pointer; font-size:0.875rem;">Unlock
+                    & Edit</button>
+            </div>
+        </div>
+    </div>
+
     <script type="module">
         import { loadLayout } from './src/components/layout.js';
         loadLayout('app');
     </script>
     <script type="module" src="src/app-main.js"></script>
+
 </body>
 
 </html>

@@ -35,11 +35,92 @@ const state = {
     logo: null,
     subtotal: 0,
     total: 0,
-    currentTemplateName: null // Track loaded template
+    currentTemplateName: null,
+    isLocked: false,       // true when invoice is paid/sent — form is read-only
+    isDirty: false,        // true when there are unsaved changes
+    currentStatus: null    // track the live invoice status
 };
 
+// ── Invoice Lock & Dirty Helpers ────────────────────────────────────────────
+function setLocked(locked, status = 'paid') {
+    state.isLocked = locked;
+    state.currentStatus = status;
+
+    const banner = document.getElementById('invoiceLockBanner');
+    const bannerText = document.getElementById('invoiceLockBannerText');
+    const unlockBtn = document.getElementById('invoiceUnlockBtn');
+    const saveBtn = document.getElementById('saveBtn');
+    const form = document.getElementById('invoiceForm');
+    const title = document.getElementById('editorTitle');
+
+    if (locked) {
+        if (banner) banner.style.display = 'flex';
+        const label = status === 'sent' ? 'sent' : 'paid';
+        if (bannerText) bannerText.innerHTML = `This invoice is <strong>${label}</strong> — editing is locked to protect your billing record.`;
+        if (unlockBtn) unlockBtn.style.display = '';
+        if (saveBtn) { saveBtn.disabled = true; saveBtn.title = 'Unlock the invoice to save changes'; }
+        if (title) title.textContent = 'View Invoice';
+        // Disable all form inputs
+        if (form) {
+            form.querySelectorAll('input,select,textarea,button[id!="saveBtn"]').forEach(el => {
+                el.disabled = true;
+                el.style.opacity = '0.6';
+                el.style.cursor = 'not-allowed';
+            });
+        }
+    } else {
+        if (banner) banner.style.display = 'none';
+        if (saveBtn) { saveBtn.disabled = false; saveBtn.title = ''; }
+        if (title) title.textContent = state.currentInvoiceNumber ? 'Edit Invoice' : 'Create Invoice';
+        // Re-enable all form inputs
+        if (form) {
+            form.querySelectorAll('input,select,textarea,button').forEach(el => {
+                el.disabled = false;
+                el.style.opacity = '';
+                el.style.cursor = '';
+            });
+        }
+        // Keep invoice number locked
+        const invNumEl = document.getElementById('invoiceNumber');
+        if (invNumEl && state.currentInvoiceNumber) {
+            invNumEl.readOnly = true;
+            invNumEl.style.opacity = '0.6';
+            invNumEl.style.cursor = 'not-allowed';
+        }
+    }
+}
+
+function setDirty(dirty) {
+    state.isDirty = dirty;
+    const banner = document.getElementById('unsavedBanner');
+    if (banner) banner.style.display = dirty ? 'flex' : 'none';
+}
+
+function showModal(id) {
+    const el = document.getElementById(id);
+    if (el) { el.style.display = 'flex'; }
+}
+
+function hideModal(id) {
+    const el = document.getElementById(id);
+    if (el) { el.style.display = 'none'; }
+}
+
 // Initialization
-document.addEventListener('DOMContentLoaded', init);
+document.addEventListener('DOMContentLoaded', () => {
+    init().catch(err => {
+        console.error('Fatal init error:', err);
+        const msg = document.createElement('div');
+        msg.style.cssText = 'position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#fff8f8;z-index:9999;flex-direction:column;gap:0.75rem;font-family:system-ui';
+        msg.innerHTML = `
+            <span style="font-size:2.5rem;">⚠️</span>
+            <h2 style="margin:0;color:#dc2626;font-size:1.25rem;">Something went wrong loading the invoice editor</h2>
+            <p style="margin:0;color:#6b7280;font-size:0.875rem;">${err.message || 'Unknown error'}</p>
+            <button onclick="location.reload()" style="padding:0.5rem 1.25rem;background:#ef4444;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.875rem;">Reload page</button>
+        `;
+        document.body.appendChild(msg);
+    });
+});
 
 async function init() {
     if (window.appInitialized) return;
@@ -86,6 +167,19 @@ async function init() {
         await initializeInvoiceNumber();
         document.getElementById('notes').value = 'Thank you for your business!'; // Set default note
         addItem(); // UI module
+
+        // ── Auto-restore logo from most recent invoice ──────────────────
+        try {
+            const { getInvoices } = await import('./database.js');
+            const recentInvoices = await getInvoices(state.user);
+            const lastWithLogo = recentInvoices.find(inv => inv.business_info?.logo);
+            if (lastWithLogo?.business_info?.logo) {
+                state.logo = lastWithLogo.business_info.logo;
+                showToast('Logo auto-loaded from your last invoice ✓', 'info');
+            }
+        } catch (_) { /* non-fatal — logo is optional */ }
+        // ── End auto-restore ─────────────────────────────────────────────
+
         updatePreview(state);
     }
 
@@ -118,20 +212,26 @@ async function checkAuth() {
 }
 
 function bindEventListeners() {
-    // Form Inputs
+    // ── Dirty tracking: mark form dirty on any user input ──────────────
     document.querySelectorAll('form').forEach(form => {
         form.addEventListener('input', debounce(() => {
+            if (!state.isLocked) setDirty(true);
             updatePreview(state);
         }, 100));
     });
 
-    // Using delegation for items container and individual inputs?
-    // UI module handles individual item inputs via addItem binding, 
-    // but the main form inputs (business info) need binding here or in UI?
-    // Let's bind global change to updatePreview
     document.body.addEventListener('change', (e) => {
         if (e.target.matches('input, select, textarea')) {
+            if (!state.isLocked) setDirty(true);
             updatePreview(state);
+        }
+    });
+
+    // ── Warn before leaving with unsaved changes ────────────────────────
+    window.addEventListener('beforeunload', (e) => {
+        if (state.isDirty && !state.isLocked) {
+            e.preventDefault();
+            e.returnValue = '';
         }
     });
 
@@ -153,22 +253,48 @@ function bindEventListeners() {
     document.getElementById('logoUpload').addEventListener('change', (e) => {
         handleLogoUpload(e, (logoBase64) => {
             state.logo = logoBase64;
+            if (!state.isLocked) setDirty(true);
             updatePreview(state);
         });
     });
 
+    // ── New Invoice — show custom modal instead of confirm() ────────────
     document.getElementById('newBtn').addEventListener('click', () => {
-        // Wrap in timeout to prevent Chrome focus/event issues
-        setTimeout(() => {
-            if (confirm('Start new invoice?')) window.location.href = 'app.html';
-        }, 10);
+        const bodyEl = document.getElementById('newInvoiceModalBody');
+        if (bodyEl) {
+            bodyEl.textContent = state.isDirty
+                ? 'You have unsaved changes that will be permanently lost.'
+                : 'This will clear the current invoice and start fresh.';
+        }
+        showModal('newInvoiceModal');
+    });
+    document.getElementById('newInvoiceCancelBtn')?.addEventListener('click', () => hideModal('newInvoiceModal'));
+    document.getElementById('newInvoiceConfirmBtn')?.addEventListener('click', () => {
+        setDirty(false); // Clear flag so beforeunload doesn't fire
+        window.location.href = 'app.html';
+    });
+
+    // ── Unlock Invoice ──────────────────────────────────────────────────
+    document.getElementById('invoiceUnlockBtn')?.addEventListener('click', () => showModal('unlockInvoiceModal'));
+    document.getElementById('unlockCancelBtn')?.addEventListener('click', () => hideModal('unlockInvoiceModal'));
+    document.getElementById('unlockConfirmBtn')?.addEventListener('click', async () => {
+        hideModal('unlockInvoiceModal');
+        // Revert invoice to draft in DB
+        try {
+            const { updateInvoiceStatus } = await import('./database.js');
+            const invId = state.currentInvoiceId;
+            if (invId) await updateInvoiceStatus(invId, 'draft');
+        } catch (e) { /* non-fatal — unlock UI anyway */ }
+        setLocked(false);
+        setDirty(false);
+        showToast('Invoice unlocked — now in Draft status', 'info');
     });
 
     document.getElementById('saveBtn').addEventListener('click', handleSave);
 
     document.getElementById('downloadPdfBtn').addEventListener('click', () => {
         const data = gatherFormData();
-        if (state.logo) data.business_info.logo = state.logo; // Ensure state logo is used
+        if (state.logo) data.business_info.logo = state.logo;
         generatePDF(data);
     });
 
@@ -248,6 +374,11 @@ async function initializeInvoiceNumber() {
 
 // Handler functions
 async function handleSave() {
+    if (state.isLocked) {
+        showToast('Invoice is locked. Unlock it first to save changes.', 'error');
+        return;
+    }
+
     const btn = document.getElementById('saveBtn');
     btn.disabled = true;
     btn.textContent = 'Saving...';
@@ -256,23 +387,53 @@ async function handleSave() {
         const data = gatherFormData();
         if (state.logo) data.business_info.logo = state.logo;
 
+        // ── Race condition fix ──────────────────────────────────────────────
+        // If this is a NEW invoice (no existing number or still showing a
+        // pre-fetched placeholder), refresh the next number right before saving
+        // so concurrent sessions can't claim the same number.
+        const invNumEl = document.getElementById('invoiceNumber');
+        const currentNum = String(invNumEl?.value || '').trim();
+        const isNewInvoice = !state.currentInvoiceId;
+
+        if (isNewInvoice) {
+            try {
+                const freshNum = await getNextInvoiceNumber();
+                data.invoice_number = freshNum;
+                if (invNumEl) invNumEl.value = freshNum;
+            } catch (numErr) {
+                console.warn('Could not refresh invoice number, using displayed value:', numErr);
+                data.invoice_number = currentNum;
+            }
+        }
+        // ── End race fix ────────────────────────────────────────────────────
+
         const saved = await dbSaveInvoice(data);
+
+        // Always sync the authoritative DB invoice_number back into the UI
+        if (saved.invoice_number && invNumEl) {
+            invNumEl.value = saved.invoice_number;
+            // Make the number immutable now that it's persisted
+            invNumEl.readOnly = true;
+            invNumEl.style.opacity = '0.6';
+            invNumEl.style.cursor = 'not-allowed';
+            invNumEl.title = 'Invoice number cannot be changed after saving';
+        }
+
         state.currentInvoiceNumber = saved.invoice_number;
+        state.currentInvoiceId = saved.id;
 
         await syncInvoiceTimesheets(saved);
+        setDirty(false); // Clear unsaved-changes flag
         showToast('Saved successfully', 'success');
 
         // Notify other tabs
         const channel = new BroadcastChannel('app_channel');
         channel.postMessage({ type: 'invoice_saved' });
 
-        // Update URL
-        if (!state.currentInvoiceNumber) {
-            state.currentInvoiceNumber = data.invoice_number;
-            const url = new URL(window.location);
-            url.searchParams.set('invoice_number', data.invoice_number);
-            window.history.pushState({}, '', url);
-        }
+        // Update URL with invoice number
+        const url = new URL(window.location);
+        url.searchParams.set('invoice_number', saved.invoice_number);
+        window.history.replaceState({}, '', url);
     } catch (e) {
         console.error(e);
         showToast('Error saving: ' + e.message, 'error');
@@ -292,7 +453,11 @@ async function handleLoadInvoice(invoiceNumber) {
             state.logo = data.business_info.logo;
         }
 
-        // Lock the invoice number field to prevent accidental duplicates
+        // Store invoice ID and status for lock/unlock logic
+        state.currentInvoiceId = data.id;
+        state.currentStatus = data.status || 'draft';
+
+        // Lock the invoice number field — immutable after first save
         const invNumEl = document.getElementById('invoiceNumber');
         if (invNumEl) {
             invNumEl.readOnly = true;
@@ -301,6 +466,14 @@ async function handleLoadInvoice(invoiceNumber) {
             invNumEl.title = 'Invoice number cannot be changed after saving';
         }
 
+        // ── Lock paid/sent invoices ─────────────────────────────────────
+        if (data.status === 'paid' || data.status === 'sent') {
+            setLocked(true, data.status);
+        } else {
+            setLocked(false);
+        }
+
+        setDirty(false); // Just loaded — no pending changes
         updatePreview(state);
         showToast('Loaded invoice ' + invoiceNumber);
     } catch (e) {
