@@ -76,6 +76,7 @@ export function gatherFormData() {
             total,
             subtotalDisplay: document.getElementById('subtotalDisplay').textContent,
             taxDisplay: document.getElementById('taxDisplay').textContent,
+            discountDisplay: document.getElementById('discountDisplay').textContent,
             totalDisplay: document.getElementById('totalDisplay').textContent
         },
         notes: document.getElementById('notes').value,
@@ -138,99 +139,160 @@ export function calculateTotals(state) {
 
 function renderPaper(state) {
     const preview = document.getElementById('invoicePreview');
-    const currency = document.getElementById('currency').value;
-    const brandColor = document.getElementById('brandColor').value;
+    const brandColor = document.getElementById('brandColor').value || '#3b82f6';
+    const data = gatherFormData();
+    const cur = data.invoice_meta.currency;
 
-    // Gather data purely for rendering (similar to gatherFormData but lighter)
-    const data = gatherFormData(); // Reuse gather logic? Or simple read?
-    // Using gatherFormData is safest to ensure PDF and Preview match.
-
-    // Reuse the exact HTML template logic from before
-    // ...
-    // Note: I will reimplement the render logic here to match the Crystal Air theme structure
-    // or keep the old one for now and update later?
-    // Plan: keep functional parity first.
-
-    let itemsHTML = data.items.map(item => `
-        <div class="paper-item">
-            <div class="paper-item-row">
-                <div class="paper-item-desc">
-                    <div class="paper-item-title">${item.desc || 'Item'}</div>
-                    ${renderItemDetails(item)}
-                </div>
-                <div class="paper-item-metrics">
-                    <div class="paper-item-metric"><div>${item.qty}</div></div>
-                    <div class="paper-item-metric"><div>${formatCurrency(item.rate, data.invoice_meta.currency)}</div></div>
-                </div>
-                <div class="paper-item-amount">${item.amountDisplay}</div>
-            </div>
-        </div>
+    // ── Line items ─────────────────────────────────────────────────────────
+    const itemsHTML = data.items.map((item, idx) => `
+        <tr class="pv-item-row${idx % 2 === 1 ? ' pv-item-row--alt' : ''}">
+            <td class="pv-td pv-td--desc">
+                <div class="pv-item-name">${item.desc || 'Item'}</div>
+                ${renderItemDetails(item)}
+            </td>
+            <td class="pv-td pv-td--num">${item.qty}</td>
+            <td class="pv-td pv-td--num">${formatCurrency(item.rate, cur)}</td>
+            <td class="pv-td pv-td--num pv-td--amount">${item.amountDisplay}</td>
+        </tr>
     `).join('');
 
+    // ── Totals rows ────────────────────────────────────────────────────────
+    const totalsHTML = `
+        <tr><td class="pv-tot-label">Subtotal</td><td class="pv-tot-val">${data.totals.subtotalDisplay}</td></tr>
+        ${data.totals.taxAmount > 0 ? `<tr><td class="pv-tot-label">Tax</td><td class="pv-tot-val">${data.totals.taxDisplay}</td></tr>` : ''}
+        ${data.totals.discountAmount > 0 ? `<tr><td class="pv-tot-label">Discount</td><td class="pv-tot-val" style="color:#16a34a">${data.totals.discountDisplay}</td></tr>` : ''}
+        <tr class="pv-tot-grand">
+            <td class="pv-tot-label">Total Due</td>
+            <td class="pv-tot-val" style="color:${brandColor}">${data.totals.totalDisplay}</td>
+        </tr>
+    `;
+
     preview.innerHTML = `
-        <div class="paper-header">
-            <div>
-                ${state.logo ? `<img src="${state.logo}" class="paper-logo" alt="Logo">` : ''}
-                <div class="paper-company-name" style="color: ${brandColor}">${data.business_info.name || 'Your Company'}</div>
-                <div class="paper-company-details">
-                    ${(data.business_info.address || '').split('\n').map(l => `<div>${l}</div>`).join('')}
-                    ${data.business_info.email ? `<div>${data.business_info.email}</div>` : ''}
-                    ${data.business_info.phone ? `<div>${data.business_info.phone}</div>` : ''}
-                </div>
-            </div>
-            <div class="paper-invoice-block">
-                <div class="paper-invoice-title">INVOICE</div>
-                <div class="paper-meta-table">
-                    <div class="paper-meta-label">Invoice #</div><div class="paper-meta-value">${data.invoice_number}</div>
-                    <div class="paper-meta-label">Date</div><div class="paper-meta-value">${data.invoice_meta.date}</div>
-                    <div class="paper-meta-label">Due Date</div><div class="paper-meta-value">${data.invoice_meta.dueDate}</div>
-                    <div class="paper-meta-label">Amount Due</div><div class="paper-meta-value paper-meta-value--highlight" style="color:${brandColor}">${data.totals.totalDisplay}</div>
-                </div>
+    <style>
+        /* ── Scoped preview styles ─────────────────────────────────────── */
+        #invoicePreview {
+            font-family: 'Inter', system-ui, sans-serif;
+            font-size: 13px;
+            color: #1a1a2e;
+            background: #fff;
+            padding: 48px 52px;
+            min-height: 960px;
+            box-sizing: border-box;
+        }
+        .pv-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 40px; }
+        .pv-logo { max-height: 64px; max-width: 160px; object-fit: contain; margin-bottom: 12px; display: block; }
+        .pv-company-name { font-size: 22px; font-weight: 800; letter-spacing: -0.5px; color: ${brandColor}; margin-bottom: 6px; }
+        .pv-company-details { font-size: 12px; color: #64748b; line-height: 1.7; }
+        .pv-badge { text-align: right; }
+        .pv-invoice-word { font-size: 32px; font-weight: 900; letter-spacing: 3px; color: #e2e8f0; text-transform: uppercase; margin-bottom: 14px; }
+        .pv-meta { font-size: 12px; }
+        .pv-meta-row { display: flex; justify-content: flex-end; gap: 12px; margin-bottom: 3px; align-items: baseline; }
+        .pv-meta-label { color: #94a3b8; min-width: 72px; text-align: right; }
+        .pv-meta-value { color: #1e293b; font-weight: 600; min-width: 90px; text-align: right; }
+        .pv-meta-value--total { font-size: 15px; color: ${brandColor}; font-weight: 800; }
+
+        .pv-divider { border: none; border-top: 1.5px solid #f1f5f9; margin: 28px 0; }
+
+        .pv-bill-section { margin-bottom: 32px; }
+        .pv-bill-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #94a3b8; margin-bottom: 6px; }
+        .pv-bill-name { font-size: 16px; font-weight: 700; color: #1e293b; margin-bottom: 4px; }
+        .pv-bill-details { font-size: 12px; color: #64748b; line-height: 1.7; }
+
+        .pv-items-table { width: 100%; border-collapse: collapse; margin-bottom: 24px; }
+        .pv-th { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #94a3b8; padding: 0 0 10px; border-bottom: 2px solid #f1f5f9; }
+        .pv-th--desc { text-align: left; }
+        .pv-th--num { text-align: right; width: 80px; }
+        .pv-td { padding: 12px 0 12px; vertical-align: top; border-bottom: 1px solid #f8fafc; }
+        .pv-td--desc { text-align: left; }
+        .pv-td--num { text-align: right; width: 80px; color: #64748b; font-size: 12px; }
+        .pv-td--amount { color: #1e293b; font-weight: 600; font-size: 13px; }
+        .pv-item-row--alt { background: #fafbfc; }
+        .pv-item-name { font-weight: 600; color: #1e293b; margin-bottom: 3px; }
+
+        .pv-footer { display: flex; gap: 24px; align-items: flex-start; margin-top: 16px; }
+        .pv-notes-block { flex: 1; }
+        .pv-notes-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #94a3b8; margin-bottom: 6px; }
+        .pv-notes-text { font-size: 12px; color: #64748b; line-height: 1.6; }
+
+        .pv-totals-table { width: 240px; min-width: 200px; border-collapse: collapse; }
+        .pv-tot-label { text-align: left; padding: 5px 0; color: #64748b; font-size: 12px; }
+        .pv-tot-val { text-align: right; padding: 5px 0; font-weight: 600; font-size: 12px; color: #1e293b; }
+        .pv-tot-grand { border-top: 2px solid #f1f5f9; }
+        .pv-tot-grand .pv-tot-label { font-size: 14px; font-weight: 700; color: #1e293b; padding-top: 12px; }
+        .pv-tot-grand .pv-tot-val { font-size: 18px; font-weight: 800; padding-top: 12px; }
+
+        /* item detail sub-lines */
+        .pv-item-detail { font-size: 11px; color: #94a3b8; margin-top: 2px; line-height: 1.5; }
+        .pv-item-detail strong { color: #64748b; font-weight: 600; }
+    </style>
+
+    <!-- Header -->
+    <div class="pv-header">
+        <div>
+            ${state.logo ? `<img src="${state.logo}" class="pv-logo" alt="Logo">` : ''}
+            <div class="pv-company-name">${data.business_info.name || 'Your Company'}</div>
+            <div class="pv-company-details">
+                ${(data.business_info.address || '').split('\n').filter(Boolean).map(l => `<div>${l}</div>`).join('')}
+                ${data.business_info.email ? `<div>${data.business_info.email}</div>` : ''}
+                ${data.business_info.phone ? `<div>${data.business_info.phone}</div>` : ''}
             </div>
         </div>
-        
-        <div class="paper-addresses">
-            <div class="paper-address-label">Bill To</div>
-            <div class="paper-client-name">${data.client_info.name}</div>
-            <div class="paper-client-details">
-                ${(data.client_info.address || '').split('\n').map(l => `<div>${l}</div>`).join('')}
-                ${data.client_info.email ? `<div>${data.client_info.email}</div>` : ''}
-                ${data.client_info.phone ? `<div>${data.client_info.phone}</div>` : ''}
+        <div class="pv-badge">
+            <div class="pv-invoice-word">Invoice</div>
+            <div class="pv-meta">
+                <div class="pv-meta-row"><span class="pv-meta-label">Invoice #</span><span class="pv-meta-value">${data.invoice_number}</span></div>
+                <div class="pv-meta-row"><span class="pv-meta-label">Date</span><span class="pv-meta-value">${data.invoice_meta.date}</span></div>
+                <div class="pv-meta-row"><span class="pv-meta-label">Due Date</span><span class="pv-meta-value">${data.invoice_meta.dueDate}</span></div>
+                <div class="pv-meta-row" style="margin-top:8px"><span class="pv-meta-label">Amount Due</span><span class="pv-meta-value pv-meta-value--total">${data.totals.totalDisplay}</span></div>
             </div>
         </div>
-        
-        <div class="paper-items-section">
-            <div class="paper-items-header">
-                <div class="paper-items-header-desc">Items</div>
-                <div class="paper-items-header-cols">
-                    <div class="paper-items-header-col">Qty</div>
-                    <div class="paper-items-header-col">Rate</div>
-                    <div class="paper-items-header-col">Amount</div>
-                </div>
-            </div>
-            <div class="paper-items-list">${itemsHTML}</div>
+    </div>
+
+    <hr class="pv-divider">
+
+    <!-- Bill To -->
+    <div class="pv-bill-section">
+        <div class="pv-bill-label">Bill To</div>
+        <div class="pv-bill-name">${data.client_info.name || '—'}</div>
+        <div class="pv-bill-details">
+            ${(data.client_info.address || '').split('\n').filter(Boolean).map(l => `<div>${l}</div>`).join('')}
+            ${data.client_info.email ? `<div>${data.client_info.email}</div>` : ''}
+            ${data.client_info.phone ? `<div>${data.client_info.phone}</div>` : ''}
         </div>
-        
-        <div class="paper-footer">
-            ${renderFooterNotes(data)}
-            <div class="paper-totals-section" style="margin-left:auto">
-                <div class="paper-totals-row"><span class="paper-totals-label">Subtotal</span><span class="paper-totals-value">${data.totals.subtotalDisplay}</span></div>
-                ${data.totals.taxAmount > 0 ? `<div class="paper-totals-row"><span class="paper-totals-label">Tax</span><span class="paper-totals-value">${data.totals.taxDisplay}</span></div>` : ''}
-                ${data.totals.discountAmount > 0 ? `<div class="paper-totals-row"><span class="paper-totals-label">Discount</span><span class="paper-totals-value">${data.totals.discountDisplay}</span></div>` : ''}
-                <div class="paper-totals-row paper-totals-row--grand"><span class="paper-totals-label">Total Due</span><span class="paper-totals-value" style="color:${brandColor}">${data.totals.totalDisplay}</span></div>
-            </div>
+    </div>
+
+    <!-- Items Table -->
+    <table class="pv-items-table">
+        <thead>
+            <tr>
+                <th class="pv-th pv-th--desc">Description</th>
+                <th class="pv-th pv-th--num">Qty</th>
+                <th class="pv-th pv-th--num">Rate</th>
+                <th class="pv-th pv-th--num">Amount</th>
+            </tr>
+        </thead>
+        <tbody>${itemsHTML}</tbody>
+    </table>
+
+    <!-- Footer: Notes + Totals -->
+    <div class="pv-footer">
+        <div class="pv-notes-block">
+            ${data.notes ? `<div class="pv-notes-label">Notes</div><div class="pv-notes-text">${data.notes}</div>` : ''}
+            ${data.payment_instructions ? `<div class="pv-notes-label" style="margin-top:12px">Payment Instructions</div><div class="pv-notes-text">${data.payment_instructions}</div>` : ''}
         </div>
+        <table class="pv-totals-table">${totalsHTML}</table>
+    </div>
     `;
 }
 
 function renderItemDetails(item) {
     if (!item.client && !item.consultant && !item.period && !item.notes) return '';
     return `
-        <div class="paper-item-details">
-            ${item.client ? `<div class="paper-item-detail-line"><span class="paper-item-detail-label">Client:</span> ${item.client}</div>` : ''}
-            ${item.consultant ? `<div class="paper-item-detail-line"><span class="paper-item-detail-label">Consultant:</span> ${item.consultant}</div>` : ''}
-            ${item.period ? `<div class="paper-item-detail-line"><span class="paper-item-detail-label">Period:</span> ${item.period}</div>` : ''}
-            ${item.notes ? `<div class="paper-item-detail-line">${item.notes}</div>` : ''}
+        <div class="pv-item-detail">
+            ${item.client ? `<div><strong>Client:</strong> ${item.client}</div>` : ''}
+            ${item.consultant ? `<div><strong>Consultant:</strong> ${item.consultant}</div>` : ''}
+            ${item.period ? `<div><strong>Period:</strong> ${item.period}</div>` : ''}
+            ${item.notes ? `<div>${item.notes}</div>` : ''}
         </div>
     `;
 }

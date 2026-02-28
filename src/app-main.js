@@ -272,6 +272,16 @@ async function handleLoadInvoice(invoiceNumber) {
         if (data.business_info?.logo) {
             state.logo = data.business_info.logo;
         }
+
+        // Lock the invoice number field to prevent accidental duplicates
+        const invNumEl = document.getElementById('invoiceNumber');
+        if (invNumEl) {
+            invNumEl.readOnly = true;
+            invNumEl.style.opacity = '0.6';
+            invNumEl.style.cursor = 'not-allowed';
+            invNumEl.title = 'Invoice number cannot be changed after saving';
+        }
+
         updatePreview(state);
         showToast('Loaded invoice ' + invoiceNumber);
     } catch (e) {
