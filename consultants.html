@@ -44,6 +44,12 @@
             color: #92400e;
         }
 
+        .status-pending {
+            background: #eff6ff;
+            color: #1d4ed8;
+            border: 1px solid #bfdbfe;
+        }
+
         .filters-meta {
             margin-top: 0.65rem;
             font-size: 0.8125rem;
@@ -356,6 +362,7 @@
                     <select id="statusFilter" class="sort-select">
                         <option value="all">All Statuses</option>
                         <option value="active" selected>Active Only</option>
+                        <option value="pending">Pending Only</option>
                         <option value="inactive">Inactive Only</option>
                     </select>
                     <select id="clientFilter" class="sort-select" aria-label="Filter by client">
@@ -446,9 +453,21 @@
 
                         <div class="form-field">
                             <label class="form-field__label">
-                                Start Date <span class="form-field__required">*</span>
+                                Status <span class="form-field__required">*</span>
                             </label>
-                            <input type="date" id="startDate" class="form-field__input" required>
+                            <select id="status" class="form-field__select" required>
+                                <option value="active">Active</option>
+                                <option value="pending">Pending (Onboarding)</option>
+                                <option value="inactive">Inactive</option>
+                            </select>
+                            <div id="statusError" class="form-field__error"></div>
+                        </div>
+
+                        <div class="form-field">
+                            <label class="form-field__label" id="startDateLabel">
+                                Start Date <span class="form-field__required" id="startDateReq">*</span>
+                            </label>
+                            <input type="date" id="startDate" class="form-field__input">
                             <div id="startDateError" class="form-field__error"></div>
                         </div>
 

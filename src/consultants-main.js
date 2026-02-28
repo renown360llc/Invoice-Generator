@@ -74,9 +74,24 @@ function formatMoney(amount, currency) {
 
 function isConsultantActive(consultant) {
     if (!consultant) return false;
-    if (consultant.status === 'inactive') return false;
+    if (consultant.status === 'inactive' || consultant.status === 'pending') return false;
     if (consultant.end_date && consultant.end_date < new Date().toISOString().slice(0, 10)) return false;
     return true;
+}
+
+function updateFormRequirements() {
+    const status = els.status?.value || 'active';
+    const isPending = status === 'pending';
+
+    const reqEls = {
+        startDate: document.getElementById('startDateReq'),
+        billRate: document.getElementById('billRateReq'),
+        commissionRate: document.getElementById('commissionRateReq')
+    };
+
+    if (reqEls.startDate) reqEls.startDate.style.display = isPending ? 'none' : 'inline';
+    if (reqEls.billRate) reqEls.billRate.style.display = isPending ? 'none' : 'inline';
+    if (reqEls.commissionRate) reqEls.commissionRate.style.display = isPending ? 'none' : 'inline';
 }
 
 function getPeriodRange() {
@@ -126,8 +141,10 @@ function renderTable() {
         }
 
         const active = isConsultantActive(consultant);
+        const isPending = consultant.status === 'pending';
         if (currentFilter === 'active' && !active) return false;
-        if (currentFilter === 'inactive' && active) return false;
+        if (currentFilter === 'pending' && !isPending) return false;
+        if (currentFilter === 'inactive' && (active || isPending)) return false;
 
         if (filterCurrency !== 'all' && normalizeCurrency(consultant.currency || 'USD') !== filterCurrency) return false;
         if (filterClient !== 'all' && normalizeTextFilter(consultant.client) !== filterClient) return false;
@@ -147,7 +164,10 @@ function renderTable() {
                 case 'start_date': return row.start_date || '';
                 case 'end_date': return row.end_date || '';
                 case 'bill_rate': return Number(row.bill_rate) || 0;
-                case 'status': return isConsultantActive(row) ? 1 : 0;
+                case 'status':
+                    if (row.status === 'active') return 2;
+                    if (row.status === 'pending') return 1;
+                    return 0;
                 case 'coverage': return coverageSet.has(String(row.id)) ? 1 : 0;
                 default: return '';
             }
@@ -182,14 +202,24 @@ function renderTable() {
 
     els.tbody.innerHTML = filtered.map((consultant) => {
         const active = isConsultantActive(consultant);
-        const activeClass = active ? 'status-active' : 'status-inactive';
-        const activeText = active ? 'Active' : 'Inactive';
+        const isPending = consultant.status === 'pending';
+        let statusClass = 'status-inactive';
+        let statusText = 'Inactive';
+
+        if (active) {
+            statusClass = 'status-active';
+            statusText = 'Active';
+        } else if (isPending) {
+            statusClass = 'status-pending';
+            statusText = 'Pending (Onboarding)';
+        }
         const currency = normalizeCurrency(consultant.currency || 'USD');
         const hasTimesheet = coverageSet.has(String(consultant.id));
 
         const coverageBadge = hasTimesheet
             ? '<span class="status-badge status-active">Has Timesheet</span>'
             : `<span class="status-badge status-missing">No Timesheet (${escapeHtml(range.label)})</span>`;
+
 
         const coverageAction = hasTimesheet
             ? ''
@@ -209,7 +239,7 @@ function renderTable() {
                     <div style="font-size:12px;color:var(--text-tertiary);">Comm: ${formatMoney(Number(consultant.commission_rate) || 0, currency)} / hr</div>
                     <div style="font-size:12px;color:var(--text-tertiary);">Currency: ${currency}</div>
                 </td>
-                <td><span class="status-badge ${activeClass}">${activeText}</span></td>
+                <td><span class="status-badge ${statusClass}">${statusText}</span></td>
                 <td>${coverageBadge}</td>
                 <td style="white-space:nowrap;">
                     <button class="btn btn--outline btn--sm edit-btn" data-id="${consultant.id}">Edit</button>
@@ -221,6 +251,34 @@ function renderTable() {
     }).join('');
 
 }
+
+/**
+ * Handle delegating clicks to table buttons
+ */
+document.addEventListener('click', (event) => {
+    const target = event.target;
+    if (!target) return;
+
+    // Edit button
+    const editBtn = target.closest('.edit-btn');
+    if (editBtn) {
+        const id = editBtn.dataset.id;
+        if (id) openModal(id);
+        return;
+    }
+
+    // Delete button
+    const deleteBtn = target.closest('.delete-btn');
+    if (deleteBtn) {
+        const id = deleteBtn.dataset.id;
+        if (id) {
+            _pendingDeleteId = id;
+            openDeleteModal(id);
+        }
+        return;
+    }
+
+});
 
 function isModalOpen() {
     return Boolean(els.modal?.classList.contains('is-open'));
@@ -319,6 +377,7 @@ function openModal(id = null) {
 
         if (els.consultantId) els.consultantId.value = consultant.id;
         if (els.name) els.name.value = consultant.name || '';
+        if (els.status) els.status.value = consultant.status || 'active';
         if (els.client) els.client.value = consultant.client || '';
         if (els.w2Company) els.w2Company.value = consultant.w2_company || '';
         if (els.startDate) els.startDate.value = consultant.start_date || '';
@@ -361,6 +420,7 @@ function handleGlobalKeydown(event) {
 function validateConsultantForm() {
     clearFormErrors();
 
+    const status = els.status?.value || 'active';
     const name = String(els.name?.value || '').trim();
     const startDate = String(els.startDate?.value || '').trim();
     const endDate = String(els.endDate?.value || '').trim();
@@ -379,16 +439,32 @@ function validateConsultantForm() {
         valid = false;
     }
 
-    if (!startDate) {
-        setFieldError('startDate', 'Start date is required.');
-        valid = false;
-    }
-
     if (!currency || currency === 'all') {
         setFieldError('currency', 'Currency is required.');
         valid = false;
     }
 
+    // Only require these if status is 'active'
+    if (status === 'active') {
+        if (!startDate) {
+            setFieldError('startDate', 'Start date is required for active consultants.');
+            valid = false;
+        }
+
+        if (!hasBillRate && !hasCommissionRate) {
+            setFieldError('billRate', 'Enter either Bill Rate or Commission.');
+            setFieldError('commissionRate', 'Enter either Bill Rate or Commission.');
+            valid = false;
+        }
+
+        if (hasBillRate && hasCommissionRate) {
+            setFieldError('billRate', 'Use only one: Bill Rate or Commission.');
+            setFieldError('commissionRate', 'Use only one: Bill Rate or Commission.');
+            valid = false;
+        }
+    }
+
+    // Rate format validation (if entered)
     if (hasBillRate && (!Number.isFinite(billRate) || billRate <= 0)) {
         setFieldError('billRate', 'Bill rate must be greater than 0.');
         valid = false;
@@ -396,18 +472,6 @@ function validateConsultantForm() {
 
     if (hasCommissionRate && (!Number.isFinite(commissionRate) || commissionRate <= 0)) {
         setFieldError('commissionRate', 'Commission must be greater than 0.');
-        valid = false;
-    }
-
-    if (!hasBillRate && !hasCommissionRate) {
-        setFieldError('billRate', 'Enter either Bill Rate or Commission.');
-        setFieldError('commissionRate', 'Enter either Bill Rate or Commission.');
-        valid = false;
-    }
-
-    if (hasBillRate && hasCommissionRate) {
-        setFieldError('billRate', 'Use only one: Bill Rate or Commission.');
-        setFieldError('commissionRate', 'Use only one: Bill Rate or Commission.');
         valid = false;
     }
 
@@ -430,9 +494,10 @@ async function handleSave(event) {
     const id = String(els.consultantId?.value || '').trim();
     const payload = {
         name: String(els.name?.value || '').trim(),
+        status: els.status?.value || 'active',
         client: String(els.client?.value || '').trim(),
         w2_company: String(els.w2Company?.value || '').trim(),
-        start_date: String(els.startDate?.value || '').trim(),
+        start_date: String(els.startDate?.value || '').trim() || null,
         end_date: String(els.endDate?.value || '').trim() || null,
         bill_rate: billRateRaw ? Number(billRateRaw) : 0,
         commission_rate: commissionRateRaw ? Number(commissionRateRaw) : 0,
@@ -580,6 +645,7 @@ function cacheElements() {
 
     els.consultantId = document.getElementById('consultantId');
     els.name = document.getElementById('name');
+    els.status = document.getElementById('status');
     els.client = document.getElementById('client');
     els.w2Company = document.getElementById('w2Company');
     els.startDate = document.getElementById('startDate');
@@ -652,6 +718,7 @@ function bindPageEvents() {
         if (_pendingDeleteId) await deleteConsultant(_pendingDeleteId);
     });
 
+    els.status?.addEventListener('change', updateFormRequirements);
     els.form?.addEventListener('submit', handleSave);
     els.modal?.addEventListener('click', handleModalBackdropClick);
     document.addEventListener('keydown', handleGlobalKeydown);
@@ -859,7 +926,7 @@ async function init() {
 
 function normalizeConsultantStatus(value) {
     const normalized = String(value || 'active').trim().toLowerCase();
-    if (normalized === 'all' || normalized === 'inactive') return normalized;
+    if (normalized === 'all' || normalized === 'inactive' || normalized === 'pending') return normalized;
     return 'active';
 }
 

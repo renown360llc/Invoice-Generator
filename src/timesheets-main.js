@@ -547,6 +547,13 @@ function renderStatusBadge(status) {
     return '<span style="color:var(--text-tertiary);">—</span>';
 }
 
+function isConsultantInRange(consultant, range) {
+    if (consultant.status === 'pending') return false; // Hide from timesheets
+    const start = consultant.start_date || '0000-01-01';
+    const end = consultant.end_date || '9999-12-31';
+    return start <= range.end && end >= range.start;
+}
+
 function openModal(data) {
     if (!els.modal) return;
 
@@ -681,11 +688,6 @@ function pickPrimaryTimesheet(times) {
     })[0];
 }
 
-function isConsultantInRange(consultant, range) {
-    const start = consultant.start_date || '0000-01-01';
-    const end = consultant.end_date || '9999-12-31';
-    return start <= range.end && end >= range.start;
-}
 
 function updateFilterSummary() {
     if (!els.filterSummary) return;

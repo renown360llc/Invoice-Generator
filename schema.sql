@@ -6,11 +6,12 @@ CREATE TABLE IF NOT EXISTS public.consultants (
     name TEXT NOT NULL,
     w2_company TEXT,
     client TEXT,
-    start_date DATE NOT NULL,
+    start_date DATE, -- Nullable for 'pending' onboarding
     end_date DATE,
     bill_rate NUMERIC(10, 2) DEFAULT 0,
     commission_rate NUMERIC(10, 2) DEFAULT 0,
-    currency TEXT NOT NULL DEFAULT 'USD'
+    currency TEXT NOT NULL DEFAULT 'USD',
+    status TEXT DEFAULT 'active' CHECK (status IN ('active', 'pending', 'inactive'))
 );
 
 -- Timesheets Table
