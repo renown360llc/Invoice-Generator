@@ -393,7 +393,6 @@ function openModal(id = null) {
         if (els.modalTitle) els.modalTitle.textContent = 'Add New Consultant';
         if (els.modalSubtitle) els.modalSubtitle.textContent = 'Create a consultant profile for invoices and timesheets.';
         if (els.saveBtn) els.saveBtn.textContent = 'Save Consultant';
-        if (els.startDate) els.startDate.value = new Date().toISOString().slice(0, 10);
         // No original rates for new consultants
         _originalBillRate = null;
         _originalCommissionRate = null;
