@@ -1,5 +1,5 @@
 import { getCurrentUser, signOut } from './auth.js'
-import { getInvoices, getInvoice } from './database.js'
+import { getInvoices, getInvoice, updateInvoiceStatus } from './database.js'
 import { supabase } from './config.js'
 import { generatePDF } from './modules/pdf.js'
 import './security.js'
@@ -10,6 +10,7 @@ let filteredInvoices = []
 let currentPage = 1
 const itemsPerPage = 20
 let invoiceToDelete = null
+let invoiceToPay = null // tracks invoice being marked as paid
 
 // Check authentication
 async function checkAuth() {
@@ -50,13 +51,26 @@ function formatCurrency(amount) {
     }).format(amount)
 }
 
-// Format date
+// Format date — uses invoice_meta date (user-entered), falls back to created_at
 function formatDate(dateString) {
+    if (!dateString) return '—'
     return new Date(dateString).toLocaleDateString('en-US', {
         month: 'short',
         day: 'numeric',
         year: 'numeric'
     })
+}
+
+// Return a colored status badge HTML
+function renderStatusBadge(status) {
+    const map = {
+        draft: { label: 'Draft', bg: '#F3F4F6', color: '#6B7280' },
+        sent: { label: 'Sent', bg: '#DBEAFE', color: '#1D4ED8' },
+        paid: { label: 'Paid', bg: '#D1FAE5', color: '#065F46' },
+        overdue: { label: 'Overdue', bg: '#FEE2E2', color: '#B91C1C' },
+    }
+    const s = map[status?.toLowerCase()] || map.draft
+    return `<span style="display:inline-block;padding:2px 10px;border-radius:99px;font-size:0.75rem;font-weight:600;background:${s.bg};color:${s.color}">${s.label}</span>`
 }
 
 // State for consultant filter
@@ -214,30 +228,45 @@ function renderInvoices() {
     const pageInvoices = filteredInvoices.slice(startIndex, endIndex)
 
     // Render table rows
-    tbody.innerHTML = filteredInvoices.map(invoice => `
+    tbody.innerHTML = filteredInvoices.map(invoice => {
+        const invoiceDate = invoice.invoice_meta?.dateRaw || invoice.invoice_meta?.date || invoice.created_at
+        const status = invoice.status || 'draft'
+        // Determine overdue: sent but past due date and not paid
+        let effectiveStatus = status
+        if (status === 'sent' && invoice.invoice_meta?.dueDateRaw) {
+            const due = new Date(invoice.invoice_meta.dueDateRaw)
+            if (due < new Date()) effectiveStatus = 'overdue'
+        }
+
+        // Build quick action buttons based on current status
+        let statusActions = ''
+        if (effectiveStatus === 'draft') {
+            statusActions = `<button class="action-pill action-pill--sent" onclick="markAsSent('${invoice.id}')">✉ Sent</button>`
+        } else if (effectiveStatus === 'sent' || effectiveStatus === 'overdue') {
+            statusActions = `<button class="action-pill action-pill--paid" onclick="markAsPaid('${invoice.id}')">✓ Paid</button>`
+        } else if (effectiveStatus === 'paid') {
+            statusActions = `<button class="action-pill action-pill--unmark" onclick="unmarkPaid('${invoice.id}')">↩ Unmark</button>`
+        }
+
+        return `
             <tr>
                 <td>${escapeHtml(invoice.invoice_number)}</td>
                 <td>${escapeHtml(invoice.client_info?.name || 'N/A')}</td>
-                <td>${formatDate(invoice.created_at)}</td>
+                <td>${formatDate(invoiceDate)}</td>
+                <td>${renderStatusBadge(effectiveStatus)}</td>
                 <td>${formatCurrency(invoice.totals?.total || 0)}</td>
                 <td>
                     <div class="action-pills">
-                        <button class="action-pill action-pill--edit" onclick="viewInvoice('${escapeHtml(invoice.invoice_number)}')">
-                            Edit
-                        </button>
-                        <button class="action-pill action-pill--download" onclick="downloadPDF('${escapeHtml(invoice.invoice_number)}')">
-                            PDF
-                        </button>
-                        <button class="action-pill action-pill--email" onclick="emailInvoice('${escapeHtml(invoice.invoice_number)}')">
-                            Email
-                        </button>
-                        <button class="action-pill action-pill--delete" onclick="deleteInvoice('${invoice.id}')">
-                            Del
-                        </button>
+                        ${statusActions}
+                        <button class="action-pill action-pill--edit" onclick="viewInvoice('${escapeHtml(invoice.invoice_number)}')">Edit</button>
+                        <button class="action-pill action-pill--download" onclick="downloadPDF('${escapeHtml(invoice.invoice_number)}')">PDF</button>
+                        <button class="action-pill action-pill--email" onclick="emailInvoice('${escapeHtml(invoice.invoice_number)}')">Email</button>
+                        <button class="action-pill action-pill--delete" onclick="deleteInvoice('${invoice.id}')">Del</button>
                     </div>
                 </td>
             </tr>
-        `).join('');
+        `
+    }).join('')
 
     // Render pagination
     renderPagination()
@@ -325,6 +354,36 @@ window.deleteInvoice = function (invoiceId) {
     document.getElementById('deleteModal').style.display = 'flex'
 }
 
+// ── Status Quick Actions ──────────────────────────────────────────────────────
+
+window.markAsSent = async function (invoiceId) {
+    try {
+        await updateInvoiceStatus(invoiceId, 'sent')
+        showToast('Marked as Sent', 'success')
+        await loadInvoices()
+    } catch (e) {
+        showToast('Error: ' + e.message, 'error')
+    }
+}
+
+window.unmarkPaid = async function (invoiceId) {
+    try {
+        await updateInvoiceStatus(invoiceId, 'sent')
+        showToast('Moved back to Sent', 'success')
+        await loadInvoices()
+    } catch (e) {
+        showToast('Error: ' + e.message, 'error')
+    }
+}
+
+window.markAsPaid = function (invoiceId) {
+    invoiceToPay = invoiceId
+    // Default the date picker to today
+    const today = new Date().toISOString().split('T')[0]
+    document.getElementById('paidDateInput').value = today
+    document.getElementById('paidDateModal').style.display = 'flex'
+}
+
 // Delete confirmation
 document.getElementById('confirmDelete').addEventListener('click', async () => {
     if (!invoiceToDelete) return
@@ -355,6 +414,31 @@ document.getElementById('confirmDelete').addEventListener('click', async () => {
 document.getElementById('cancelDelete').addEventListener('click', () => {
     document.getElementById('deleteModal').style.display = 'none'
     invoiceToDelete = null
+})
+
+// ── Paid Date Modal ───────────────────────────────────────────────────────────
+
+document.getElementById('confirmPaidDate').addEventListener('click', async () => {
+    if (!invoiceToPay) return
+    const paidDate = document.getElementById('paidDateInput').value
+    if (!paidDate) {
+        showToast('Please select a payment date', 'error')
+        return
+    }
+    try {
+        await updateInvoiceStatus(invoiceToPay, 'paid', paidDate)
+        showToast('Marked as Paid ✓', 'success')
+        document.getElementById('paidDateModal').style.display = 'none'
+        invoiceToPay = null
+        await loadInvoices()
+    } catch (e) {
+        showToast('Error: ' + e.message, 'error')
+    }
+})
+
+document.getElementById('cancelPaidDate').addEventListener('click', () => {
+    document.getElementById('paidDateModal').style.display = 'none'
+    invoiceToPay = null
 })
 
 // Load invoices
@@ -392,7 +476,8 @@ async function init() {
 
         // Update user name
         const userName = user.user_metadata?.full_name || user.email.split('@')[0]
-        document.getElementById('userName').textContent = userName
+        const userNameEl = document.getElementById('userName')
+        if (userNameEl) userNameEl.textContent = userName
 
         // Load invoices
         await loadInvoices(user)

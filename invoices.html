@@ -14,7 +14,8 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
 
     <link rel="stylesheet" href="styles/variables.css">
-    <link rel="stylesheet" href="styles/dashboard.css?v=10">
+    <link rel="stylesheet" href="styles/sidebar.css?v=1">
+    <link rel="stylesheet" href="styles/dashboard.css?v=11">
 
     <style>
         body {
@@ -93,13 +94,14 @@
                                 <th>Invoice #</th>
                                 <th>Client</th>
                                 <th>Date</th>
+                                <th>Status</th>
                                 <th>Amount</th>
                                 <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody id="invoicesBody">
                             <tr>
-                                <td colspan="5" class="table__empty">
+                                <td colspan="6" class="table__empty">
                                     <div class="empty-state">
                                         <span class="empty-state__icon">⏳</span>
                                         <p class="empty-state__text">Loading invoices...</p>
@@ -127,7 +129,31 @@
             <div style="display: flex; gap: 1rem; justify-content: flex-end;">
                 <button id="cancelDelete" class="btn"
                     style="background: var(--gray-200); color: var(--gray-700);">Cancel</button>
-                <button id="confirmDelete" class="btn" style="background: var(--error); color: white;">Delete</button>
+                <button id="confirmDelete" class="btn"
+                    style="background: #DC2626; color: white; border: none;">Delete</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Mark as Paid Modal -->
+    <div id="paidDateModal"
+        style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center;">
+        <div
+            style="background: white; border-radius: 1rem; padding: 2rem; max-width: 380px; width: 100%; margin: 1rem;">
+            <h3 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 0.35rem;">Mark as Paid</h3>
+            <p style="color: var(--text-secondary); font-size: 0.875rem; margin-bottom: 1.25rem;">Enter the date payment
+                was received. You can change this later by clicking the status badge.</p>
+            <div style="margin-bottom: 1rem;">
+                <label
+                    style="display: block; font-size: 0.8125rem; font-weight: 600; margin-bottom: 0.4rem; color: var(--text-primary);">Payment
+                    Date</label>
+                <input type="date" id="paidDateInput"
+                    style="width: 100%; padding: 0.625rem 0.875rem; border: 1.5px solid var(--surface-border); border-radius: 8px; font-size: 0.9rem; font-family: inherit; box-sizing: border-box;">
+            </div>
+            <div style="display: flex; gap: 0.75rem; justify-content: flex-end;">
+                <button id="cancelPaidDate" class="btn"
+                    style="background: var(--surface-alt); color: var(--text-secondary);">Cancel</button>
+                <button id="confirmPaidDate" class="btn btn--primary">Confirm Payment</button>
             </div>
         </div>
     </div>

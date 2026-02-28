@@ -14,8 +14,9 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
 
     <link rel="stylesheet" href="styles/variables.css">
-    <link rel="stylesheet" href="styles/dashboard.css?v=9">
-    <link rel="stylesheet" href="styles/app.css?v=9">
+    <link rel="stylesheet" href="styles/sidebar.css?v=1">
+    <link rel="stylesheet" href="styles/dashboard.css?v=10">
+    <link rel="stylesheet" href="styles/app.css?v=10">
 
     <style>
         body {
@@ -176,6 +177,21 @@
                                     <option value="INR">INR (₹)</option>
                                     <option value="CAD">CAD ($)</option>
                                 </select>
+                            </div>
+                        </div>
+                        <div class="form-row form-row--2">
+                            <div class="form-field">
+                                <label class="form-field__label">Invoice Status</label>
+                                <select id="invoiceStatus" class="form-field__select">
+                                    <option value="draft">Draft</option>
+                                    <option value="sent">Sent</option>
+                                    <option value="paid">Paid</option>
+                                    <option value="overdue">Overdue</option>
+                                </select>
+                            </div>
+                            <div class="form-field" id="paidDateField" style="display: none;">
+                                <label class="form-field__label">Payment Date</label>
+                                <input type="date" id="paidDate" class="form-field__input">
                             </div>
                         </div>
                     </div>

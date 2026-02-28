@@ -70,6 +70,11 @@ async function init() {
             }, 1000);
         }
     } else {
+        const templateUseId = urlParams.get('template_use')
+        if (templateUseId) {
+            await handleLoadTemplate(templateUseId)
+            showToast('Template applied ✓', 'success')
+        }
         setDefaultDates();
         await initializeInvoiceNumber();
         document.getElementById('notes').value = 'Thank you for your business!'; // Set default note
@@ -79,6 +84,17 @@ async function init() {
 
     bindEventListeners();
     await updateTemplateDropdown();
+
+    // Show/hide paid date field based on status
+    const statusSelect = document.getElementById('invoiceStatus')
+    const paidDateField = document.getElementById('paidDateField')
+    if (statusSelect && paidDateField) {
+        const togglePaidDate = () => {
+            paidDateField.style.display = statusSelect.value === 'paid' ? '' : 'none'
+        }
+        statusSelect.addEventListener('change', togglePaidDate)
+        togglePaidDate() // run on load too
+    }
 }
 
 async function checkAuth() {

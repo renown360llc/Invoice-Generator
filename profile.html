@@ -11,8 +11,9 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 
     <link rel="stylesheet" href="styles/variables.css">
-    <link rel="stylesheet" href="styles/dashboard.css?v=8"> <!-- Reusing navbar/base styles -->
-    <link rel="stylesheet" href="styles/profile.css?v=2">
+    <link rel="stylesheet" href="styles/sidebar.css?v=1">
+    <link rel="stylesheet" href="styles/dashboard.css?v=10">
+    <link rel="stylesheet" href="styles/profile.css?v=3">
 
     <style>
         body {
@@ -206,7 +207,7 @@
 
     <script type="module">
         import { loadLayout } from './src/components/layout.js';
-        loadLayout(''); // No active link in main nav
+        loadLayout('profile');
     </script>
     <script type="module" src="src/profile.js"></script>
 </body>

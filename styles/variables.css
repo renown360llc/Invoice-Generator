@@ -1,58 +1,58 @@
 /* ============================================================================
-   Crystal Air Theme - Design Tokens
+   InsightFlow Theme - Design Tokens
    ============================================================================ */
 
 :root {
-    /* Invoicera-Inspired Theme - Design Tokens */
-    --primary: #F37021;
-    /* Invoicera Orange */
-    --primary-hover: #D45A0A;
-    --primary-gradient: linear-gradient(135deg, #F37021 0%, #FF8C42 100%);
+    /* Primary - InsightFlow Coral-Orange */
+    --primary: #FF6B4A;
+    --primary-hover: #E55A3A;
+    --primary-light: #FFF0EC;
+    --primary-gradient: linear-gradient(135deg, #FF6B4A 0%, #FF8C6B 100%);
 
     /* Secondary & Accents */
     --secondary: #2D3748;
-    /* Dark Slate for Nav/Footer */
-    --accent-blue: #3182CE;
-    --accent-green: #38A169;
+    --accent-blue: #3B82F6;
+    --accent-green: #22C55E;
+    --accent-yellow: #F59E0B;
+    --accent-purple: #8B5CF6;
 
-    /* Surfaces */
+    /* Surfaces - InsightFlow Cool Gray Palette */
     --surface-glass: #ffffff;
-    /* Removed glass, now solid white */
     --surface-glass-strong: #ffffff;
-    --surface-glass-border: #E2E8F0;
-    --surface-border-subtle: #EDF2F7;
+    --surface-glass-border: #E5E7EB;
+    --surface-border-subtle: #F3F4F6;
 
     --surface-paper: #ffffff;
-    --surface-app: #F8F9FA;
-    /* Light clean gray background */
+    --surface-app: #F4F7F9;
 
-    /* Mesh Gradient - Removed for clean look, kept variable for compatibility but made it subtle */
+    /* Background Helpers */
     --bg-mesh-light: none;
-
-    /* Pattern - Subtle Dot Grid */
-    --bg-grid:
-        radial-gradient(#E2E8F0 1px, transparent 1px);
+    --bg-grid: radial-gradient(#E5E7EB 1px, transparent 1px);
 
     /* Typography */
     --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-    --text-primary: #1A202C;
-    /* Darker, sharper text */
-    --text-secondary: #4A5568;
-    --text-tertiary: #718096;
+    --text-primary: #111827;
+    --text-secondary: #6B7280;
+    --text-tertiary: #9CA3AF;
 
-    /* Spacing & Radius */
-    --radius-sm: 4px;
-    --radius-md: 6px;
-    --radius-lg: 8px;
-    --radius-xl: 12px;
+    /* Layout */
+    --sidebar-width: 240px;
+    --header-height: 64px;
+
+    /* Spacing & Radius - Larger for InsightFlow soft look */
+    --radius-sm: 8px;
+    --radius-md: 10px;
+    --radius-lg: 14px;
+    --radius-xl: 16px;
     --radius-full: 9999px;
 
-    /* Shadows - Clean & Professional */
-    --shadow-glass: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
-    --shadow-glass-colored: 0 10px 15px -3px rgba(243, 112, 33, 0.1);
-    --shadow-paper: 0 20px 25px -5px rgba(0, 0, 0, 0.05), 0 10px 10px -5px rgba(0, 0, 0, 0.01);
-    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-    --shadow-card: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+    /* Shadows - Softer, more elevated */
+    --shadow-glass: 0 1px 3px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.02);
+    --shadow-glass-colored: 0 4px 14px rgba(255, 107, 74, 0.12);
+    --shadow-paper: 0 4px 24px rgba(0, 0, 0, 0.06);
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
+    --shadow-card: 0 1px 4px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
+    --shadow-sidebar: 2px 0 12px rgba(0, 0, 0, 0.04);
 }
 
 /* Base Reset Helpers */

@@ -34,9 +34,13 @@ export function gatherFormData() {
     const discountAmount = parseFloat(document.getElementById('discountDisplay').dataset.raw || 0);
     const total = parseFloat(document.getElementById('totalDisplay').dataset.raw || 0);
 
+    const statusEl = document.getElementById('invoiceStatus')
+    const paidDateEl = document.getElementById('paidDate')
+
     return {
         invoice_number: document.getElementById('invoiceNumber').value,
-        status: 'Draft',
+        status: statusEl ? statusEl.value : 'draft',
+        paid_date: paidDateEl ? (paidDateEl.value || null) : null,
         business_info: {
             name: document.getElementById('businessName').value,
             email: document.getElementById('businessEmail').value,
@@ -340,6 +344,17 @@ export function fillFormWithData(data) {
     // Notes
     document.getElementById('notes').value = data.notes || '';
     document.getElementById('paymentInstructions').value = data.payment_instructions || '';
+
+    // Status + Paid Date
+    const statusEl = document.getElementById('invoiceStatus')
+    if (statusEl) {
+        statusEl.value = data.status || 'draft'
+        statusEl.dispatchEvent(new Event('change')) // triggers show/hide of paid date field
+    }
+    const paidDateEl = document.getElementById('paidDate')
+    if (paidDateEl && data.paid_date) {
+        paidDateEl.value = data.paid_date
+    }
 
     // Items
     const container = document.getElementById('itemsContainer');

@@ -1,54 +1,174 @@
 /**
- * Layout Component Loader
- * Injects shared Navigation and Footer to eliminate HTML redundancy.
+ * Layout Component Loader — InsightFlow Sidebar + Header
+ * Injects the persistent sidebar navigation and top header bar.
  */
 
 import { getCurrentUser, signOut } from '../auth.js';
 
+function getInitials(name) {
+    if (!name) return '?';
+    return name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
+}
+
 export async function loadLayout(activeLink = '') {
     const user = await getCurrentUser();
+    const displayName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'User';
+    const initials = getInitials(displayName);
 
-    // Inject Navigation
-    const navHTML = `
-    <nav class="navbar glass-panel">
-        <div class="navbar__container">
-            <div class="navbar__brand">
-                <span class="navbar__logo">⚡</span>
-                <span class="navbar__name">Invoice Pro</span>
+    const sidebarHTML = `
+    <div class="app-shell">
+        <!-- Mobile Toggle -->
+        <button class="sidebar-toggle" id="sidebarToggle" aria-label="Toggle sidebar">☰</button>
+        <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+        <!-- Sidebar -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar__brand">
+                <div class="sidebar__logo">⚡</div>
+                <span class="sidebar__name">Invoice Pro</span>
             </div>
-            <div class="navbar__menu">
-                <a href="dashboard.html" class="navbar__link ${activeLink === 'dashboard' ? 'navbar__link--active' : ''}">Dashboard</a>
-                <a href="app.html" class="navbar__link ${activeLink === 'app' ? 'navbar__link--active' : ''}">New Invoice</a>
-                <a href="invoices.html" class="navbar__link ${activeLink === 'invoices' ? 'navbar__link--active' : ''}">Invoices</a>
-            </div>
-            <div class="navbar__user">
+
+            <nav class="sidebar__nav">
+                <div class="sidebar__section-label">Main</div>
+
+                <a href="dashboard.html" class="sidebar__link ${activeLink === 'dashboard' ? 'sidebar__link--active' : ''}">
+                    <svg class="sidebar__icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0a1 1 0 01-1-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 01-1 1h-2z"/>
+                    </svg>
+                    Dashboard
+                </a>
+
+                <a href="app.html" class="sidebar__link ${activeLink === 'app' ? 'sidebar__link--active' : ''}">
+                    <svg class="sidebar__icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M12 4v16m8-8H4"/>
+                    </svg>
+                    New Invoice
+                </a>
+
+                <a href="invoices.html" class="sidebar__link ${activeLink === 'invoices' ? 'sidebar__link--active' : ''}">
+                    <svg class="sidebar__icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                    </svg>
+                    Invoices
+                </a>
+
+                <a href="templates.html" class="sidebar__link ${activeLink === 'templates' ? 'sidebar__link--active' : ''}">
+                    <svg class="sidebar__icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414A1 1 0 0120 8.414V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2"/>
+                    </svg>
+                    Templates
+                </a>
+
+                <div class="sidebar__section-label">Account</div>
+
+                <a href="profile.html" class="sidebar__link ${activeLink === 'profile' ? 'sidebar__link--active' : ''}">
+                    <svg class="sidebar__icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+                    </svg>
+                    Profile
+                </a>
+            </nav>
+
+            <div class="sidebar__footer">
                 ${user ? `
-                <button class="user-menu-btn" id="userMenuBtn">
-                    <span id="userName">${user.user_metadata?.full_name || user.email.split('@')[0]}</span>
-                    <svg class="chevron-icon" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" /></svg>
-                </button>
-                <div class="user-menu" id="userMenu">
-                    <a href="profile.html" class="user-menu__item">
-                        <svg class="menu-icon" style="width: 16px; height: 16px;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
-                        My Profile
-                    </a>
-                    <a href="#" class="user-menu__item" id="logoutBtn">
-                        <svg class="menu-icon" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 3a1 1 0 00-1 1v12a1 1 0 102 0V4a1 1 0 00-1-1zm10.293 9.293a1 1 0 001.414 1.414l3-3a1 1 0 000-1.414l-3-3a1 1 0 10-1.414 1.414L14.586 9H7a1 1 0 100 2h7.586l-1.293 1.293z" clip-rule="evenodd" /></svg>
-                        Logout
-                    </a>
-                </div>
+                <a href="#" class="sidebar__link" id="sidebarLogout">
+                    <svg class="sidebar__icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
+                    </svg>
+                    Logout
+                </a>
                 ` : `
-                <a href="login.html" class="btn btn--primary btn--sm">Login</a>
+                <a href="login.html" class="sidebar__link">
+                    <svg class="sidebar__icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
+                    </svg>
+                    Login
+                </a>
                 `}
             </div>
-        </div>
-    </nav>
-    <div style="height: 80px;"></div> <!-- Spacer for fixed nav -->
+        </aside>
+
+        <!-- Main Content Area -->
+        <div class="app-shell__content">
+            <!-- Top Header -->
+            <header class="top-header">
+                <span class="top-header__page-title">${getPageTitle(activeLink)}</span>
+
+                <div class="top-header__search">
+                    <svg class="top-header__search-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                    </svg>
+                    <input type="text" class="top-header__search-input" placeholder="Search invoices, clients, or reports...">
+                </div>
+
+                <div class="top-header__actions">
+                    <button class="top-header__icon-btn" title="Notifications" aria-label="Notifications">
+                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
+                        </svg>
+                        <span class="notification-dot"></span>
+                    </button>
+
+                    ${user ? `
+                    <div class="top-header__user" id="userMenuBtn">
+                        <div class="top-header__avatar">${initials}</div>
+                        <div class="top-header__user-info">
+                            <span class="top-header__user-name">${displayName}</span>
+                            <span class="top-header__user-role">Admin</span>
+                        </div>
+                        <div class="user-menu" id="userMenu">
+                            <a href="profile.html" class="user-menu__item">
+                                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
+                                My Profile
+                            </a>
+                            <a href="#" class="user-menu__item" id="logoutBtn">
+                                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>
+                                Logout
+                            </a>
+                        </div>
+                    </div>
+                    ` : `
+                    <a href="login.html" class="btn btn--primary btn--sm" style="border-radius: var(--radius-sm); font-size: 0.8125rem;">Login</a>
+                    `}
+                </div>
+            </header>
     `;
 
-    document.body.insertAdjacentHTML('afterbegin', navHTML);
+    // We inject the sidebar/header at the beginning and leave the closing tags for the page
+    document.body.insertAdjacentHTML('afterbegin', sidebarHTML);
 
-    // Bind User Menu Events if user is logged in
+    // Close the .app-shell__content and .app-shell at end of body
+    // We need to wrap all existing body content inside the shell
+    // Move all existing content (after our injected shell) into the content area
+    const appContent = document.querySelector('.app-shell__content');
+    const allChildren = Array.from(document.body.children);
+    const shellEl = document.querySelector('.app-shell');
+
+    allChildren.forEach(child => {
+        if (child !== shellEl && child !== document.querySelector('.sidebar-toggle') && child !== document.querySelector('.sidebar-overlay')) {
+            appContent.appendChild(child);
+        }
+    });
+
+    // ── Event Bindings ──
+
+    // Sidebar toggle (mobile)
+    const toggleBtn = document.getElementById('sidebarToggle');
+    const sidebar = document.getElementById('sidebar');
+    const overlay = document.getElementById('sidebarOverlay');
+
+    if (toggleBtn && sidebar && overlay) {
+        toggleBtn.addEventListener('click', () => {
+            sidebar.classList.toggle('is-open');
+            overlay.classList.toggle('is-open');
+        });
+        overlay.addEventListener('click', () => {
+            sidebar.classList.remove('is-open');
+            overlay.classList.remove('is-open');
+        });
+    }
+
+    // User menu toggle
     if (user) {
         const btn = document.getElementById('userMenuBtn');
         const menu = document.getElementById('userMenu');
@@ -62,11 +182,36 @@ export async function loadLayout(activeLink = '') {
             document.addEventListener('click', () => {
                 menu.classList.remove('show');
             });
-
-            document.getElementById('logoutBtn').addEventListener('click', async (e) => {
-                e.preventDefault();
-                await signOut();
-            });
         }
+
+        // Logout buttons
+        const logoutBtn = document.getElementById('logoutBtn');
+        const sidebarLogout = document.getElementById('sidebarLogout');
+
+        const handleLogout = async (e) => {
+            e.preventDefault();
+            await signOut();
+        };
+
+        logoutBtn?.addEventListener('click', handleLogout);
+        sidebarLogout?.addEventListener('click', handleLogout);
     }
+
+    // Navigation event for layout toggle
+    document.addEventListener('layout:toggle-nav', () => {
+        sidebar?.classList.toggle('is-open');
+        overlay?.classList.toggle('is-open');
+    });
+}
+
+function getPageTitle(activeLink) {
+    const titles = {
+        'dashboard': 'Dashboard',
+        'app': 'New Invoice',
+        'invoices': 'Invoices',
+        'templates': 'Templates',
+        'profile': 'Profile',
+        '': 'Welcome'
+    };
+    return titles[activeLink] || 'Invoice Pro';
 }
