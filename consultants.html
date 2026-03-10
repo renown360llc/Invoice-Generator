@@ -101,6 +101,8 @@
             transform: translateY(16px) scale(0.98);
             opacity: 0;
             transition: transform 0.2s ease, opacity 0.2s ease;
+            display: flex;
+            flex-direction: column;
         }
 
         .modal.is-open .modal-content {
@@ -239,6 +241,13 @@
 
         .modal-actions .btn--outline {
             min-width: 112px;
+        }
+
+        #consultantForm {
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            flex: 1;
         }
 
         @keyframes modalOverlayIn {
@@ -515,17 +524,16 @@
                         </div>
                     </div>
                 </div>
-        </div>
 
-        <div class="modal-actions"
-            style="margin-top: 0; padding: 1.25rem 1.75rem; background: linear-gradient(0deg, #fff8f6 0%, #ffffff 100%);">
-            <button type="button" id="deleteConsultantBtn" class="btn btn--ghost" style="display:none;">Delete</button>
-            <button type="button" id="cancelBtn" class="btn btn--outline">Cancel</button>
-            <button type="submit" id="saveBtn" class="btn btn--primary">Save Consultant</button>
+                <div class="modal-actions"
+                    style="margin-top: 0; padding: 1.25rem 1.75rem; background: linear-gradient(0deg, #fff8f6 0%, #ffffff 100%);">
+                    <button type="button" id="deleteConsultantBtn" class="btn btn--ghost"
+                        style="display:none;">Delete</button>
+                    <button type="button" id="cancelBtn" class="btn btn--outline">Cancel</button>
+                    <button type="submit" id="saveBtn" class="btn btn--primary">Save Consultant</button>
+                </div>
+            </form>
         </div>
-        </form>
-    </div>
-    </div>
     </div>
 
     <!-- ── Cascade Delete Confirmation Modal ─────────────────────────── -->
