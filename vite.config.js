@@ -16,6 +16,7 @@ export default defineConfig({
                 profile: resolve(__dirname, 'profile.html'),
                 login: resolve(__dirname, 'login.html'),
                 signup: resolve(__dirname, 'signup.html'),
+                templates: resolve(__dirname, 'templates.html'),
                 testConnection: resolve(__dirname, 'test-connection.html')
             }
         }
