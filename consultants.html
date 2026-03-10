@@ -428,8 +428,8 @@
                 <button class="modal-close" id="closeModalBtn" aria-label="Close modal">&times;</button>
             </div>
 
-            <div class="modal-body">
-                <form id="consultantForm">
+            <form id="consultantForm">
+                <div class="modal-body">
                     <input type="hidden" id="consultantId">
                     <div class="form-grid">
                         <div class="form-field form-grid-full">
@@ -514,16 +514,18 @@
                                 placeholder="e.g. Specific contract terms, availability, internal notes..."></textarea>
                         </div>
                     </div>
-
-                    <div class="modal-actions">
-                        <button type="button" id="deleteConsultantBtn" class="btn btn--ghost"
-                            style="display:none;">Delete</button>
-                        <button type="button" id="cancelBtn" class="btn btn--outline">Cancel</button>
-                        <button type="submit" id="saveBtn" class="btn btn--primary">Save Consultant</button>
-                    </div>
-                </form>
-            </div>
+                </div>
         </div>
+
+        <div class="modal-actions"
+            style="margin-top: 0; padding: 1.25rem 1.75rem; background: linear-gradient(0deg, #fff8f6 0%, #ffffff 100%);">
+            <button type="button" id="deleteConsultantBtn" class="btn btn--ghost" style="display:none;">Delete</button>
+            <button type="button" id="cancelBtn" class="btn btn--outline">Cancel</button>
+            <button type="submit" id="saveBtn" class="btn btn--primary">Save Consultant</button>
+        </div>
+        </form>
+    </div>
+    </div>
     </div>
 
     <!-- ── Cascade Delete Confirmation Modal ─────────────────────────── -->
