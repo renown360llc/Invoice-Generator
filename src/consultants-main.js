@@ -227,9 +227,13 @@ function renderTable() {
 
         return `
             <tr>
-                <td>
-                    <div style="font-weight: 600;">${escapeHtml(consultant.name || '')}</div>
-                    ${consultant.notes ? `<div title="${escapeHtml(consultant.notes)}" style="font-size: 12px; color: var(--text-tertiary); max-width: 250px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 0.15rem;">${escapeHtml(consultant.notes)}</div>` : ''}
+                <td style="font-weight: 600;">
+                    ${escapeHtml(consultant.name || '')}
+                    ${consultant.notes ? `
+                    <div class="note-tooltip-container">
+                        <span style="opacity: 0.8; font-size: 0.9em;">📝</span>
+                        <div class="note-tooltip">${escapeHtml(consultant.notes)}</div>
+                    </div>` : ''}
                 </td>
                 <td>
                     <div>${escapeHtml(consultant.client || '—')}</div>
