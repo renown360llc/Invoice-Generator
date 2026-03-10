@@ -57,3 +57,24 @@ CREATE INDEX IF NOT EXISTS timesheets_invoice_id_idx ON public.timesheets(invoic
 -- Prevent duplicate periods for same consultant + user and enable upsert workflows
 CREATE UNIQUE INDEX IF NOT EXISTS timesheets_user_consultant_period_unique
     ON public.timesheets(user_id, consultant_id, period_start, period_end);
+
+-- Templates Table
+CREATE TABLE IF NOT EXISTS public.templates (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    business_info JSONB NOT NULL DEFAULT '{}'::jsonb,
+    client_info JSONB NOT NULL DEFAULT '{}'::jsonb,
+    settings JSONB NOT NULL DEFAULT '{}'::jsonb
+);
+
+ALTER TABLE public.templates ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can manage their own templates"
+    ON public.templates
+    FOR ALL
+    USING (auth.uid() = user_id)
+    WITH CHECK (auth.uid() = user_id);
+
+CREATE INDEX IF NOT EXISTS templates_user_id_idx ON public.templates(user_id);
