@@ -889,12 +889,12 @@ async function generateTimesheetItems() {
     const itemsToAdd = [];
     selectedEntries.forEach(entry => {
         itemsToAdd.push({
-            desc: 'Consulting Services',
+            desc: 'Services - IT Consulting',
             qty: entry.hours,
             rate: entry.bill_rate,
             consultant: entry.consultant_name,
             consultant_id: entry.consultant_id,
-            client: entry.client || '',
+            client: '',
             period: `${entry.period_start || ''} to ${entry.period_end || ''}`.trim(),
             timesheet_ids: entry.timesheet_ids || []
         });
