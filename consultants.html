@@ -261,9 +261,9 @@
             padding: 10px 14px;
             position: absolute;
             z-index: 100;
-            bottom: calc(100% + 8px);
-            left: 50%;
-            transform: translateX(-50%);
+            top: 50%;
+            left: calc(100% + 12px);
+            transform: translateY(-50%);
             opacity: 0;
             transition: opacity 0.2s, visibility 0.2s;
             border: 1px solid #fde047;
@@ -278,12 +278,12 @@
         .note-tooltip::after {
             content: "";
             position: absolute;
-            top: 100%;
-            left: 50%;
-            margin-left: -6px;
+            top: 50%;
+            right: 100%;
+            margin-top: -6px;
             border-width: 6px;
             border-style: solid;
-            border-color: #fde047 transparent transparent transparent;
+            border-color: transparent #fde047 transparent transparent;
         }
 
         .note-tooltip-container:hover .note-tooltip {
