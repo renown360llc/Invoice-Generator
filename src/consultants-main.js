@@ -227,7 +227,10 @@ function renderTable() {
 
         return `
             <tr>
-                <td style="font-weight: 600;">${escapeHtml(consultant.name || '')}</td>
+                <td style="font-weight: 600;">
+                    ${escapeHtml(consultant.name || '')}
+                    ${consultant.notes ? `<span title="${escapeHtml(consultant.notes)}" style="margin-left: 0.35rem; cursor: help; opacity: 0.7; font-size: 0.85em;">📝</span>` : ''}
+                </td>
                 <td>
                     <div>${escapeHtml(consultant.client || '—')}</div>
                     <div style="font-size:12px;color:var(--text-tertiary);">W2: ${escapeHtml(consultant.w2_company || '—')}</div>
@@ -364,6 +367,7 @@ function openModal(id = null) {
 
     if (els.consultantId) els.consultantId.value = '';
     if (els.currency) els.currency.value = 'USD';
+    if (els.notes) els.notes.value = '';
     if (els.deleteBtn) els.deleteBtn.style.display = 'none';
 
     if (id) {
@@ -385,6 +389,7 @@ function openModal(id = null) {
         if (els.billRate) els.billRate.value = Number(consultant.bill_rate) > 0 ? String(Number(consultant.bill_rate)) : '';
         if (els.commissionRate) els.commissionRate.value = Number(consultant.commission_rate) > 0 ? String(Number(consultant.commission_rate)) : '';
         if (els.currency) els.currency.value = normalizeCurrency(consultant.currency || 'USD');
+        if (els.notes) els.notes.value = consultant.notes || '';
 
         // Store original rates for change detection
         _originalBillRate = Number(consultant.bill_rate) || 0;
@@ -500,7 +505,8 @@ async function handleSave(event) {
         end_date: String(els.endDate?.value || '').trim() || null,
         bill_rate: billRateRaw ? Number(billRateRaw) : 0,
         commission_rate: commissionRateRaw ? Number(commissionRateRaw) : 0,
-        currency: normalizeCurrency(els.currency?.value || 'USD')
+        currency: normalizeCurrency(els.currency?.value || 'USD'),
+        notes: String(els.notes?.value || '').trim()
     };
 
     if (id) payload.id = id;
@@ -652,6 +658,7 @@ function cacheElements() {
     els.billRate = document.getElementById('billRate');
     els.commissionRate = document.getElementById('commissionRate');
     els.currency = document.getElementById('currency');
+    els.notes = document.getElementById('consultantNotes');
 
     els.saveBtn = document.getElementById('saveBtn');
     els.deleteBtn = document.getElementById('deleteConsultantBtn');
