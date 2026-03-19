@@ -114,6 +114,29 @@ function cacheElements() {
     els.cancelPaidBtn = document.getElementById('cancelPaidDate');
 }
 
+function closeAllRowMenus() {
+    document.querySelectorAll('.invoice-row-menu.show').forEach((menu) => {
+        menu.classList.remove('show');
+    });
+
+    document.querySelectorAll('[data-action="toggle-menu"][aria-expanded="true"]').forEach((button) => {
+        button.setAttribute('aria-expanded', 'false');
+    });
+}
+
+function toggleRowMenu(invoiceId, button) {
+    const menu = document.getElementById(`invoice-menu-${invoiceId}`);
+    if (!menu) return;
+
+    const shouldOpen = !menu.classList.contains('show');
+    closeAllRowMenus();
+
+    if (!shouldOpen) return;
+
+    menu.classList.add('show');
+    button.setAttribute('aria-expanded', 'true');
+}
+
 function hydrateFilterControls() {
     if (els.searchInput) els.searchInput.value = state.filters.search;
     if (els.statusFilter) els.statusFilter.value = state.filters.status;
@@ -204,11 +227,19 @@ function bindEvents() {
         const invoiceId = button.dataset.id;
         if (!action || !invoiceId) return;
 
+        if (action === 'toggle-menu') {
+            event.stopPropagation();
+            toggleRowMenu(invoiceId, button);
+            return;
+        }
+
         const invoice = state.allInvoices.find((entry) => entry.id === invoiceId);
         if (!invoice) {
             showToast('Invoice no longer exists in memory. Refresh and try again.', 'error');
             return;
         }
+
+        closeAllRowMenus();
 
         if (action === 'edit') {
             window.location.href = `app.html?invoice_number=${encodeURIComponent(invoice.invoice_number)}`;
@@ -253,14 +284,10 @@ function bindEvents() {
             const isOpen = panelRow.style.display !== 'none';
             if (isOpen) {
                 panelRow.style.display = 'none';
-                button.textContent = '🔗 TS';
-                button.style.color = '#6b7280';
                 return;
             }
 
             panelRow.style.display = '';
-            button.textContent = '▲ TS';
-            button.style.color = '#3b82f6';
 
             // Only fetch once (already populated check)
             if (contentEl && contentEl.dataset.loaded === '1') return;
@@ -379,8 +406,16 @@ function bindEvents() {
 
     els.cancelPaidBtn?.addEventListener('click', closePaidModal);
 
+    document.addEventListener('click', (event) => {
+        const target = event.target;
+        if (!(target instanceof HTMLElement) || !target.closest('.invoice-row-actions')) {
+            closeAllRowMenus();
+        }
+    });
+
     document.addEventListener('keydown', (event) => {
         if (event.key !== 'Escape') return;
+        closeAllRowMenus();
         closeDeleteModal();
         closePaidModal();
     });
@@ -549,35 +584,57 @@ function renderTable() {
 
     els.tableBody.innerHTML = pageInvoices.map((invoice) => {
         const invoiceDate = formatDate(getInvoiceDateRaw(invoice) || invoice.created_at);
-        const dueDate = formatDate(getDueDateRaw(invoice));
         const status = getEffectiveStatus(invoice);
-        const paymentReceivedDate = getPaymentReceivedDateDisplay(invoice, status);
         const currency = getInvoiceCurrency(invoice);
         const amount = formatMoney(getInvoiceAmount(invoice), currency);
+        const clientName = escapeHtml(invoice.client_info?.name || 'N/A');
+        const clientMeta = escapeHtml(getInvoiceClientMeta(invoice));
 
         return `
             <tr data-invoice-id="${invoice.id}">
-                <td>${escapeHtml(invoice.invoice_number || '—')}</td>
-                <td>${escapeHtml(invoice.client_info?.name || 'N/A')}</td>
-                <td>${invoiceDate}</td>
-                <td>${dueDate}</td>
-                <td>${paymentReceivedDate}</td>
-                <td>${renderStatusChip(status)}</td>
-                <td>${currency}</td>
-                <td>${amount}</td>
-                <td>
-                    <div class="actions-row">
-                        ${renderStatusAction(invoice, status)}
-                        <button class="action-btn" data-action="edit" data-id="${invoice.id}">Edit</button>
-                        <button class="action-btn" data-action="download" data-id="${invoice.id}">PDF</button>
-                        <button class="action-btn" data-action="email" data-id="${invoice.id}">Email</button>
-                        <button class="action-btn action-btn--danger" data-action="delete" data-id="${invoice.id}">Delete</button>
-                        <button class="action-btn" data-action="expand-ts" data-id="${invoice.id}" data-inv-number="${escapeHtml(invoice.invoice_number || '')}" title="View linked timesheets" style="background:transparent;border:1px dashed #d1d5db;color:#6b7280;font-size:0.75rem;">🔗 TS</button>
+                <td class="invoice-cell--number"><strong>${escapeHtml(invoice.invoice_number || '—')}</strong></td>
+                <td class="invoice-cell--client" title="${clientName}">
+                    <div class="invoice-client">
+                        <span class="invoice-client__name">${clientName}</span>
+                        <span class="invoice-client__meta" title="${clientMeta}">${clientMeta}</span>
+                    </div>
+                </td>
+                <td class="invoice-cell--date">${invoiceDate}</td>
+                <td class="invoice-cell--payment">${renderPaymentSummary(invoice, status)}</td>
+                <td class="invoice-cell--status">${renderStatusChip(status)}</td>
+                <td class="invoice-cell--currency">${currency}</td>
+                <td class="invoice-cell--amount"><strong>${amount}</strong></td>
+                <td class="invoice-cell--actions">
+                    <div class="actions-row invoice-row-actions">
+                        ${renderPrimaryAction(invoice, status)}
+                        <button
+                            class="action-btn action-btn--menu"
+                            data-action="toggle-menu"
+                            data-id="${invoice.id}"
+                            aria-haspopup="true"
+                            aria-expanded="false"
+                            title="More actions"
+                        >
+                            More
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                            </svg>
+                        </button>
+                        <div id="invoice-menu-${invoice.id}" class="dropdown-menu invoice-row-menu">
+                            <div class="dropdown-label">Invoice Actions</div>
+                            <button class="dropdown-item" data-action="edit" data-id="${invoice.id}">Edit invoice</button>
+                            <button class="dropdown-item" data-action="download" data-id="${invoice.id}">Download PDF</button>
+                            <button class="dropdown-item" data-action="email" data-id="${invoice.id}">Send by email</button>
+                            <button class="dropdown-item" data-action="expand-ts" data-id="${invoice.id}" data-inv-number="${escapeHtml(invoice.invoice_number || '')}">Linked timesheets</button>
+                            ${renderSecondaryStatusMenuAction(invoice, status)}
+                            <div class="dropdown-divider"></div>
+                            <button class="dropdown-item dropdown-item--danger" data-action="delete" data-id="${invoice.id}">Delete invoice</button>
+                        </div>
                     </div>
                 </td>
             </tr>
             <tr id="ts-panel-${invoice.id}" style="display:none;">
-                <td colspan="9" style="padding:0;">
+                <td colspan="8" style="padding:0;">
                     <div style="background:#f8fafc;border-top:1px solid #e2e8f0;border-bottom:1px solid #e2e8f0;padding:0.875rem 1.25rem;">
                         <div id="ts-panel-content-${invoice.id}" style="font-size:0.8125rem;color:#6b7280;">Loading...</div>
                     </div>
@@ -587,20 +644,28 @@ function renderTable() {
     }).join('');
 }
 
-function renderStatusAction(invoice, effectiveStatus) {
+function renderPrimaryAction(invoice, effectiveStatus) {
     if (effectiveStatus === 'draft') {
-        return `<button class="action-btn action-btn--primary" data-action="mark-sent" data-id="${invoice.id}">Mark Sent</button>`;
+        return `<button class="action-btn action-btn--primary invoice-primary-action" data-action="mark-sent" data-id="${invoice.id}">Mark Sent</button>`;
     }
 
     if (effectiveStatus === 'sent' || effectiveStatus === 'overdue') {
-        return `<button class="action-btn action-btn--primary" data-action="mark-paid" data-id="${invoice.id}">Mark Paid</button>`;
+        return `<button class="action-btn action-btn--primary invoice-primary-action" data-action="mark-paid" data-id="${invoice.id}">Mark Paid</button>`;
     }
 
-    if (effectiveStatus === 'paid') {
-        return `<button class="action-btn" data-action="reopen" data-id="${invoice.id}">Set Sent</button>`;
+    return `<button class="action-btn invoice-primary-action" data-action="download" data-id="${invoice.id}">PDF</button>`;
+}
+
+function renderSecondaryStatusMenuAction(invoice, effectiveStatus) {
+    if (effectiveStatus !== 'paid') {
+        return '';
     }
 
-    return '';
+    return `
+        <div class="dropdown-divider"></div>
+        <div class="dropdown-label">Status</div>
+        <button class="dropdown-item" data-action="reopen" data-id="${invoice.id}">Set status to sent</button>
+    `;
 }
 
 function renderPagination() {
@@ -663,7 +728,7 @@ function setLoadingTable() {
 
     els.tableBody.innerHTML = `
         <tr>
-            <td colspan="9" class="table__empty">
+            <td colspan="8" class="table__empty">
                 <div class="empty-state">
                     <span class="empty-state__icon">⏳</span>
                     <p class="empty-state__text">Loading invoices...</p>
@@ -678,7 +743,7 @@ function setEmptyTable(message) {
 
     els.tableBody.innerHTML = `
         <tr>
-            <td colspan="9" class="table__empty">
+            <td colspan="8" class="table__empty">
                 <div class="empty-state">
                     <span class="empty-state__icon">📭</span>
                     <p class="empty-state__text">${escapeHtml(message)}</p>
@@ -918,6 +983,78 @@ function getInvoiceDateRaw(invoice) {
 
 function getDueDateRaw(invoice) {
     return String(invoice.invoice_meta?.dueDateRaw || invoice.invoice_meta?.dueDate || '').trim();
+}
+
+function getInvoiceConsultantSummary(invoice) {
+    const items = Array.isArray(invoice.items) ? invoice.items : [];
+    const names = Array.from(new Set(items.map((item) => {
+        const consultantId = String(item.consultant_id || '').trim();
+        const directName = String(item.consultant || '').trim();
+        if (directName) return directName;
+        if (consultantId) return String(state.consultantsById.get(consultantId)?.name || '').trim();
+        return '';
+    }).filter(Boolean)));
+
+    if (names.length === 0) {
+        return '';
+    }
+
+    if (names.length === 1) {
+        return names[0];
+    }
+
+    return `${names[0]} +${names.length - 1} more`;
+}
+
+function getInvoicePeriodSummary(invoice) {
+    const items = Array.isArray(invoice.items) ? invoice.items : [];
+    const periods = Array.from(new Set(items.map((item) => String(item.period || '').trim()).filter(Boolean)));
+
+    if (periods.length === 0) {
+        return '';
+    }
+
+    if (periods.length === 1) {
+        return periods[0];
+    }
+
+    return `${periods.length} billing periods`;
+}
+
+function getInvoiceClientMeta(invoice) {
+    const consultantSummary = getInvoiceConsultantSummary(invoice);
+    const periodSummary = getInvoicePeriodSummary(invoice);
+
+    if (consultantSummary && periodSummary) {
+        return `${consultantSummary} • ${periodSummary}`;
+    }
+
+    return consultantSummary || periodSummary || 'No linked consultant';
+}
+
+function renderPaymentSummary(invoice, effectiveStatus) {
+    if (effectiveStatus === 'paid') {
+        const paidDate = escapeHtml(getPaymentReceivedDateDisplay(invoice, effectiveStatus));
+        return `
+            <div class="invoice-payment">
+                <span class="invoice-payment__label invoice-payment__label--paid">Received</span>
+                <span class="invoice-payment__date ${paidDate === 'null' ? 'invoice-payment__date--muted' : ''}">${paidDate}</span>
+            </div>
+        `;
+    }
+
+    const dueDate = formatDate(getDueDateRaw(invoice));
+    const hasDueDate = dueDate !== '—';
+    const labelClass = effectiveStatus === 'overdue' ? 'invoice-payment__label invoice-payment__label--overdue' : 'invoice-payment__label';
+    const displayDate = hasDueDate ? dueDate : 'No due date';
+    const dateClass = hasDueDate ? 'invoice-payment__date' : 'invoice-payment__date invoice-payment__date--muted';
+
+    return `
+        <div class="invoice-payment">
+            <span class="${labelClass}">${effectiveStatus === 'overdue' ? 'Overdue' : 'Due'}</span>
+            <span class="${dateClass}">${escapeHtml(displayDate)}</span>
+        </div>
+    `;
 }
 
 function getPaymentReceivedDateDisplay(invoice, effectiveStatus) {
