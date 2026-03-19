@@ -551,6 +551,7 @@ function renderTable() {
         const invoiceDate = formatDate(getInvoiceDateRaw(invoice) || invoice.created_at);
         const dueDate = formatDate(getDueDateRaw(invoice));
         const status = getEffectiveStatus(invoice);
+        const paymentReceivedDate = getPaymentReceivedDateDisplay(invoice, status);
         const currency = getInvoiceCurrency(invoice);
         const amount = formatMoney(getInvoiceAmount(invoice), currency);
 
@@ -560,6 +561,7 @@ function renderTable() {
                 <td>${escapeHtml(invoice.client_info?.name || 'N/A')}</td>
                 <td>${invoiceDate}</td>
                 <td>${dueDate}</td>
+                <td>${paymentReceivedDate}</td>
                 <td>${renderStatusChip(status)}</td>
                 <td>${currency}</td>
                 <td>${amount}</td>
@@ -575,7 +577,7 @@ function renderTable() {
                 </td>
             </tr>
             <tr id="ts-panel-${invoice.id}" style="display:none;">
-                <td colspan="8" style="padding:0;">
+                <td colspan="9" style="padding:0;">
                     <div style="background:#f8fafc;border-top:1px solid #e2e8f0;border-bottom:1px solid #e2e8f0;padding:0.875rem 1.25rem;">
                         <div id="ts-panel-content-${invoice.id}" style="font-size:0.8125rem;color:#6b7280;">Loading...</div>
                     </div>
@@ -661,7 +663,7 @@ function setLoadingTable() {
 
     els.tableBody.innerHTML = `
         <tr>
-            <td colspan="8" class="table__empty">
+            <td colspan="9" class="table__empty">
                 <div class="empty-state">
                     <span class="empty-state__icon">⏳</span>
                     <p class="empty-state__text">Loading invoices...</p>
@@ -676,7 +678,7 @@ function setEmptyTable(message) {
 
     els.tableBody.innerHTML = `
         <tr>
-            <td colspan="8" class="table__empty">
+            <td colspan="9" class="table__empty">
                 <div class="empty-state">
                     <span class="empty-state__icon">📭</span>
                     <p class="empty-state__text">${escapeHtml(message)}</p>
@@ -916,6 +918,16 @@ function getInvoiceDateRaw(invoice) {
 
 function getDueDateRaw(invoice) {
     return String(invoice.invoice_meta?.dueDateRaw || invoice.invoice_meta?.dueDate || '').trim();
+}
+
+function getPaymentReceivedDateDisplay(invoice, effectiveStatus) {
+    if (effectiveStatus !== 'paid') return 'null';
+
+    const paidDateRaw = String(invoice.paid_date || '').trim();
+    if (!paidDateRaw) return 'null';
+
+    const formatted = formatDate(paidDateRaw);
+    return formatted === '—' ? 'null' : formatted;
 }
 
 function getInvoiceDateTimestamp(invoice) {
