@@ -1585,11 +1585,15 @@ function renderInvoiceStatusDist() {
             : `<span>${formatCompactNumber(amounts[sd.key])}</span>`;
         return `
             <div class="status-stat-row">
-                <span class="status-stat-row__dot" style="background:${sd.color}"></span>
-                <span class="status-stat-row__label">${sd.label}</span>
-                <span class="status-stat-row__count">${count}</span>
-                <span class="status-stat-row__pct">${pct}%</span>
-                <span class="status-stat-row__amt">${currBreakdown}</span>
+                <div class="status-stat-row__left">
+                    <span class="status-stat-row__dot" style="background:${sd.color}"></span>
+                    <span class="status-stat-row__label">${sd.label}</span>
+                </div>
+                <div class="status-stat-row__right">
+                    <span class="status-stat-row__count">${count}</span>
+                    <span class="status-stat-row__pct">${pct}%</span>
+                    <span class="status-stat-row__amt">${currBreakdown}</span>
+                </div>
             </div>
         `;
     }).join('');

@@ -1,0 +1,24 @@
+id,created_at,user_id,name,w2_company,client,start_date,end_date,bill_rate,commission_rate,currency,status,notes
+25891272-113e-4ccc-bba8-5330f202f745,2026-02-28 06:02:05.293009+00,4bb8a03a-b1aa-449d-9c9f-b8be57f08d58,CA,Nityo,Lorvish,2026-01-20,,10.00,0.00,USD,active,Adrian Collins
+3a1cab34-1950-4492-9328-904bb90c6664,2026-02-28 06:00:33.509645+00,4bb8a03a-b1aa-449d-9c9f-b8be57f08d58,CC,Nityo,Lorvish,2025-12-18,,10.38,0.00,USD,active,Carrie
+40c14953-9bb4-421d-b9ac-6e28c907ac3b,2026-03-27 01:56:19.868733+00,4bb8a03a-b1aa-449d-9c9f-b8be57f08d58,David Williams,Nityo,,,,0.00,0.00,USD,pending,
+4380664c-7520-49b1-b7fc-1712ce171c77,2026-02-28 06:01:12.399887+00,4bb8a03a-b1aa-449d-9c9f-b8be57f08d58,JG,Nityo,Lorvish,2025-12-15,,7.50,0.00,USD,active,John Gracy
+4bb2ab1c-88b8-4337-b90c-c78fdc4a8231,2026-02-28 06:04:36.821412+00,4bb8a03a-b1aa-449d-9c9f-b8be57f08d58,QUE,Nityo,ZScale,2026-02-11,,10.00,0.00,CAD,active,Elshad Quliyev
+4d2f56f2-142a-4c8a-90b1-64c8d81ed4e8,2026-03-27 02:01:15.07746+00,4bb8a03a-b1aa-449d-9c9f-b8be57f08d58,Sandeep Kasuganti,Nityo,,,,0.00,0.00,CAD,pending,
+505c7d09-d9d4-4e05-a75f-68ae9cffc4a2,2026-03-27 02:08:32.008376+00,4bb8a03a-b1aa-449d-9c9f-b8be57f08d58,Sudheer Yadav,Nityo,,2026-03-30,,0.00,0.00,CAD,pending,
+5d412c65-e806-4339-b5ed-72abc97b5140,2026-02-28 18:56:34.612333+00,4bb8a03a-b1aa-449d-9c9f-b8be57f08d58,LEAT,Nityo,Zscale,2026-03-17,,7.00,0.00,CAD,active,Athyam Lekhaz
+61e72583-d743-4b31-aecd-84287d40ee86,2026-02-28 06:06:07.968449+00,4bb8a03a-b1aa-449d-9c9f-b8be57f08d58,FAAD,Nityo,ZScale,2026-02-02,2026-03-25,5.00,0.00,CAD,inactive,Adesola Falobi
+6966942b-a4a0-48cb-a7e7-8785dbbcd848,2026-03-27 01:56:58.021893+00,4bb8a03a-b1aa-449d-9c9f-b8be57f08d58,Ankitha Basnet,Nityo,,,,0.00,0.00,USD,pending,
+6db2914d-b606-488e-903f-144873caead9,2026-02-28 18:57:59.472241+00,4bb8a03a-b1aa-449d-9c9f-b8be57f08d58,Aastha Sharma,E-Solutions,,,,0.00,0.00,CAD,pending,
+8384ead2-2c2b-46b0-9845-fbcc78514908,2026-02-28 18:26:58.05359+00,4bb8a03a-b1aa-449d-9c9f-b8be57f08d58,WOLA,Nityo,ZScale,2026-02-19,,6.00,0.00,CAD,active,Oliyanka Willimans
+acf52e8f-749a-41a8-9723-4274f0c723b7,2026-02-28 18:58:23.696412+00,4bb8a03a-b1aa-449d-9c9f-b8be57f08d58,Thomas Radosevich,E-Solutions,,,,0.00,0.00,CAD,pending,
+ad2ff2c9-432d-4b69-b537-f1edb9d48cb8,2026-02-28 05:51:03.993019+00,4bb8a03a-b1aa-449d-9c9f-b8be57f08d58,Kewal Kishan,Nityo,Lorvish,2025-12-01,,3.00,0.00,CAD,active,
+adca1990-41ec-41c1-aabc-5d2441931281,2026-02-28 18:55:34.669003+00,4bb8a03a-b1aa-449d-9c9f-b8be57f08d58,Pushpesh Mohan,Nityo,,2026-03-30,,0.00,0.00,CAD,pending,
+b2cd7920-178e-433f-87ce-307dc1c9414a,2026-03-27 02:00:41.691444+00,4bb8a03a-b1aa-449d-9c9f-b8be57f08d58,Soham Biswas,Nityo,,,,0.00,0.00,CAD,pending,
+b7fbfc7c-3bc8-4613-a7e4-28ba8766d446,2026-02-28 05:59:06.491307+00,4bb8a03a-b1aa-449d-9c9f-b8be57f08d58,Sai Sunaina,Nityo,Lorvish,2025-10-20,2026-03-31,7.00,0.00,USD,inactive,
+bd1066fe-278b-4f3a-a8ef-a2bdf89b0c28,2026-02-28 18:58:46.051284+00,4bb8a03a-b1aa-449d-9c9f-b8be57f08d58,Uchenna Obidiegwu,E-Solutions,,,,0.00,0.00,CAD,pending,
+c11c9390-9c9a-4b2c-9504-b1dbd7e21f46,2026-03-27 02:01:33.917868+00,4bb8a03a-b1aa-449d-9c9f-b8be57f08d58,Milandeep Arora,Nityo,,,,0.00,0.00,CAD,pending,
+c1d74f09-c4ab-4613-8511-7279ff88e3b1,2026-02-28 06:02:55.487433+00,4bb8a03a-b1aa-449d-9c9f-b8be57f08d58,BRKK,Nityo,Lorvish,2026-02-17,,11.00,0.00,CAD,active,Karthik Reddy B
+c68da132-71b6-467c-9fc4-4912953005aa,2026-02-28 18:57:22.307566+00,4bb8a03a-b1aa-449d-9c9f-b8be57f08d58,TUBE,Nityo,Zscale,2026-03-23,,5.00,0.00,USD,active,Deborah
+cccc477f-b080-4527-a3d3-57bc37cc72b7,2026-02-28 18:56:56.090431+00,4bb8a03a-b1aa-449d-9c9f-b8be57f08d58,THAP,Nityo,Zscale,2026-03-16,,7.00,0.00,USD,active,Prachi Thakur
+d76088bd-6254-4f93-bdc0-f54764ac4a50,2026-02-28 18:28:03.784495+00,4bb8a03a-b1aa-449d-9c9f-b8be57f08d58,MARO,Nityo,ZScale,2026-02-27,,5.00,0.00,CAD,active,Rohit
