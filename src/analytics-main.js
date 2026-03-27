@@ -1269,6 +1269,18 @@ function getSelectedPeriodShortLabel() {
    2. Revenue Trend (Projected vs Collected by Month)
    ============================================================ */
 function getInvoiceMonth(inv) {
+    // 1. Service-period attribution: find the invoice in timesheets
+    if (inv && inv.invoice_number) {
+        const num = String(inv.invoice_number).trim();
+        const matches = rawRows.filter(r => String(r.invoice_number || '').trim() === num && r.month_key);
+        if (matches.length > 0) {
+            // If an invoice covers multiple months, attribute it to the latest month of service
+            const months = [...new Set(matches.map(r => r.month_key))].sort();
+            return months[months.length - 1];
+        }
+    }
+
+    // 2. Fallback to invoice dates if no timesheet entry is found
     const ts = String(inv.paid_date || inv.invoice_meta?.dateRaw || '').trim();
     if (/^\d{4}-\d{2}-\d{2}/.test(ts)) return ts.slice(0, 7);
     if (inv.created_at) {
