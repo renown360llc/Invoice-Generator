@@ -1224,16 +1224,19 @@ function closePeriodJumpMenu() {
 function renderActualRevenue() {
     if (!els.actualRevenueCard) return;
     if (els.actualRevenueLabelMeta) {
-        els.actualRevenueLabelMeta.textContent = `(Paid ${selectedYear})`;
+        els.actualRevenueLabelMeta.textContent = `(Paid ${getSelectedPeriodShortLabel()})`;
     }
 
     const paidInvoices = rawInvoices.filter(inv => String(inv.status || '').toLowerCase() === 'paid');
     const byCurrency = {};
     paidInvoices.forEach(inv => {
         const curr = String(inv.invoice_meta?.currency || 'USD').toUpperCase();
-        const dateStr = String(inv.paid_date || inv.invoice_meta?.dateRaw || inv.created_at || '');
-        const year = parseInt(dateStr.slice(0, 4), 10);
-        if (year !== selectedYear) return;
+        const monthKey = getInvoiceMonth(inv);
+        if (!monthKey.startsWith(String(selectedYear))) return;
+        if (selectedMonth !== 'all') {
+            const mk = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}`;
+            if (monthKey !== mk) return;
+        }
 
         byCurrency[curr] = (byCurrency[curr] || 0) + (inv.totals?.total || 0);
     });
@@ -1349,7 +1352,7 @@ function renderRevenueTrend(filteredRows) {
         return `
             <g class="trend-bar-group">
                 <rect x="${groupX - barW - gap / 2}" y="${baseY - projH}" width="${barW}" height="${Math.max(projH, 0)}" rx="3" fill="#cbd5e1" opacity="0.55"><title>${escapeHtml(projTip)}</title></rect>
-                <rect x="${groupX + gap / 2}" y="${baseY - collH}" width="${barW}" height="${Math.max(collH, 0)}" rx="3" fill="var(--accent)"><title>${escapeHtml(collTip)}</title></rect>
+                <rect x="${groupX + gap / 2}" y="${baseY - collH}" width="${barW}" height="${Math.max(collH, 0)}" rx="3" fill="#3b82f6"><title>${escapeHtml(collTip)}</title></rect>
             </g>
         `;
     }).join('');
@@ -1400,28 +1403,49 @@ function renderInvoiceStatusDist() {
 
     const counts = { paid: 0, sent: 0, overdue: 0, draft: 0 };
     const amounts = { paid: 0, sent: 0, overdue: 0, draft: 0 };
+    const amountsByCurrency = { paid: {}, sent: {}, overdue: {}, draft: {} };
     const today = new Date();
 
-    rawInvoices.forEach(inv => {
+    // Filter invoices by selected month
+    const filteredInvoices = rawInvoices.filter(inv => {
+        const monthKey = getInvoiceMonth(inv);
+        if (!monthKey.startsWith(String(selectedYear))) return false;
+        if (selectedMonth !== 'all') {
+            const mk = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}`;
+            if (monthKey !== mk) return false;
+        }
+        return true;
+    });
+
+    filteredInvoices.forEach(inv => {
         let status = String(inv.status || 'draft').toLowerCase();
         if (status === 'sent' && inv.invoice_meta?.dueDateRaw) {
             const due = new Date(inv.invoice_meta.dueDateRaw);
             if (due < today) status = 'overdue';
         }
         if (!counts.hasOwnProperty(status)) status = 'draft';
+        const curr = normalizeCurrency(inv.invoice_meta?.currency || 'USD');
+        const amount = inv.totals?.total || 0;
         counts[status]++;
-        amounts[status] += (inv.totals?.total || 0);
+        amounts[status] += amount;
+        amountsByCurrency[status][curr] = (amountsByCurrency[status][curr] || 0) + amount;
     });
 
     const totalCount = Object.values(counts).reduce((s, c) => s + c, 0);
+    const allCurrencies = [...new Set(Object.values(amountsByCurrency).flatMap(m => Object.keys(m)))].sort();
 
     if (totalCount === 0) {
-        els.invoiceStatusDist.innerHTML = `<div class="analytics-status-dist__empty">No invoices yet.</div>`;
+        els.invoiceStatusDist.innerHTML = `<div class="analytics-status-dist__empty">No invoices for ${getSelectedPeriodShortLabel()}.</div>`;
         if (els.invoiceStatusLegend) els.invoiceStatusLegend.innerHTML = '';
         return;
     }
 
-    if (els.invoiceStatusLegend) els.invoiceStatusLegend.innerHTML = '';
+    // Show currency legend if multiple currencies
+    if (els.invoiceStatusLegend) {
+        els.invoiceStatusLegend.innerHTML = allCurrencies.length > 1
+            ? allCurrencies.map(c => `<span style="display:inline-flex;align-items:center;gap:3px;font-size:0.6rem;font-weight:700;color:var(--text-tertiary);"><span style="width:6px;height:6px;border-radius:50%;background:${getCurrencyColor(c)}"></span>${escapeHtml(c)}</span>`).join('')
+            : '';
+    }
 
     // Build SVG donut
     const size = 110, cx = size / 2, cy = size / 2, r = 40, strokeW = 14;
@@ -1432,23 +1456,28 @@ function renderInvoiceStatusDist() {
         const pct = count / totalCount;
         const dashLen = pct * circ;
         const dashArr = `${dashLen} ${circ - dashLen}`;
-        const arc = `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${sd.color}" stroke-width="${strokeW}" stroke-dasharray="${dashArr}" stroke-dashoffset="${-offset}" stroke-linecap="round" transform="rotate(-90 ${cx} ${cy})"/>`;
+        const arc = `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${sd.color}" stroke-width="${strokeW}" stroke-dasharray="${dashArr}" stroke-dashoffset="${-offset}" transform="rotate(-90 ${cx} ${cy})"><title>${sd.label}: ${count} (${formatCompactNumber(amounts[sd.key])})</title></circle>`;
         offset += dashLen;
         return arc;
     }).join('');
 
-    // Stat rows
+    // Stat rows with per-currency breakdown
     const statRows = statusDefs.map(sd => {
         const count = counts[sd.key];
         const pct = totalCount > 0 ? Math.round((count / totalCount) * 100) : 0;
-        const amt = formatCompactNumber(amounts[sd.key]);
+        const currBreakdown = allCurrencies.length > 1
+            ? allCurrencies.map(c => {
+                const a = amountsByCurrency[sd.key][c] || 0;
+                return `<span style="color:${a > 0 ? getCurrencyColor(c) : 'var(--text-tertiary)'};" title="${escapeHtml(c)}: ${formatMoney(a, c)}">${formatCompactNumber(a)}</span>`;
+            }).join(' ')
+            : `<span>${formatCompactNumber(amounts[sd.key])}</span>`;
         return `
             <div class="status-stat-row">
                 <span class="status-stat-row__dot" style="background:${sd.color}"></span>
                 <span class="status-stat-row__label">${sd.label}</span>
                 <span class="status-stat-row__count">${count}</span>
                 <span class="status-stat-row__pct">${pct}%</span>
-                <span class="status-stat-row__amt">${amt}</span>
+                <span class="status-stat-row__amt">${currBreakdown}</span>
             </div>
         `;
     }).join('');
@@ -1462,7 +1491,7 @@ function renderInvoiceStatusDist() {
                 </svg>
                 <div class="status-donut-center">
                     <div class="status-donut-center__count">${totalCount}</div>
-                    <div class="status-donut-center__label">Total</div>
+                    <div class="status-donut-center__label">Invoices</div>
                 </div>
             </div>
             <div class="status-stat-list">${statRows}</div>
