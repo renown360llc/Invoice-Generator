@@ -643,7 +643,7 @@ function renderKpis(monthRows) {
     if (els.activeConsultantsCard) els.activeConsultantsCard.textContent = String(consultants);
     if (els.billingCoverageCard) els.billingCoverageCard.textContent = `${Math.round(coveragePct)}%`;
     if (els.totalHoursLabelMeta) els.totalHoursLabelMeta.textContent = `(${getSelectedPeriodShortLabel()})`;
-    if (els.consultantsLabelMeta) els.consultantsLabelMeta.textContent = `(Active ${getSelectedPeriodShortLabel()})`;
+    if (els.consultantsLabelMeta) els.consultantsLabelMeta.textContent = `(${getSelectedPeriodShortLabel()})`;
     if (els.billingCoverageLabelMeta) els.billingCoverageLabelMeta.textContent = `(${getSelectedPeriodShortLabel()})`;
     if (els.billingCoverageSub) {
         els.billingCoverageSub.textContent = `${invoicedHours.toFixed(2)} invoiced hrs of ${totalHours.toFixed(2)} total`;
@@ -1229,7 +1229,7 @@ function closePeriodJumpMenu() {
 function renderActualRevenue() {
     if (!els.actualRevenueCard) return;
     if (els.actualRevenueLabelMeta) {
-        els.actualRevenueLabelMeta.textContent = `(Paid ${getSelectedPeriodShortLabel()})`;
+        els.actualRevenueLabelMeta.textContent = `(${getSelectedPeriodShortLabel()})`;
     }
 
     const paidInvoices = rawInvoices.filter(inv => String(inv.status || '').toLowerCase() === 'paid');
@@ -1266,7 +1266,7 @@ function renderActualRevenue() {
 function renderCashFlowKPI() {
     if (!els.cashFlowCard) return;
     if (els.cashFlowLabelMeta) {
-        els.cashFlowLabelMeta.textContent = `(Received ${getSelectedPeriodShortLabel()})`;
+        els.cashFlowLabelMeta.textContent = `(${getSelectedPeriodShortLabel()})`;
     }
 
     const paidInvoices = rawInvoices.filter(inv => String(inv.status || '').toLowerCase() === 'paid');
