@@ -128,12 +128,15 @@ function cacheElements() {
     // New analytics
     els.actualRevenueCard = document.getElementById('actualRevenueCard');
     els.actualRevenueSub = document.getElementById('actualRevenueSub');
+    els.cashFlowCard = document.getElementById('cashFlowCard');
     els.totalHoursLabelMeta = document.getElementById('totalHoursLabelMeta');
     els.actualRevenueLabelMeta = document.getElementById('actualRevenueLabelMeta');
+    els.cashFlowLabelMeta = document.getElementById('cashFlowLabelMeta');
     els.projectedRevenueLabelMeta = document.getElementById('projectedRevenueLabelMeta');
     els.consultantsLabelMeta = document.getElementById('consultantsLabelMeta');
     els.billingCoverageLabelMeta = document.getElementById('billingCoverageLabelMeta');
     els.revenueTrendBars = document.getElementById('revenueTrendBars');
+    els.cashFlowTrendBars = document.getElementById('cashFlowTrendBars');
     els.invoiceStatusDist = document.getElementById('invoiceStatusDist');
     els.invoiceStatusLegend = document.getElementById('invoiceStatusLegend');
     els.agingBuckets = document.getElementById('agingBuckets');
@@ -587,7 +590,9 @@ function renderAll() {
 
     // New analytics (invoice-based)
     renderActualRevenue();
+    renderCashFlowKPI();
     renderRevenueTrend(filtered);
+    renderCashFlowTrend(filtered);
     renderInvoiceStatusDist();
     renderAgingBuckets();
     renderCommissionInsight(monthRows);
@@ -1234,11 +1239,6 @@ function renderActualRevenue() {
         const dist = getInvoiceDistribution(inv);
         
         for (const [monthKey, amount] of Object.entries(dist)) {
-            // DEBUG: Log paid invoices mapping to Feb 2026
-            if (monthKey === '2026-02') {
-                console.log(`[DEBUG] Found Paid Invoice mapping to Feb 2026: Inv# ${inv.invoice_number || 'NONE'} | Total: ${amount} | Timestamp fallback: ${inv.paid_date || inv.created_at}`);
-            }
-
             if (!monthKey.startsWith(String(selectedYear))) continue;
             if (selectedMonth !== 'all') {
                 const mk = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}`;
@@ -1255,6 +1255,50 @@ function renderActualRevenue() {
         els.actualRevenueCard.textContent = formatMoney(entries[0][1], entries[0][0]);
     } else {
         els.actualRevenueCard.innerHTML = `<div class="kpi-card__stack">${entries
+            .map(([c, a]) => `<div class="kpi-card__stack-item">${formatMoney(a, c)}</div>`)
+            .join('')}</div>`;
+    }
+}
+
+/* ============================================================
+   1b. Cash Flow KPI (Payments Received)
+   ============================================================ */
+function renderCashFlowKPI() {
+    if (!els.cashFlowCard) return;
+    if (els.cashFlowLabelMeta) {
+        els.cashFlowLabelMeta.textContent = `(Received ${getSelectedPeriodShortLabel()})`;
+    }
+
+    const paidInvoices = rawInvoices.filter(inv => String(inv.status || '').toLowerCase() === 'paid');
+    const byCurrency = {};
+
+    paidInvoices.forEach(inv => {
+        const paidTs = String(inv.paid_date || inv.invoice_meta?.dateRaw || inv.created_at || '').trim();
+        let paidMonth = '';
+        if (/^\d{4}-\d{2}-\d{2}/.test(paidTs)) {
+            paidMonth = paidTs.slice(0, 7);
+        } else if (inv.created_at) {
+            const d = new Date(inv.created_at);
+            paidMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        }
+
+        if (!paidMonth.startsWith(String(selectedYear))) return;
+        if (selectedMonth !== 'all') {
+            const mk = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}`;
+            if (paidMonth !== mk) return;
+        }
+
+        const curr = String(inv.invoice_meta?.currency || 'USD').toUpperCase();
+        byCurrency[curr] = (byCurrency[curr] || 0) + (inv.totals?.total || 0);
+    });
+
+    const entries = Object.entries(byCurrency).sort((a, b) => a[0].localeCompare(b[0]));
+    if (entries.length === 0) {
+        els.cashFlowCard.textContent = formatMoney(0, 'USD');
+    } else if (entries.length === 1) {
+        els.cashFlowCard.textContent = formatMoney(entries[0][1], entries[0][0]);
+    } else {
+        els.cashFlowCard.innerHTML = `<div class="kpi-card__stack">${entries
             .map(([c, a]) => `<div class="kpi-card__stack-item">${formatMoney(a, c)}</div>`)
             .join('')}</div>`;
     }
@@ -1457,6 +1501,108 @@ function renderRevenueTrend(filteredRows) {
 
     els.revenueTrendBars.className = 'analytics-trend-chart';
     els.revenueTrendBars.innerHTML = `
+        <svg viewBox="0 0 ${vW} ${vH}" preserveAspectRatio="xMidYMid meet" style="width:100%; height:auto; display:block;">
+            <style>
+                .bar-val-label { opacity: 0; transition: opacity 0.15s ease; pointer-events: none; }
+                .trend-bar-group:hover .bar-val-label { opacity: 1; }
+                .trend-bar-group:hover .trend-bar-hover-zone { fill: rgba(0,0,0,0.02); }
+            </style>
+            ${gridLines}
+            ${baseline}
+            ${yLabels}
+            ${bars}
+            ${xLabels}
+        </svg>
+    `;
+}
+
+/* ============================================================
+   2b. Cash Flow Trend (Paid Date)
+   ============================================================ */
+function renderCashFlowTrend() {
+    if (!els.cashFlowTrendBars) return;
+
+    const monthKeys = MONTHS.map((_, idx) => `${selectedYear}-${String(idx + 1).padStart(2, '0')}`);
+    const receivedByMonth = {};
+
+    rawInvoices.filter(inv => {
+        if (String(inv.status || '').toLowerCase() !== 'paid') return false;
+        const invCurr = String(inv.invoice_meta?.currency || 'USD').toUpperCase();
+        if (selectedCurrency !== 'all' && invCurr !== selectedCurrency) return false;
+        return true;
+    }).forEach(inv => {
+        const paidTs = String(inv.paid_date || inv.invoice_meta?.dateRaw || inv.created_at || '').trim();
+        let paidMonth = '';
+        if (/^\d{4}-\d{2}-\d{2}/.test(paidTs)) {
+            paidMonth = paidTs.slice(0, 7);
+        } else if (inv.created_at) {
+            const d = new Date(inv.created_at);
+            paidMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        }
+
+        if (paidMonth.startsWith(String(selectedYear))) {
+            receivedByMonth[paidMonth] = (receivedByMonth[paidMonth] || 0) + (inv.totals?.total || 0);
+        }
+    });
+
+    const allValues = Object.values(receivedByMonth);
+    const maxVal = Math.max(...allValues, 1);
+    const currencyStr = selectedCurrency === 'all' ? '' : selectedCurrency;
+
+    if (allValues.every(v => v === 0)) {
+        els.cashFlowTrendBars.className = 'analytics-trend-chart analytics-trend-chart--empty';
+        els.cashFlowTrendBars.innerHTML = `<div>No cash flow data for ${selectedYear} yet.</div>`;
+        return;
+    }
+
+    const niceMax = niceRoundUp(maxVal);
+    const ticks = [0, niceMax / 2, niceMax];
+
+    const vW = 600, vH = 220;
+    const padL = 60, padR = 20, padT = 28, padB = 28;
+    const chartW = vW - padL - padR;
+    const chartH = vH - padT - padB;
+    const groupW = chartW / 12;
+    const barW = groupW * 0.45;
+
+    const gridLines = ticks.map(t => {
+        const y = padT + chartH - (t / niceMax) * chartH;
+        return `<line x1="${padL}" y1="${y}" x2="${vW - padR}" y2="${y}" stroke="#e2e8f0" stroke-width="0.75" stroke-dasharray="3,3"/>`;
+    }).join('');
+
+    const yLabels = ticks.map(t => {
+        const y = padT + chartH - (t / niceMax) * chartH;
+        return `<text x="${padL - 8}" y="${y + 3}" text-anchor="end" fill="#94a3b8" font-size="9" font-weight="600" font-family="inherit">${formatCompactNumber(t)}</text>`;
+    }).join('');
+
+    const bars = monthKeys.map((mk, idx) => {
+        const rec = receivedByMonth[mk] || 0;
+        const recH = niceMax > 0 ? (rec / niceMax) * chartH : 0;
+        const groupX = padL + idx * groupW + groupW / 2;
+        const baseY = padT + chartH;
+        const recTip = `${MONTHS[idx]}: Received ${formatMoney(rec, currencyStr)}`;
+
+        const recLabel = rec > 0 ? `<text class="bar-val-label bar-val-label--coll" x="${groupX}" y="${baseY - recH - 5}" text-anchor="middle" fill="#10b981" font-size="7.5" font-weight="700" font-family="inherit">${formatCompactNumber(rec)}</text>` : '';
+        const hoverZone = `<rect x="${padL + idx * groupW}" y="${padT}" width="${groupW}" height="${chartH + 4}" fill="transparent" class="trend-bar-hover-zone"/>`;
+
+        return `
+            <g class="trend-bar-group">
+                ${hoverZone}
+                <rect x="${groupX - barW / 2}" y="${baseY - recH}" width="${barW}" height="${Math.max(recH, 0)}" rx="3" fill="#10b981"><title>${escapeHtml(recTip)}</title></rect>
+                ${recLabel}
+            </g>
+        `;
+    }).join('');
+
+    const xLabels = monthKeys.map((mk, idx) => {
+        const groupX = padL + idx * groupW + groupW / 2;
+        return `<text x="${groupX}" y="${vH - 6}" text-anchor="middle" fill="#94a3b8" font-size="9" font-weight="600" font-family="inherit">${MONTHS[idx]}</text>`;
+    }).join('');
+
+    const baseline = `<line x1="${padL}" y1="${padT + chartH}" x2="${vW - padR}" y2="${padT + chartH}" stroke="#cbd5e1" stroke-width="1"/>`;
+
+    els.cashFlowTrendBars.className = 'analytics-trend-chart';
+    els.cashFlowTrendBars.innerHTML = `
         <svg viewBox="0 0 ${vW} ${vH}" preserveAspectRatio="xMidYMid meet" style="width:100%; height:auto; display:block;">
             <style>
                 .bar-val-label { opacity: 0; transition: opacity 0.15s ease; pointer-events: none; }

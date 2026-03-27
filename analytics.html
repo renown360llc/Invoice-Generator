@@ -374,7 +374,7 @@
 
             <!-- ═══ PANEL: Overview ═══ -->
             <div class="analytics-panel is-visible" id="panel-overview" role="tabpanel">
-                <section class="kpi-grid" style="grid-template-columns: repeat(5, minmax(0, 1fr));">
+                <section class="kpi-grid" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));">
                     <article class="kpi-card kpi-card--interactive" data-filter="all" id="kpiTotalHours">
                         <div class="kpi-card__label">Hours <span id="totalHoursLabelMeta" class="kpi-card__label-meta">(Period)</span></div>
                         <div class="kpi-card__value" id="totalHoursCard">0.00</div>
@@ -386,8 +386,12 @@
                         <div class="kpi-card__filter-hint">Click to view detail</div>
                     </article>
                     <article class="kpi-card" id="kpiActualRevenue">
-                        <div class="kpi-card__label">Collected <span id="actualRevenueLabelMeta" class="kpi-card__label-meta">(YTD)</span></div>
+                        <div class="kpi-card__label">Collected <span id="actualRevenueLabelMeta" class="kpi-card__label-meta">(Period)</span></div>
                         <div class="kpi-card__value" id="actualRevenueCard">$0.00</div>
+                    </article>
+                    <article class="kpi-card" id="kpiCashFlow">
+                        <div class="kpi-card__label">Cash Flow <span id="cashFlowLabelMeta" class="kpi-card__label-meta">(Received)</span></div>
+                        <div class="kpi-card__value" id="cashFlowCard" style="color:var(--success)">$0.00</div>
                     </article>
                     <article class="kpi-card kpi-card--interactive" data-filter="consultants" id="kpiConsultants">
                         <div class="kpi-card__label">Consultants <span id="consultantsLabelMeta" class="kpi-card__label-meta">(With Hours)</span></div>
@@ -402,11 +406,11 @@
                     </article>
                 </section>
 
-                <!-- Revenue Trend + Invoice Status Distribution -->
+                <!-- Accrual vs Collections + Invoice Status Distribution -->
                 <section class="analytics-charts-row">
                     <div class="analytics-chart-card" id="revenueTrendCard">
                         <div class="analytics-chart-card__header">
-                            <div class="kpi-card__label">Revenue Trend</div>
+                            <div class="kpi-card__label">Accrual vs Collections</div>
                             <div class="analytics-chart-card__legend">
                                 <span style="display:inline-flex;align-items:center;gap:4px;"><span style="width:10px;height:10px;border-radius:3px;background:#cbd5e1;display:inline-block;"></span> Projected</span>
                                 <span style="display:inline-flex;align-items:center;gap:4px;"><span style="width:10px;height:10px;border-radius:3px;background:#3b82f6;display:inline-block;"></span> Collected</span>
@@ -427,11 +431,26 @@
                     </div>
                 </section>
 
-                <!-- Collections Aging -->
-                <section class="analytics-aging-section" id="agingSection">
-                    <div class="kpi-card__label">Collections Aging</div>
-                    <div class="analytics-aging-buckets" id="agingBuckets">
-                        <!-- Rendered by JS -->
+                <!-- Cash Flow Trend + Collections Aging -->
+                <section class="analytics-charts-row">
+                    <div class="analytics-chart-card" id="cashFlowTrendCard">
+                        <div class="analytics-chart-card__header">
+                            <div class="kpi-card__label">Cash Flow Trend</div>
+                            <div class="analytics-chart-card__legend">
+                                <span style="display:inline-flex;align-items:center;gap:4px;"><span style="width:10px;height:10px;border-radius:3px;background:#10b981;display:inline-block;"></span> Received In Bank</span>
+                            </div>
+                        </div>
+                        <div class="analytics-trend-chart" id="cashFlowTrendBars">
+                            <!-- Rendered by JS -->
+                        </div>
+                    </div>
+                    <div class="analytics-chart-card" id="agingCard">
+                        <div class="analytics-chart-card__header">
+                            <div class="kpi-card__label">Collections Aging</div>
+                        </div>
+                        <div class="analytics-aging-buckets" id="agingBuckets">
+                            <!-- Rendered by JS -->
+                        </div>
                     </div>
                 </section>
 
