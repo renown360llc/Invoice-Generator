@@ -1622,9 +1622,15 @@ function renderCashFlowTrend() {
 
         let recLabel = '';
         if (groupTotal > 0) {
-            const isMixed = activeCurrencies.length > 1 && Object.values(monthData).filter(v => v>0).length > 1;
-            const topLabelColor = isMixed ? '#64748b' : getCurrencyColor(Object.keys(monthData).find(k=>monthData[k]>0) || 'USD');
-            recLabel = `<text class="bar-val-label bar-val-label--coll" x="${groupX}" y="${baseY - groupTotalH - 5}" text-anchor="middle" fill="${topLabelColor}" font-size="7.5" font-weight="700" font-family="inherit">${formatCompactNumber(groupTotal)}</text>`;
+            const activeMthCurrencies = activeCurrencies.filter(c => monthData[c] > 0);
+            let labelY = baseY - groupTotalH - 5;
+            
+            recLabel = activeMthCurrencies.slice().reverse().map((curr, i) => {
+                const val = monthData[curr];
+                const yPos = labelY - (i * 8.5);
+                const textStr = activeMthCurrencies.length > 1 ? `${curr} ${formatCompactNumber(val)}` : formatCompactNumber(val);
+                return `<text class="bar-val-label" x="${groupX}" y="${yPos}" text-anchor="middle" fill="${getCurrencyColor(curr)}" font-size="7.5" font-weight="800" font-family="inherit">${textStr}</text>`;
+            }).join('');
         }
 
         return `
