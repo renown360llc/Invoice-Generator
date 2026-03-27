@@ -19,13 +19,6 @@
             display: none;
         }
 
-        .analytics-filter-bar {
-            display: grid;
-            grid-template-columns: repeat(9, minmax(0, 1fr)) auto;
-            gap: 0.75rem;
-            margin-bottom: 1rem;
-        }
-
         .analytics-meta {
             font-size: 0.8125rem;
             color: var(--text-secondary);
@@ -39,7 +32,7 @@
 
         .kpi-grid {
             display: grid;
-            grid-template-columns: repeat(3, minmax(0, 1fr));
+            grid-template-columns: repeat(4, minmax(0, 1fr));
             gap: 1rem;
             margin-bottom: 1.5rem;
         }
@@ -73,6 +66,77 @@
             margin-top: 0.25rem;
             font-size: 0.75rem;
             color: var(--text-secondary);
+        }
+
+        .kpi-card__stack {
+            margin-top: 0.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.35rem;
+        }
+
+        .kpi-card__stack-item {
+            font-size: 0.875rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            line-height: 1.3;
+        }
+
+        .insights-grid {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .insight-card {
+            background: white;
+            border: 1px solid var(--surface-glass-border);
+            border-radius: var(--radius-lg);
+            padding: 1rem 1.125rem;
+            box-shadow: var(--shadow-card);
+        }
+
+        .insight-card__eyebrow {
+            font-size: 0.72rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: var(--text-tertiary);
+        }
+
+        .insight-card__title {
+            margin-top: 0.4rem;
+            font-size: 1rem;
+            font-weight: 800;
+            color: var(--text-primary);
+            line-height: 1.25;
+        }
+
+        .insight-card__body {
+            margin-top: 0.45rem;
+            font-size: 0.8125rem;
+            color: var(--text-secondary);
+            line-height: 1.5;
+        }
+
+        .insight-card__meta {
+            margin-top: 0.75rem;
+            display: grid;
+            gap: 0.35rem;
+        }
+
+        .insight-card__meta-row {
+            display: flex;
+            justify-content: space-between;
+            gap: 0.75rem;
+            font-size: 0.78rem;
+            color: var(--text-secondary);
+        }
+
+        .insight-card__meta-row strong {
+            color: var(--text-primary);
+            font-weight: 700;
         }
 
         .pivot-wrap {
@@ -126,18 +190,68 @@
             color: #334155;
         }
 
+        .analytics-person {
+            display: flex;
+            flex-direction: column;
+            gap: 0.2rem;
+        }
+
+        .analytics-person__name {
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .analytics-person__meta {
+            font-size: 0.75rem;
+            color: var(--text-tertiary);
+        }
+
+        .invoice-pill {
+            display: inline-flex;
+            align-items: center;
+            border-radius: 999px;
+            padding: 0.22rem 0.55rem;
+            font-size: 0.72rem;
+            font-weight: 700;
+            letter-spacing: 0.01em;
+            white-space: nowrap;
+        }
+
+        .invoice-pill--unbilled {
+            background: #fff7ed;
+            color: #9a3412;
+        }
+
+        .invoice-pill--linked {
+            background: #ecfccb;
+            color: #3f6212;
+        }
+
+        .invoice-pill--multiple {
+            background: #e0f2fe;
+            color: #075985;
+        }
+
         @media (max-width: 1100px) {
             .analytics-filter-bar {
                 grid-template-columns: repeat(3, minmax(0, 1fr));
             }
 
             .kpi-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+
+            .insights-grid {
                 grid-template-columns: 1fr;
             }
         }
 
         @media (max-width: 640px) {
             .analytics-filter-bar {
+                grid-template-columns: 1fr;
+            }
+
+            .kpi-grid {
                 grid-template-columns: 1fr;
             }
         }
@@ -160,109 +274,261 @@
                 </div>
             </div>
 
-            <div class="section">
-                <div class="analytics-filter-bar">
-                    <select id="yearFilter" class="sort-select" aria-label="Filter year"></select>
-                    <select id="snapshotMonthFilter" class="sort-select" aria-label="Snapshot month"></select>
-                    <button id="allMonthsToggleBtn" class="btn btn--outline btn--sm" type="button">All Months: OFF</button>
-                    <select id="statusFilter" class="sort-select" aria-label="Filter status">
+            <div class="crm-toolbar">
+                <div class="crm-toolbar__search">
+                    <svg class="crm-toolbar__search-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                    <input type="text" id="consultantSearch" placeholder="Search consultant, client, W2...">
+                </div>
+                <div class="crm-toolbar__divider"></div>
+                <div class="crm-toolbar__filters">
+                    <select id="statusFilter" class="crm-toolbar__pill" aria-label="Status">
                         <option value="all">All Status</option>
                         <option value="pending">Pending</option>
                         <option value="invoiced">Invoiced</option>
                     </select>
-                    <select id="clientFilter" class="sort-select" aria-label="Filter client">
+                    <select id="clientFilter" class="crm-toolbar__pill" aria-label="Client">
                         <option value="all">All Clients</option>
                     </select>
-                    <select id="w2Filter" class="sort-select" aria-label="Filter W2 company">
-                        <option value="all">All W2 Companies</option>
+                    <select id="w2Filter" class="crm-toolbar__pill" aria-label="W2 Company">
+                        <option value="all">All W2</option>
                     </select>
-                    <select id="currencyFilter" class="sort-select" aria-label="Filter currency">
+                    <select id="currencyFilter" class="crm-toolbar__pill" aria-label="Currency">
                         <option value="all">All Currencies</option>
                     </select>
-                    <input type="text" id="consultantSearch" class="search-input" placeholder="Search consultant, client, W2...">
-                    <button id="clearFiltersBtn" class="btn btn--ghost" type="button">Clear All</button>
-                    <button id="refreshBtn" class="btn btn--outline">Refresh</button>
                 </div>
-                <p id="analyticsMeta" class="analytics-meta">Loading analytics...</p>
-                <p id="analyticsFilterSummary" class="filters-meta">0 filters applied</p>
-            </div>
-
-            <section class="kpi-grid">
-                <article class="kpi-card">
-                    <div class="kpi-card__label">Total Hours</div>
-                    <div class="kpi-card__value" id="totalHoursCard">0.00</div>
-                    <div class="kpi-card__sub">For selected year and filters</div>
-                </article>
-                <article class="kpi-card">
-                    <div class="kpi-card__label">Projected Revenue</div>
-                    <div class="kpi-card__value" id="projectedRevenueCard">$0.00</div>
-                    <div class="kpi-card__sub">Calculated as hours x bill rate</div>
-                </article>
-                <article class="kpi-card">
-                    <div class="kpi-card__label">Consultants with Hours</div>
-                    <div class="kpi-card__value" id="activeConsultantsCard">0</div>
-                    <div class="kpi-card__sub">Distinct consultants in current dataset</div>
-                </article>
-            </section>
-
-            <div class="section">
-                <div class="section__header">
-                    <h2 class="section__title" id="monthSnapshotTitle">Selected Month View</h2>
-                    <div class="dashboard__actions">
-                        <button id="exportCsvBtn" class="btn btn--outline btn--sm" type="button">Export CSV</button>
-                        <button id="copyCsvBtn" class="btn btn--ghost btn--sm" type="button">Copy CSV</button>
-                    </div>
+                <div class="crm-toolbar__divider"></div>
+                <div class="crm-toolbar__period">
+                    <button type="button" id="periodPrevBtn" class="crm-toolbar__period-btn" aria-label="Previous month">
+                        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path d="m15 19-7-7 7-7"/></svg>
+                    </button>
+                    <span id="periodLabel" class="crm-toolbar__period-label">—</span>
+                    <button type="button" id="periodNextBtn" class="crm-toolbar__period-btn" aria-label="Next month">
+                        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path d="m9 5 7 7-7 7"/></svg>
+                    </button>
                 </div>
-                <div class="table-container">
-                    <table class="table">
-                        <thead>
-                            <tr>
-                                <th>Consultant</th>
-                                <th>Client</th>
-                                <th>W2 Company</th>
-                                <th>Hours in Month</th>
-                                <th>Projected Revenue</th>
-                                <th>Status</th>
-                                <th>Invoice Link</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody id="monthSnapshotBody">
-                            <tr>
-                                <td colspan="8" class="table__empty">Loading...</td>
-                            </tr>
-                        </tbody>
-                    </table>
+                <div class="crm-toolbar__divider"></div>
+                <div class="crm-toolbar__views">
+                    <select id="savedViewSelect" aria-label="Saved views">
+                        <option value="">Saved Views</option>
+                    </select>
+                </div>
+                <div class="crm-toolbar__spacer"></div>
+                <button type="button" id="clearFiltersBtn" class="crm-toolbar__clear">Clear</button>
+                <button type="button" id="refreshBtn" class="crm-toolbar__action">Refresh</button>
+
+                <!-- Expandable saved views controls -->
+                <div id="savedViewExpandRow" class="crm-toolbar__views-expand">
+                    <input type="text" id="savedViewName" placeholder="Name this view">
+                    <button id="saveViewBtn" class="btn btn--outline btn--sm" type="button">Save</button>
+                    <button id="updateViewBtn" class="btn btn--ghost btn--sm" type="button" disabled>Update</button>
+                    <button id="deleteViewBtn" class="btn btn--ghost btn--sm" type="button" disabled>Delete</button>
+                    <span id="savedViewMeta" class="crm-toolbar__views-expand__meta">No saved views</span>
                 </div>
             </div>
+            <div class="crm-stats-strip">
+                <span class="crm-stats-strip__stat"><strong id="analyticsPeriodTitle">Loading...</strong></span>
+                <span class="crm-stats-strip__dot">·</span>
+                <span class="crm-stats-strip__stat"><strong id="analyticsConsultantsStat">0</strong> consultants</span>
+                <span class="crm-stats-strip__dot">·</span>
+                <span class="crm-stats-strip__stat"><strong id="analyticsHoursStat">0.00</strong> hours</span>
+                <span class="crm-stats-strip__dot">·</span>
+                <span class="crm-stats-strip__stat"><strong id="analyticsCurrenciesStat">0</strong> currencies</span>
+                <span id="analyticsMeta" style="display:none;"></span>
+            </div>
 
-            <div class="section">
-                <div class="section__header">
-                    <h2 class="section__title" id="pivotTitle">Pivot by Consultant and Month</h2>
-                    <div class="segmented" role="group" aria-label="Pivot metric">
-                        <button id="pivotHoursBtn" class="segmented__btn is-active" type="button">Hours</button>
-                        <button id="pivotRevenueBtn" class="segmented__btn" type="button">Revenue</button>
+            <!-- Hidden selects for year/month (used by JS) -->
+            <select id="yearFilter" style="display:none;" aria-label="Filter year"></select>
+            <select id="snapshotMonthFilter" style="display:none;" aria-label="Snapshot month"></select>
+            <button id="allMonthsToggleBtn" style="display:none;" type="button">All Months: OFF</button>
+
+            <!-- ═══ Tab Bar ═══ -->
+            <nav class="analytics-tabs" role="tablist">
+                <button class="analytics-tabs__btn is-active" data-tab="overview" role="tab" aria-selected="true">Overview</button>
+                <button class="analytics-tabs__btn" data-tab="detail" role="tab" aria-selected="false">
+                    Detail <span id="detailTabBadge" class="analytics-tabs__badge">0</span>
+                </button>
+                <button class="analytics-tabs__btn" data-tab="pivot" role="tab" aria-selected="false">Pivot</button>
+            </nav>
+
+            <!-- ═══ PANEL: Overview ═══ -->
+            <div class="analytics-panel is-visible" id="panel-overview" role="tabpanel">
+                <section class="kpi-grid" style="grid-template-columns: repeat(5, minmax(0, 1fr));">
+                    <article class="kpi-card kpi-card--interactive" data-filter="all" id="kpiTotalHours">
+                        <div class="kpi-card__label">Total Hours</div>
+                        <div class="kpi-card__value" id="totalHoursCard">0.00</div>
+                        <div class="kpi-card__sub">For selected year and filters</div>
+                        <div class="kpi-card__filter-hint">Click to reset filters</div>
+                    </article>
+                    <article class="kpi-card kpi-card--interactive" data-filter="revenue" id="kpiRevenue">
+                        <div class="kpi-card__label">Projected Revenue</div>
+                        <div class="kpi-card__value" id="projectedRevenueCard">$0.00</div>
+                        <div class="kpi-card__sub">Grouped by currency for the selected period</div>
+                        <div class="kpi-card__filter-hint">Click to view detail</div>
+                    </article>
+                    <article class="kpi-card" id="kpiActualRevenue">
+                        <div class="kpi-card__label">Collected Revenue</div>
+                        <div class="kpi-card__value" id="actualRevenueCard">$0.00</div>
+                        <div class="kpi-card__sub" id="actualRevenueSub">From paid invoices</div>
+                    </article>
+                    <article class="kpi-card kpi-card--interactive" data-filter="consultants" id="kpiConsultants">
+                        <div class="kpi-card__label">Consultants with Hours</div>
+                        <div class="kpi-card__value" id="activeConsultantsCard">0</div>
+                        <div class="kpi-card__sub">Distinct consultants in current dataset</div>
+                        <div class="kpi-card__filter-hint">Click to view detail</div>
+                    </article>
+                    <article class="kpi-card kpi-card--interactive" data-filter="pending" id="kpiBilling">
+                        <div class="kpi-card__label">Billing Coverage</div>
+                        <div class="kpi-card__value" id="billingCoverageCard">0%</div>
+                        <div class="kpi-card__sub" id="billingCoverageSub">0.00 invoiced hrs of 0.00 total</div>
+                        <div class="kpi-card__filter-hint">Click to show pending only</div>
+                    </article>
+                </section>
+
+                <!-- Revenue Trend + Invoice Status Distribution -->
+                <section class="analytics-charts-row">
+                    <div class="analytics-chart-card" id="revenueTrendCard">
+                        <div class="analytics-chart-card__header">
+                            <div class="kpi-card__label">Revenue Trend</div>
+                            <div class="analytics-chart-card__legend">
+                                <span class="legend-dot legend-dot--projected"></span> Projected
+                                <span class="legend-dot legend-dot--collected"></span> Collected
+                            </div>
+                        </div>
+                        <div class="analytics-trend-chart" id="revenueTrendBars">
+                            <!-- Rendered by JS -->
+                        </div>
+                    </div>
+                    <div class="analytics-chart-card" id="invoiceStatusCard">
+                        <div class="kpi-card__label">Invoice Status Distribution</div>
+                        <div class="analytics-status-dist" id="invoiceStatusDist">
+                            <!-- Rendered by JS -->
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Collections Aging -->
+                <section class="analytics-aging-section" id="agingSection">
+                    <div class="kpi-card__label">Collections Aging</div>
+                    <div class="analytics-aging-buckets" id="agingBuckets">
+                        <!-- Rendered by JS -->
+                    </div>
+                </section>
+
+                <section class="insights-grid">
+                    <article class="insight-card insight-card--clickable" id="topClientInsight" data-drill="client">
+                        <div class="insight-card__eyebrow">Top Client</div>
+                        <div class="insight-card__title">No client data yet</div>
+                        <div class="insight-card__body">Add timesheets for the selected period to identify top-billing clients.</div>
+                    </article>
+                    <article class="insight-card insight-card--clickable" id="topConsultantInsight" data-drill="consultant">
+                        <div class="insight-card__eyebrow">Top Consultant</div>
+                        <div class="insight-card__title">No consultant data yet</div>
+                        <div class="insight-card__body">Consultant-level performance appears here once hours are added.</div>
+                    </article>
+                    <article class="insight-card insight-card--clickable" id="billingInsight" data-drill="billing">
+                        <div class="insight-card__eyebrow">Billing Status</div>
+                        <div class="insight-card__title">No billing data yet</div>
+                        <div class="insight-card__body">This view will separate pending and invoiced hours for the selected period.</div>
+                    </article>
+                </section>
+
+                <!-- Commission + Unbilled Alerts -->
+                <section class="insights-grid" style="grid-template-columns: repeat(2, minmax(0, 1fr));">
+                    <article class="insight-card" id="commissionInsight">
+                        <div class="insight-card__eyebrow">Commission Tracking</div>
+                        <div class="insight-card__title">No commission data yet</div>
+                        <div class="insight-card__body">Consultants with commission rates will show earned commissions here.</div>
+                    </article>
+                    <article class="insight-card" id="unbilledInsight" style="border-left: 3px solid var(--accent);">
+                        <div class="insight-card__eyebrow">⚠ Unbilled Hours Alert</div>
+                        <div class="insight-card__title">No unbilled hours</div>
+                        <div class="insight-card__body">All hours have been invoiced for the selected period.</div>
+                    </article>
+                </section>
+            </div>
+
+            <!-- ═══ PANEL: Detail ═══ -->
+            <div class="analytics-panel" id="panel-detail" role="tabpanel">
+                <div class="section">
+                    <div class="section__header">
+                        <h2 class="section__title" id="monthSnapshotTitle">Selected Month Performance</h2>
+                        <div class="dashboard__actions">
+                            <button id="exportCsvBtn" class="btn btn--outline btn--sm" type="button">Export CSV</button>
+                            <button id="copyCsvBtn" class="btn btn--ghost btn--sm" type="button">Copy CSV</button>
+                        </div>
+                    </div>
+                    <div class="table-container">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Consultant</th>
+                                    <th>Client</th>
+                                    <th>W2 Company</th>
+                                    <th>Hours in Month</th>
+                                    <th>Projected Revenue</th>
+                                    <th>Status</th>
+                                    <th>Invoice Link</th>
+                                </tr>
+                            </thead>
+                            <tbody id="monthSnapshotBody">
+                                <tr>
+                                    <td colspan="7" class="table__empty">Loading...</td>
+                                </tr>
+                            </tbody>
+                        </table>
                     </div>
                 </div>
-                <div class="pivot-wrap">
-                    <table class="table pivot-table">
-                        <thead>
-                            <tr id="pivotHeadRow">
-                                <th>Consultant</th>
-                                <th>Currency</th>
-                            </tr>
-                        </thead>
-                        <tbody id="pivotBody">
-                            <tr>
-                                <td class="table__empty">Loading...</td>
-                            </tr>
-                        </tbody>
-                    </table>
+            </div>
+
+            <!-- ═══ PANEL: Pivot ═══ -->
+            <div class="analytics-panel" id="panel-pivot" role="tabpanel">
+                <div class="section">
+                    <div class="section__header">
+                        <h2 class="section__title" id="pivotTitle">Pivot by Consultant and Month</h2>
+                        <div class="segmented" role="group" aria-label="Pivot metric">
+                            <button id="pivotHoursBtn" class="segmented__btn is-active" type="button">Hours</button>
+                            <button id="pivotRevenueBtn" class="segmented__btn" type="button">Revenue</button>
+                        </div>
+                    </div>
+                    <div class="pivot-wrap">
+                        <table class="table pivot-table">
+                            <thead>
+                                <tr id="pivotHeadRow">
+                                    <th>Consultant</th>
+                                    <th>Currency</th>
+                                    <th>Total</th>
+                                </tr>
+                            </thead>
+                            <tbody id="pivotBody">
+                                <tr>
+                                    <td class="table__empty">Loading...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <p class="table-note">Click a row to expand monthly breakdown. Use the Hours/Revenue toggle to switch the pivot metric.</p>
                 </div>
-                <p class="table-note">Use the Hours/Revenue toggle to switch the pivot metric. Export and copy respect current filters.</p>
             </div>
         </div>
     </main>
+
+    <!-- ═══ Detail Drawer ═══ -->
+    <div class="detail-drawer-overlay" id="drawerOverlay"></div>
+    <aside class="detail-drawer" id="detailDrawer">
+        <div class="detail-drawer__header">
+            <h3 class="detail-drawer__title" id="drawerTitle">—</h3>
+            <button class="detail-drawer__close" id="drawerCloseBtn" aria-label="Close">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6 6 18M6 6l12 12"/></svg>
+            </button>
+        </div>
+        <div class="detail-drawer__body" id="drawerBody">
+            <!-- Rendered dynamically -->
+        </div>
+        <div class="detail-drawer__footer">
+            <button class="btn btn--primary btn--sm" id="drawerOpenTimesheets">Open in Timesheets</button>
+            <button class="btn btn--outline btn--sm" id="drawerCloseFooter">Close</button>
+        </div>
+    </aside>
 
     <div id="toast" class="toast" role="status" aria-live="polite" aria-atomic="true"></div>
 

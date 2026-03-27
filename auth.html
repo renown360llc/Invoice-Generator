@@ -56,7 +56,7 @@
                         <input type="checkbox" id="remember">
                         <span>Remember me</span>
                     </label>
-                    <a href="#" class="link">Forgot Password?</a>
+                    <a href="#" id="forgotPasswordLink" class="link">Forgot Password?</a>
                 </div>
 
                 <button type="submit" class="btn btn--primary" id="loginBtn">Sign in</button>
@@ -131,6 +131,7 @@
     <script type="module">
         import { signIn, signUp, signInWithGoogle } from './src/auth.js'
         import { showToast } from './src/utils.js'
+        import { supabase } from './src/config.js'
         import './src/security.js'
 
         const tabLogin = document.getElementById('tabLogin');
@@ -203,7 +204,6 @@
                 if (error) throw error;
 
                 showToast('Account created! Creating session...', 'success');
-                // Auto login or redirect to login tab
                 setTimeout(() => {
                     showToast('Please check email for verification', 'info');
                     switchTab('login');
@@ -228,6 +228,32 @@
                 }
             });
         });
+
+        // Forgot Password Handler
+        const forgotLink = document.getElementById('forgotPasswordLink');
+        if (forgotLink) {
+            forgotLink.addEventListener('click', async (e) => {
+                e.preventDefault();
+                const emailField = document.getElementById('loginEmail');
+                const email = (emailField?.value || '').trim();
+
+                if (!email) {
+                    showToast('Please enter your email address first, then click Forgot Password.', 'error');
+                    emailField?.focus();
+                    return;
+                }
+
+                try {
+                    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+                        redirectTo: window.location.origin + '/auth.html?mode=login'
+                    });
+                    if (error) throw error;
+                    showToast('Password reset link sent! Check your email.', 'success');
+                } catch (err) {
+                    showToast(err.message || 'Failed to send reset email.', 'error');
+                }
+            });
+        }
     </script>
 </body>
 

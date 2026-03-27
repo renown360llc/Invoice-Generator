@@ -29,6 +29,33 @@
             margin-bottom: 0.75rem;
         }
 
+        .invoices-page {
+            padding-inline: 1.5rem;
+        }
+
+        .invoices-page__container {
+            max-width: 1680px;
+        }
+
+        .invoice-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            gap: 1rem;
+        }
+
+        .invoice-header__content {
+            min-width: 0;
+        }
+
+        .invoice-header__actions {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+            justify-content: flex-end;
+            flex-shrink: 0;
+        }
+
         #searchInput {
             grid-column: span 2;
         }
@@ -107,12 +134,17 @@
 
         .invoice-col--client,
         .invoice-cell--client {
-            min-width: 15rem;
+            min-width: 14rem;
+        }
+
+        .invoice-col--from,
+        .invoice-cell--from {
+            min-width: 13rem;
         }
 
         .invoice-col--payment,
         .invoice-cell--payment {
-            min-width: 8.5rem;
+            min-width: 7.5rem;
         }
 
         .invoice-col--amount,
@@ -260,12 +292,28 @@
         }
 
         @media (max-width: 760px) {
+            .invoices-page {
+                padding-inline: 1.25rem;
+            }
+
+            .invoice-header {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .invoice-header__actions {
+                justify-content: flex-start;
+                flex-wrap: wrap;
+            }
+
             .invoices-filters-grid {
                 grid-template-columns: 1fr;
             }
 
             .invoice-col--client,
             .invoice-cell--client,
+            .invoice-col--from,
+            .invoice-cell--from,
             .invoice-col--payment,
             .invoice-cell--payment {
                 min-width: auto;
@@ -285,15 +333,15 @@
     <!-- Navigation injected by layout.js -->
 
     <!-- Main Content -->
-    <main class="dashboard">
-        <div class="dashboard__container">
+    <main class="dashboard invoices-page">
+        <div class="dashboard__container invoices-page__container">
             <!-- Header -->
-            <div class="dashboard__header">
-                <div>
+            <div class="dashboard__header invoice-header">
+                <div class="invoice-header__content">
                     <h1 class="dashboard__title">Invoices</h1>
                     <p class="dashboard__subtitle">Track created invoices, payment status, and linked timesheet coverage.</p>
                 </div>
-                <div style="display: flex; gap: 0.5rem;">
+                <div class="invoice-header__actions">
                     <button id="refreshBtn" class="btn btn--outline" title="Refresh List">
                         🔄 Refresh
                     </button>
@@ -361,6 +409,7 @@
                             <tr>
                                 <th class="invoice-col--number">Invoice #</th>
                                 <th class="invoice-col--client">Client</th>
+                                <th class="invoice-col--from">From Company</th>
                                 <th class="invoice-col--date">Invoice Date</th>
                                 <th class="invoice-col--payment">Payment</th>
                                 <th class="invoice-col--status">Status</th>
@@ -371,7 +420,7 @@
                         </thead>
                         <tbody id="invoicesBody">
                             <tr>
-                                <td colspan="8" class="table__empty">
+                                <td colspan="9" class="table__empty">
                                     <div class="empty-state">
                                         <span class="empty-state__icon">⏳</span>
                                         <p class="empty-state__text">Loading invoices...</p>

@@ -1,9 +1,21 @@
 import { supabase, getCurrentUser } from '../config.js';
+import { logAuditEvent } from './audit-trail.js';
 
 export async function dbUpsertTimesheets(entries = []) {
     const user = await getCurrentUser();
     if (!user) throw new Error('Not authenticated');
     if (!Array.isArray(entries) || entries.length === 0) return [];
+
+    const consultantIds = Array.from(new Set(entries.map((entry) => entry.consultant_id).filter(Boolean)));
+    let consultantMap = new Map();
+    if (consultantIds.length) {
+        const { data: consultants } = await supabase
+            .from('consultants')
+            .select('id,name')
+            .in('id', consultantIds)
+            .eq('user_id', user.id);
+        consultantMap = new Map((consultants || []).map((row) => [row.id, row.name]));
+    }
 
     const payload = entries.map(entry => ({
         user_id: user.id,
@@ -22,13 +34,41 @@ export async function dbUpsertTimesheets(entries = []) {
         .select();
 
     if (error) throw error;
-    return data || [];
+    const savedRows = data || [];
+
+    await Promise.all(savedRows.map((row) => {
+        const source = entries.find((entry) => (
+            entry.consultant_id === row.consultant_id
+            && entry.period_start === row.period_start
+            && entry.period_end === row.period_end
+        )) || {};
+        return logAuditEvent({
+            entityType: 'timesheet',
+            entityId: row.id,
+            entityKey: consultantMap.get(row.consultant_id) || row.consultant_id,
+            action: source.id ? 'updated' : 'created',
+            summary: `${source.id ? 'Updated' : 'Created'} timesheet for ${consultantMap.get(row.consultant_id) || 'consultant'}`.trim(),
+            after: {
+                ...row,
+                consultant_name: consultantMap.get(row.consultant_id) || null
+            }
+        });
+    }));
+
+    return savedRows;
 }
 
 export async function dbUpdateTimesheet(id, updates = {}) {
     const user = await getCurrentUser();
     if (!user) throw new Error('Not authenticated');
     if (!id) throw new Error('Missing timesheet id');
+
+    const { data: before } = await supabase
+        .from('timesheets')
+        .select('*, consultants(name)')
+        .eq('id', id)
+        .eq('user_id', user.id)
+        .single();
 
     const allowed = {};
     if ('hours_worked' in updates && typeof updates.hours_worked === 'number') {
@@ -55,10 +95,21 @@ export async function dbUpdateTimesheet(id, updates = {}) {
         .update(allowed)
         .eq('id', id)
         .eq('user_id', user.id)
-        .select()
+        .select('*, consultants(name)')
         .single();
 
     if (error) throw error;
+
+    await logAuditEvent({
+        entityType: 'timesheet',
+        entityId: data?.id || id,
+        entityKey: data?.consultants?.name || before?.consultants?.name || null,
+        action: 'updated',
+        summary: `Updated timesheet for ${data?.consultants?.name || before?.consultants?.name || 'consultant'}`.trim(),
+        before,
+        after: data
+    });
+
     return data;
 }
 
@@ -67,6 +118,13 @@ export async function dbDeleteTimesheet(id) {
     if (!user) throw new Error('Not authenticated');
     if (!id) throw new Error('Missing timesheet id');
 
+    const { data: existing } = await supabase
+        .from('timesheets')
+        .select('*, consultants(name)')
+        .eq('id', id)
+        .eq('user_id', user.id)
+        .single();
+
     const { error } = await supabase
         .from('timesheets')
         .delete()
@@ -74,6 +132,16 @@ export async function dbDeleteTimesheet(id) {
         .eq('user_id', user.id);
 
     if (error) throw error;
+
+    await logAuditEvent({
+        entityType: 'timesheet',
+        entityId: existing?.id || id,
+        entityKey: existing?.consultants?.name || null,
+        action: 'deleted',
+        summary: `Deleted timesheet for ${existing?.consultants?.name || 'consultant'}`.trim(),
+        before: existing || { id }
+    });
+
     return true;
 }
 
@@ -101,6 +169,7 @@ export async function dbGetTimesheetsForYear(year) {
                 client,
                 w2_company,
                 bill_rate,
+                commission_rate,
                 currency
             )
         `)
@@ -134,6 +203,7 @@ export async function dbGetTimesheetsForYear(year) {
                         client,
                         w2_company,
                         bill_rate,
+                        commission_rate,
                         currency
                     )
                 `)
@@ -176,6 +246,7 @@ export async function dbGetPendingTimesheetsForRange(periodStart, periodEnd) {
                 client,
                 w2_company,
                 bill_rate,
+                commission_rate,
                 currency
             )
         `)
@@ -210,6 +281,7 @@ export async function dbGetPendingTimesheetsForRange(periodStart, periodEnd) {
                         client,
                         w2_company,
                         bill_rate,
+                        commission_rate,
                         currency
                     )
                 `)
@@ -249,6 +321,22 @@ export async function dbLinkTimesheetsToInvoice(timesheetIds = [], { invoice_id,
         .select();
 
     if (error) throw error;
+
+    await logAuditEvent({
+        entityType: 'timesheet',
+        entityKey: invoice_number || invoice_id || 'timesheet batch',
+        action: invoice_id || invoice_number ? 'linked' : 'unlinked',
+        summary: invoice_id || invoice_number
+            ? `Linked ${timesheetIds.length} timesheet${timesheetIds.length === 1 ? '' : 's'} to invoice ${invoice_number || ''}`.trim()
+            : `Unlinked ${timesheetIds.length} timesheet${timesheetIds.length === 1 ? '' : 's'} from invoice`,
+        context: {
+            count: timesheetIds.length,
+            timesheet_ids: timesheetIds,
+            invoice_id: invoice_id || null,
+            invoice_number: invoice_number || null
+        }
+    });
+
     return data || [];
 }
 

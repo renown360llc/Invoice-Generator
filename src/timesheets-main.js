@@ -11,8 +11,11 @@ import {
     getSharedFilters,
     setSharedFilters,
     clearSharedFilters,
+    getPagePrefs,
+    setPagePrefs,
     countAppliedFilters
 } from './modules/crm-filters.js';
+import { listSavedViews, saveSavedView, deleteSavedView } from './modules/saved-views.js';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -21,6 +24,7 @@ const defaultYear = now.getFullYear();
 const defaultMonth = String(now.getMonth() + 1).padStart(2, '0');
 
 const shared = getSharedFilters();
+const pagePrefs = getPagePrefs('timesheets');
 
 let selectedYear = Number(shared.year) || defaultYear;
 let selectedMonth = shared.month || defaultMonth;
@@ -29,6 +33,7 @@ let selectedClient = normalizeTextFilter(shared.client);
 let selectedW2 = normalizeTextFilter(shared.w2);
 let selectedStatus = normalizeStatusFilter(shared.status);
 let searchTerm = String(shared.search || '').trim().toLowerCase();
+let currentSavedViewId = String(pagePrefs.savedViewId || '');
 
 let rawRows = [];
 let consultants = [];
@@ -68,8 +73,17 @@ function cacheElements() {
     els.statusFilter = document.getElementById('statusFilter');
     els.searchInput = document.getElementById('searchInput');
     els.resetFiltersBtn = document.getElementById('resetFiltersBtn');
+    els.savedViewSelect = document.getElementById('savedViewSelect');
+    els.savedViewName = document.getElementById('savedViewName');
+    els.saveViewBtn = document.getElementById('saveViewBtn');
+    els.updateViewBtn = document.getElementById('updateViewBtn');
+    els.deleteViewBtn = document.getElementById('deleteViewBtn');
+    els.savedViewMeta = document.getElementById('savedViewMeta');
     els.timesheetMeta = document.getElementById('timesheetMeta');
-    els.filterSummary = document.getElementById('timesheetFilterSummary');
+    els.periodTitle = document.getElementById('timesheetPeriodTitle');
+    els.consultantsStat = document.getElementById('timesheetConsultantsStat');
+    els.hoursStat = document.getElementById('timesheetHoursStat');
+    els.invoicedStat = document.getElementById('timesheetInvoicedStat');
     els.tbody = document.getElementById('timesheetBody');
 
     els.modal = document.getElementById('tsModal');
@@ -105,8 +119,10 @@ function setupFilters() {
 
     if (els.statusFilter) els.statusFilter.value = selectedStatus;
     if (els.searchInput) els.searchInput.value = searchTerm;
+    renderSavedViews();
 
     updateAllMonthsToggleLabel();
+    updatePeriodLabel();
 }
 
 function bindEvents() {
@@ -130,6 +146,37 @@ function bindEvents() {
         updateAllMonthsToggleLabel();
         requestRender();
     });
+
+    /* ── Period Prev / Next arrows ── */
+    document.getElementById('periodPrevBtn')?.addEventListener('click', async () => {
+        let m = selectedMonth === 'all' ? 1 : Number(selectedMonth);
+        let y = selectedYear;
+        m -= 1;
+        if (m < 1) { m = 12; y -= 1; }
+        selectedYear = y;
+        selectedMonth = String(m).padStart(2, '0');
+        if (els.yearFilter) els.yearFilter.value = String(y);
+        if (els.monthFilter) els.monthFilter.value = selectedMonth;
+        updateAllMonthsToggleLabel();
+        updatePeriodLabel();
+        persistShared();
+        await refreshData();
+    });
+    document.getElementById('periodNextBtn')?.addEventListener('click', async () => {
+        let m = selectedMonth === 'all' ? 12 : Number(selectedMonth);
+        let y = selectedYear;
+        m += 1;
+        if (m > 12) { m = 1; y += 1; }
+        selectedYear = y;
+        selectedMonth = String(m).padStart(2, '0');
+        if (els.yearFilter) els.yearFilter.value = String(y);
+        if (els.monthFilter) els.monthFilter.value = selectedMonth;
+        updateAllMonthsToggleLabel();
+        updatePeriodLabel();
+        persistShared();
+        await refreshData();
+    });
+
 
     els.currencyFilter?.addEventListener('change', (e) => {
         selectedCurrency = normalizeCurrency(e.target.value);
@@ -179,6 +226,59 @@ function bindEvents() {
         updateAllMonthsToggleLabel();
         populateFilterOptions();
         requestRender();
+    });
+
+    els.savedViewSelect?.addEventListener('change', async (event) => {
+        const id = String(event.target.value || '');
+        currentSavedViewId = id;
+        setPagePrefs('timesheets', { savedViewId: currentSavedViewId });
+        renderSavedViews();
+        if (!id) return;
+        const view = listSavedViews('timesheets').find((item) => item.id === id);
+        if (view) await applySavedView(view);
+    });
+
+    els.saveViewBtn?.addEventListener('click', () => {
+        const name = String(els.savedViewName?.value || '').trim();
+        if (!name) {
+            showToast('Enter a name for this saved view.', 'error');
+            return;
+        }
+        const saved = saveSavedView('timesheets', {
+            name,
+            state: captureSavedViewState()
+        });
+        currentSavedViewId = saved.id;
+        setPagePrefs('timesheets', { savedViewId: currentSavedViewId });
+        renderSavedViews();
+        showToast('Saved view created.', 'success');
+    });
+
+    els.updateViewBtn?.addEventListener('click', () => {
+        if (!currentSavedViewId) return;
+        const existing = listSavedViews('timesheets').find((item) => item.id === currentSavedViewId);
+        const name = String(els.savedViewName?.value || existing?.name || '').trim();
+        if (!name) {
+            showToast('Enter a name for this saved view.', 'error');
+            return;
+        }
+        saveSavedView('timesheets', {
+            id: currentSavedViewId,
+            name,
+            state: captureSavedViewState()
+        });
+        renderSavedViews();
+        showToast('Saved view updated.', 'success');
+    });
+
+    els.deleteViewBtn?.addEventListener('click', () => {
+        if (!currentSavedViewId) return;
+        if (!confirm('Delete this saved view?')) return;
+        deleteSavedView('timesheets', currentSavedViewId);
+        currentSavedViewId = '';
+        setPagePrefs('timesheets', { savedViewId: '' });
+        renderSavedViews();
+        showToast('Saved view deleted.', 'success');
     });
 
     document.addEventListener('click', async (e) => {
@@ -474,8 +574,14 @@ function renderTable() {
     const range = getPeriodRange();
 
     const totalHours = rows.reduce((sum, row) => sum + row.hours, 0);
-    setMeta(`${range.label} • Consultants: ${rows.length} • Hours: ${totalHours.toFixed(2)}`);
-    updateFilterSummary();
+    const invoicedHours = rows
+        .filter((row) => row.status === 'invoiced')
+        .reduce((sum, row) => sum + row.hours, 0);
+    if (els.periodTitle) els.periodTitle.textContent = range.label;
+    if (els.consultantsStat) els.consultantsStat.textContent = String(rows.length);
+    if (els.hoursStat) els.hoursStat.textContent = totalHours.toFixed(2);
+    if (els.invoicedStat) els.invoicedStat.textContent = invoicedHours.toFixed(2);
+    updateSummaryMeta(range.label, rows.length, totalHours);
 
     if (rows.length === 0) {
         els.tbody.innerHTML = `
@@ -689,9 +795,7 @@ function pickPrimaryTimesheet(times) {
 }
 
 
-function updateFilterSummary() {
-    if (!els.filterSummary) return;
-
+function updateSummaryMeta(periodLabel, totalConsultants, totalHours) {
     const applied = countAppliedFilters(
         {
             year: selectedYear,
@@ -712,13 +816,26 @@ function updateFilterSummary() {
             search: ''
         }
     );
-
-    els.filterSummary.textContent = `${applied} filter${applied === 1 ? '' : 's'} applied`;
+    const filterText = applied > 0
+        ? `${applied} extra filter${applied === 1 ? '' : 's'} active`
+        : 'Default filter set';
+    setMeta(`${periodLabel} • ${totalConsultants} consultants • ${totalHours.toFixed(2)} hours • ${filterText}`);
 }
 
 function updateAllMonthsToggleLabel() {
     if (!els.allMonthsToggleBtn) return;
     els.allMonthsToggleBtn.textContent = selectedMonth === 'all' ? 'All Months: ON' : 'All Months: OFF';
+}
+
+function updatePeriodLabel() {
+    const el = document.getElementById('periodLabel');
+    if (!el) return;
+    if (selectedMonth === 'all') {
+        el.textContent = `${selectedYear}`;
+    } else {
+        const mIdx = Number(selectedMonth) - 1;
+        el.textContent = `${MONTHS[mIdx]} ${selectedYear}`;
+    }
 }
 
 function collectLabelMap(values = []) {
@@ -748,6 +865,65 @@ function persistShared() {
     });
 }
 
+function captureSavedViewState() {
+    return {
+        year: selectedYear,
+        month: selectedMonth,
+        currency: selectedCurrency,
+        client: selectedClient,
+        w2: selectedW2,
+        status: selectedStatus,
+        search: searchTerm
+    };
+}
+
+function renderSavedViews() {
+    const views = listSavedViews('timesheets');
+    if (els.savedViewSelect) {
+        els.savedViewSelect.innerHTML = ['<option value="">Saved Views</option>', ...views.map((view) => (
+            `<option value="${escapeHtml(view.id)}">${escapeHtml(view.name)}</option>`
+        ))].join('');
+        els.savedViewSelect.value = views.some((view) => view.id === currentSavedViewId) ? currentSavedViewId : '';
+    }
+
+    const activeView = views.find((view) => view.id === currentSavedViewId);
+    if (els.savedViewName) {
+        if (document.activeElement !== els.savedViewName || !els.savedViewName.value.trim()) {
+            els.savedViewName.value = activeView?.name || '';
+        }
+    }
+    if (els.savedViewMeta) {
+        const totalText = views.length
+            ? `${views.length} saved view${views.length === 1 ? '' : 's'}`
+            : 'No saved views yet';
+        els.savedViewMeta.textContent = activeView
+            ? `Active: ${activeView.name} • ${totalText}`
+            : totalText;
+    }
+    if (els.updateViewBtn) els.updateViewBtn.disabled = !activeView;
+    if (els.deleteViewBtn) els.deleteViewBtn.disabled = !activeView;
+}
+
+async function applySavedView(view) {
+    const state = view?.state || {};
+    selectedYear = Number(state.year) || defaultYear;
+    selectedMonth = state.month || defaultMonth;
+    selectedCurrency = normalizeCurrency(state.currency);
+    selectedClient = normalizeTextFilter(state.client);
+    selectedW2 = normalizeTextFilter(state.w2);
+    selectedStatus = normalizeStatusFilter(state.status);
+    searchTerm = String(state.search || '').trim().toLowerCase();
+
+    if (els.yearFilter) els.yearFilter.value = String(selectedYear);
+    if (els.monthFilter) els.monthFilter.value = selectedMonth;
+    if (els.statusFilter) els.statusFilter.value = selectedStatus;
+    if (els.searchInput) els.searchInput.value = searchTerm;
+
+    persistShared();
+    updateAllMonthsToggleLabel();
+    await refreshData();
+}
+
 function getConsultantName(id) {
     const consultant = consultants.find(c => String(c.id) === String(id));
     return consultant?.name || 'Consultant';
@@ -768,6 +944,16 @@ function normalizeStatusFilter(value) {
     const input = String(value || 'all').trim().toLowerCase();
     if (input === 'pending' || input === 'invoiced' || input === 'mixed') return input;
     return 'all';
+}
+
+function findLabel(values, normalizedValue) {
+    const hit = values.find((value) => normalizeTextFilter(value) === normalizedValue);
+    return hit || normalizedValue;
+}
+
+function capitalize(value) {
+    const text = String(value || '');
+    return text ? text.charAt(0).toUpperCase() + text.slice(1) : '';
 }
 
 function toIso(date) {

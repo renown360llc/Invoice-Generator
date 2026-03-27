@@ -586,8 +586,9 @@ function renderTable() {
         const invoiceDate = formatDate(getInvoiceDateRaw(invoice) || invoice.created_at);
         const status = getEffectiveStatus(invoice);
         const currency = getInvoiceCurrency(invoice);
-        const amount = formatMoney(getInvoiceAmount(invoice), currency);
+        const amount = formatAmountValue(getInvoiceAmount(invoice));
         const clientName = escapeHtml(invoice.client_info?.name || 'N/A');
+        const fromName = escapeHtml(getInvoiceFromName(invoice));
         const clientMeta = escapeHtml(getInvoiceClientMeta(invoice));
 
         return `
@@ -599,6 +600,7 @@ function renderTable() {
                         <span class="invoice-client__meta" title="${clientMeta}">${clientMeta}</span>
                     </div>
                 </td>
+                <td class="invoice-cell--from" title="${fromName}">${fromName}</td>
                 <td class="invoice-cell--date">${invoiceDate}</td>
                 <td class="invoice-cell--payment">${renderPaymentSummary(invoice, status)}</td>
                 <td class="invoice-cell--status">${renderStatusChip(status)}</td>
@@ -634,7 +636,7 @@ function renderTable() {
                 </td>
             </tr>
             <tr id="ts-panel-${invoice.id}" style="display:none;">
-                <td colspan="8" style="padding:0;">
+                <td colspan="9" style="padding:0;">
                     <div style="background:#f8fafc;border-top:1px solid #e2e8f0;border-bottom:1px solid #e2e8f0;padding:0.875rem 1.25rem;">
                         <div id="ts-panel-content-${invoice.id}" style="font-size:0.8125rem;color:#6b7280;">Loading...</div>
                     </div>
@@ -728,7 +730,7 @@ function setLoadingTable() {
 
     els.tableBody.innerHTML = `
         <tr>
-            <td colspan="8" class="table__empty">
+            <td colspan="9" class="table__empty">
                 <div class="empty-state">
                     <span class="empty-state__icon">⏳</span>
                     <p class="empty-state__text">Loading invoices...</p>
@@ -743,7 +745,7 @@ function setEmptyTable(message) {
 
     els.tableBody.innerHTML = `
         <tr>
-            <td colspan="8" class="table__empty">
+            <td colspan="9" class="table__empty">
                 <div class="empty-state">
                     <span class="empty-state__icon">📭</span>
                     <p class="empty-state__text">${escapeHtml(message)}</p>
@@ -1021,15 +1023,16 @@ function getInvoicePeriodSummary(invoice) {
     return `${periods.length} billing periods`;
 }
 
+function getInvoiceFromName(invoice) {
+    return String(invoice.business_info?.name || '').trim() || '—';
+}
+
 function getInvoiceClientMeta(invoice) {
     const consultantSummary = getInvoiceConsultantSummary(invoice);
     const periodSummary = getInvoicePeriodSummary(invoice);
+    const parts = [consultantSummary, periodSummary].filter(Boolean);
 
-    if (consultantSummary && periodSummary) {
-        return `${consultantSummary} • ${periodSummary}`;
-    }
-
-    return consultantSummary || periodSummary || 'No linked consultant';
+    return parts.join(' • ') || 'No linked consultant';
 }
 
 function renderPaymentSummary(invoice, effectiveStatus) {
@@ -1120,6 +1123,13 @@ function formatMoney(amount, currency) {
     } catch (err) {
         return `${currency || 'USD'} ${(Number(amount) || 0).toFixed(2)}`;
     }
+}
+
+function formatAmountValue(amount) {
+    return new Intl.NumberFormat('en-US', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+    }).format(Number(amount) || 0);
 }
 
 function formatDate(dateString) {

@@ -56,6 +56,33 @@
             color: var(--text-secondary);
         }
 
+        .consultants-page {
+            padding-inline: 1.5rem;
+        }
+
+        .consultants-page__container {
+            max-width: 1680px;
+        }
+
+        .consultants-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            gap: 1rem;
+        }
+
+        .consultants-header__content {
+            min-width: 0;
+        }
+
+        .consultants-header__actions {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 0.5rem;
+            flex-shrink: 0;
+        }
+
         .period-controls {
             display: inline-flex;
             gap: 0.5rem;
@@ -309,6 +336,20 @@
         }
 
         @media (max-width: 768px) {
+            .consultants-page {
+                padding-inline: 1.25rem;
+            }
+
+            .consultants-header {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .consultants-header__actions {
+                justify-content: flex-start;
+                flex-wrap: wrap;
+            }
+
             .modal {
                 padding: 0.75rem;
             }
@@ -386,16 +427,16 @@
 
 <body>
     <!-- Main Content -->
-    <main class="dashboard">
-        <div class="dashboard__container">
+    <main class="dashboard consultants-page">
+        <div class="dashboard__container consultants-page__container">
             <!-- Header -->
-            <div class="dashboard__header">
-                <div>
+            <div class="dashboard__header consultants-header">
+                <div class="consultants-header__content">
                     <h1 class="dashboard__title">Consultants</h1>
                     <p class="dashboard__subtitle">Manage consultant profiles, rates, and billing attributes used across
                         CRM and invoicing.</p>
                 </div>
-                <div>
+                <div class="consultants-header__actions">
                     <button id="addConsultantBtn" class="btn btn--primary">
                         <svg class="btn-icon" fill="currentColor" viewBox="0 0 20 20">
                             <path fill-rule="evenodd"
@@ -407,36 +448,64 @@
                 </div>
             </div>
 
-            <!-- List Section -->
-            <div class="section">
-                <div class="invoices-filter-bar">
-                    <div class="period-controls">
-                        <select id="yearFilter" class="sort-select" aria-label="Filter year"></select>
-                        <select id="monthFilter" class="sort-select" aria-label="Filter month"></select>
-                        <button id="allMonthsToggleBtn" class="btn btn--outline btn--sm" type="button">All Months:
-                            OFF</button>
-                    </div>
-                    <select id="statusFilter" class="sort-select">
+            <!-- Compact CRM Toolbar -->
+            <div class="crm-toolbar">
+                <div class="crm-toolbar__search">
+                    <svg class="crm-toolbar__search-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                    <input type="text" id="searchInput" placeholder="Search consultants...">
+                </div>
+                <div class="crm-toolbar__divider"></div>
+                <div class="crm-toolbar__filters">
+                    <select id="statusFilter" class="crm-toolbar__pill" aria-label="Status">
                         <option value="all">All Statuses</option>
                         <option value="active" selected>Active Only</option>
                         <option value="pending">Pending Only</option>
                         <option value="inactive">Inactive Only</option>
                     </select>
-                    <select id="clientFilter" class="sort-select" aria-label="Filter by client">
+                    <select id="clientFilter" class="crm-toolbar__pill" aria-label="Client">
                         <option value="all">All Clients</option>
                     </select>
-                    <select id="w2Filter" class="sort-select" aria-label="Filter by W2 company">
-                        <option value="all">All W2 Companies</option>
+                    <select id="w2Filter" class="crm-toolbar__pill" aria-label="W2 Company">
+                        <option value="all">All W2</option>
                     </select>
-                    <select id="currencyFilter" class="sort-select" aria-label="Filter by currency">
+                    <select id="currencyFilter" class="crm-toolbar__pill" aria-label="Currency">
                         <option value="all">All Currencies</option>
                     </select>
-                    <input type="text" id="searchInput" class="search-input" placeholder="Search consultants...">
-                    <button id="resetFiltersBtn" class="btn btn--ghost" style="padding:0.5rem 0.75rem;"
-                        type="button">Clear All</button>
                 </div>
-                <p id="consultantsFilterSummary" class="filters-meta">0 filters applied</p>
+                <div class="crm-toolbar__divider"></div>
+                <div class="crm-toolbar__period">
+                    <button type="button" id="periodPrevBtn" class="crm-toolbar__period-btn" aria-label="Previous month">
+                        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path d="m15 19-7-7 7-7"/></svg>
+                    </button>
+                    <span id="periodLabel" class="crm-toolbar__period-label">—</span>
+                    <button type="button" id="periodNextBtn" class="crm-toolbar__period-btn" aria-label="Next month">
+                        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path d="m9 5 7 7-7 7"/></svg>
+                    </button>
+                </div>
+                <div class="crm-toolbar__divider"></div>
+                <div class="crm-toolbar__views">
+                    <select id="savedViewSelect" aria-label="Saved views">
+                        <option value="">Saved Views</option>
+                    </select>
+                </div>
+                <div class="crm-toolbar__spacer"></div>
+                <button type="button" id="resetFiltersBtn" class="crm-toolbar__clear">Clear</button>
 
+                <!-- Expandable saved views controls -->
+                <div id="savedViewExpandRow" class="crm-toolbar__views-expand">
+                    <input type="text" id="savedViewName" placeholder="Name this view">
+                    <button id="saveViewBtn" class="btn btn--outline btn--sm" type="button">Save</button>
+                    <button id="updateViewBtn" class="btn btn--ghost btn--sm" type="button" disabled>Update</button>
+                    <button id="deleteViewBtn" class="btn btn--ghost btn--sm" type="button" disabled>Delete</button>
+                    <span id="savedViewMeta" class="crm-toolbar__views-expand__meta">No saved views</span>
+                </div>
+            </div>
+            <div id="consultantsFilterSummary" class="crm-stats-strip"></div>
+
+            <!-- Hidden selects for year/month (used by JS) -->
+            <select id="yearFilter" style="display:none;" aria-label="Filter year"></select>
+            <select id="monthFilter" style="display:none;" aria-label="Filter month"></select>
+            <button id="allMonthsToggleBtn" style="display:none;" type="button">All Months: OFF</button>
                 <div class="table-container">
                     <table class="table" id="consultantsTable">
                         <thead>
@@ -449,8 +518,8 @@
                                         <span class="sort-icon">↕</span></button></th>
                                 <th data-sort="end_date"><button class="sort-button" data-sort="end_date">End Date <span
                                             class="sort-icon">↕</span></button></th>
-                                <th data-sort="bill_rate"><button class="sort-button" data-sort="bill_rate">Rates (Bill
-                                        / Comm) <span class="sort-icon">↕</span></button></th>
+                                <th data-sort="bill_rate"><button class="sort-button" data-sort="bill_rate">Rate <span
+                                            class="sort-icon">↕</span></button></th>
                                 <th data-sort="status"><button class="sort-button" data-sort="status">Status <span
                                             class="sort-icon">↕</span></button></th>
                                 <th data-sort="coverage"><button class="sort-button" data-sort="coverage">Coverage <span

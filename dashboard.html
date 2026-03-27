@@ -60,6 +60,37 @@
       color: #fff;
       border-radius: 6px;
     }
+
+    .revenue-overview__meta {
+      margin-top: 0.35rem;
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+    }
+
+    .revenue-overview__controls {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 0.75rem;
+    }
+
+    .revenue-overview__currencies {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 0.5rem;
+    }
+
+    @media (max-width: 760px) {
+      .revenue-overview__controls {
+        width: 100%;
+        align-items: flex-start;
+      }
+
+      .revenue-overview__currencies {
+        justify-content: flex-start;
+      }
+    }
   </style>
   <script type="module">
     import { requireAuth } from './src/auth.js';
@@ -139,7 +170,7 @@
                 d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
           </div>
-          <div class="stat-card__label">This Month</div>
+          <div class="stat-card__label">Paid This Month</div>
           <div class="stat-card__value" id="monthlyRevenue"><span class="skeleton"
               style="display:inline-block;height:1em;width:5ch;border-radius:4px;"></span></div>
           <div class="stat-card__change" id="monthlyChange">—</div>
@@ -167,7 +198,7 @@
                 d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
             </svg>
           </div>
-          <div class="stat-card__label">Sales Pipeline</div>
+          <div class="stat-card__label">Paid YTD</div>
           <div class="stat-card__value" id="yearlyRevenue"><span class="skeleton"
               style="display:inline-block;height:1em;width:5ch;border-radius:4px;"></span></div>
           <div class="stat-card__change" id="yearlyChange">—</div>
@@ -232,114 +263,93 @@
 
       </section>
 
-      <!-- Recent Invoices -->
-      <div class="section">
-        <div class="section__header">
-          <h2 class="section__title">Recent Invoices</h2>
-          <a href="invoices.html" class="link"><span class="long-label">View all invoices</span><span
-              class="short-label" aria-hidden="true">View all →</span></a>
+      <!-- Month Close -->
+      <section class="section">
+        <div class="section__header section__header--with-controls">
+          <div>
+            <h2 class="section__title">Month Close</h2>
+            <p class="section__subtitle">Track whether the last billing period is ready for invoicing and collections follow-up.</p>
+          </div>
+          <a href="timesheets.html" class="link">Manage close period →</a>
         </div>
-        <div class="table-container">
-          <table class="table" id="recentInvoicesTable">
-            <thead>
-              <tr>
-                <th scope="col">Invoice #</th>
-                <th scope="col">Client</th>
-                <th scope="col">Date</th>
-                <th scope="col">Status</th>
-                <th scope="col" style="text-align: right;">Amount</th>
-                <th scope="col" style="text-align: right;">Actions</th>
-              </tr>
-            </thead>
-            <tbody id="recentInvoicesBody">
-              <tr class="row-skeleton" aria-hidden="true">
-                <td data-label="Invoice #"><span class="skeleton"
-                    style="display:inline-block;height:0.85em;width:8ch;border-radius:4px;"></span></td>
-                <td data-label="Client"><span class="skeleton"
-                    style="display:inline-block;height:0.85em;width:14ch;border-radius:4px;"></span></td>
-                <td data-label="Date"><span class="skeleton"
-                    style="display:inline-block;height:0.85em;width:10ch;border-radius:4px;"></span></td>
-                <td data-label="Status"><span class="skeleton"
-                    style="display:inline-block;height:1.5em;width:6ch;border-radius:12px;"></span></td>
-                <td data-label="Amount"><span class="skeleton"
-                    style="display:inline-block;height:0.85em;width:9ch;border-radius:4px;"></span></td>
-                <td data-label="Actions"><span class="skeleton"
-                    style="display:inline-block;height:2.2em;width:12ch;border-radius:6px;"></span></td>
-              </tr>
-              <tr class="row-skeleton" aria-hidden="true">
-                <td data-label="Invoice #"><span class="skeleton"
-                    style="display:inline-block;height:0.85em;width:9ch;border-radius:4px;"></span></td>
-                <td data-label="Client"><span class="skeleton"
-                    style="display:inline-block;height:0.85em;width:12ch;border-radius:4px;"></span></td>
-                <td data-label="Date"><span class="skeleton"
-                    style="display:inline-block;height:0.85em;width:8ch;border-radius:4px;"></span></td>
-                <td data-label="Status"><span class="skeleton"
-                    style="display:inline-block;height:1.5em;width:5ch;border-radius:12px;"></span></td>
-                <td data-label="Amount"><span class="skeleton"
-                    style="display:inline-block;height:0.85em;width:7ch;border-radius:4px;"></span></td>
-                <td data-label="Actions"><span class="skeleton"
-                    style="display:inline-block;height:2.2em;width:10ch;border-radius:6px;"></span></td>
-              </tr>
-              <tr class="row-skeleton" aria-hidden="true">
-                <td data-label="Invoice #"><span class="skeleton"
-                    style="display:inline-block;height:0.85em;width:7ch;border-radius:4px;"></span></td>
-                <td data-label="Client"><span class="skeleton"
-                    style="display:inline-block;height:0.85em;width:10ch;border-radius:4px;"></span></td>
-                <td data-label="Date"><span class="skeleton"
-                    style="display:inline-block;height:0.85em;width:9ch;border-radius:4px;"></span></td>
-                <td data-label="Status"><span class="skeleton"
-                    style="display:inline-block;height:1.5em;width:7ch;border-radius:12px;"></span></td>
-                <td data-label="Amount"><span class="skeleton"
-                    style="display:inline-block;height:0.85em;width:8ch;border-radius:4px;"></span></td>
-                <td data-label="Actions"><span class="skeleton"
-                    style="display:inline-block;height:2.2em;width:11ch;border-radius:6px;"></span></td>
-              </tr>
-              <tr>
-                <td colspan="6" class="table__empty">
-                  <div class="empty-state">
-                    <span class="empty-state__icon">📭</span>
-                    <p class="empty-state__text">No invoices yet</p>
-                    <a href="app.html" class="btn btn--primary btn--sm">Create your first
-                      invoice</a>
-                  </div>
-                </td>
-              </tr>
-            </tbody>
-          </table>
+        <div id="monthCloseBanner" class="close-banner" aria-live="polite"></div>
+      </section>
+
+      <!-- Operations — Workflow Cards Only -->
+      <section class="section">
+        <div class="section__header section__header--with-controls">
+          <div>
+            <h2 class="section__title">Operations Overview</h2>
+            <p class="section__subtitle">Billing, coverage, collections, and review status at a glance.</p>
+          </div>
+          <a href="timesheets.html" class="link">Open timesheets →</a>
+        </div>
+        <div id="workflowQueue" class="workflow-grid" aria-live="polite"></div>
+      </section>
+
+      <!-- Exception Center -->
+      <section class="section">
+        <div class="section__header section__header--with-controls">
+          <div>
+            <h2 class="section__title">Exception Center</h2>
+            <p class="section__subtitle">Items that need attention before they become billing problems.</p>
+          </div>
+          <a href="invoices.html" class="link">Review invoices →</a>
+        </div>
+        <div id="exceptionCenter" class="exception-list" aria-live="polite"></div>
+      </section>
+
+      <!-- Revenue Overview + Collections Activity — Side by Side -->
+      <div class="dash-duo">
+        <div class="section">
+          <div class="section__header section__header--with-controls">
+            <div>
+              <h2 class="section__title">Revenue Overview</h2>
+              <div style="font-size: 1.4rem; font-weight: 800; color: var(--text-primary); line-height: 1; margin-top: 0.35rem;"><span id="chartTotal">—</span></div>
+              <div id="chartMeta" class="revenue-overview__meta">Paid revenue by received date</div>
+            </div>
+            <div class="revenue-overview__controls">
+              <div id="revenueCurrencyFilter" class="revenue-overview__currencies" role="group" aria-label="Revenue currency"></div>
+              <div class="segmented" role="group" aria-label="Revenue range">
+                <button type="button" class="segmented__btn is-active" data-range="30d" aria-pressed="true" aria-controls="revenueChart">30D</button>
+                <button type="button" class="segmented__btn" data-range="90d" aria-pressed="false" aria-controls="revenueChart">90D</button>
+                <button type="button" class="segmented__btn" data-range="ytd" aria-pressed="false" aria-controls="revenueChart">YTD</button>
+              </div>
+            </div>
+          </div>
+          <figure class="chart-container">
+            <div class="chart-skeleton" aria-hidden="true">
+              <span class="skeleton"></span><span class="skeleton"></span><span class="skeleton"></span><span class="skeleton"></span><span class="skeleton"></span>
+            </div>
+            <canvas id="revenueChart" aria-describedby="revenueChartDesc"></canvas>
+            <figcaption id="revenueChartDesc" class="visually-hidden">Revenue for the last 12 months.</figcaption>
+          </figure>
+        </div>
+
+        <div class="section">
+          <div class="section__header section__header--with-controls">
+            <div>
+              <h2 class="section__title">Collections Activity</h2>
+              <p class="section__subtitle">Payments, due invoices, and collections items.</p>
+            </div>
+            <a href="invoices.html" class="link">View all →</a>
+          </div>
+          <div id="collectionsFeed" class="collections-feed" aria-live="polite"></div>
         </div>
       </div>
 
-      <!-- Monthly Chart -->
-      <div class="section">
-        <div class="section__header section__header--with-controls">
+      <!-- Recent Activity — Compact Timeline -->
+      <section class="section">
+        <div class="section__header">
           <div>
-            <h2 class="section__title"
-              style="font-size: 0.8125rem; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.25rem;">
-              Revenue Overview</h2>
-            <div style="font-size: 1.625rem; font-weight: 800; color: var(--text-primary); line-height: 1;"><span
-                id="chartTotal">—</span></div>
-          </div>
-          <div class="segmented" role="group" aria-label="Revenue range">
-            <button type="button" class="segmented__btn is-active" data-range="30d" aria-pressed="true"
-              aria-controls="revenueChart">30D</button>
-            <button type="button" class="segmented__btn" data-range="90d" aria-pressed="false"
-              aria-controls="revenueChart">90D</button>
-            <button type="button" class="segmented__btn" data-range="ytd" aria-pressed="false"
-              aria-controls="revenueChart">YTD</button>
+            <h2 class="section__title">Recent Activity</h2>
+            <p class="section__subtitle">Audit trail of recent changes across consultants, timesheets, invoices, and templates.</p>
           </div>
         </div>
-        <figure class="chart-container">
-          <div class="chart-skeleton" aria-hidden="true">
-            <span class="skeleton"></span>
-            <span class="skeleton"></span>
-            <span class="skeleton"></span>
-            <span class="skeleton"></span>
-            <span class="skeleton"></span>
-          </div>
-          <canvas id="revenueChart" aria-describedby="revenueChartDesc"></canvas>
-          <figcaption id="revenueChartDesc" class="visually-hidden">Revenue for the last 12 months.</figcaption>
-        </figure>
-      </div><!-- End dashboard__container -->
+        <div id="recentActivityFeed" class="activity-timeline" aria-live="polite"></div>
+      </section>
+
+    </div><!-- End dashboard__container -->
   </main>
 
   <!-- Modals and Toasts -->
@@ -370,7 +380,7 @@
     import { loadLayout } from './src/components/layout.js';
     loadLayout('dashboard');
   </script>
-  <script type="module" src="src/dashboard-main.js?v=2"></script>
+  <script type="module" src="src/dashboard-main.js?v=3"></script>
   <script type="module">
     // Enhance responsive tables by adding data-label attributes from the header
     function enhanceResponsiveTable(table) {

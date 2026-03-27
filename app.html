@@ -37,32 +37,29 @@
     <!-- Navigation injected by layout.js -->
 
     <div class="app">
-        <!-- ── Invoice Lock Banner ─────────────────────────────────────── -->
-        <div id="invoiceLockBanner"
-            style="display:none; background:linear-gradient(90deg,#fef3c7,#fef9ec); border-bottom:1px solid #fbbf24; padding:0.625rem 1.5rem; display:none; align-items:center; gap:0.75rem; font-size:0.8125rem; font-weight:500; color:#92400e;">
-            <span style="font-size:1rem;">🔒</span>
-            <span id="invoiceLockBannerText">This invoice is <strong>paid</strong> — editing is locked to protect your
-                billing record.</span>
-            <button id="invoiceUnlockBtn"
-                style="margin-left:auto; padding:0.3rem 0.75rem; border-radius:6px; border:1px solid #f59e0b; background:#fffbeb; color:#92400e; cursor:pointer; font-size:0.75rem; font-weight:600;">🔓
-                Unlock to Edit</button>
-        </div>
-
-        <!-- ── Unsaved Changes Banner ──────────────────────────────────── -->
-        <div id="unsavedBanner"
-            style="display:none; background:#eff6ff; border-bottom:1px solid #bfdbfe; padding:0.5rem 1.5rem; align-items:center; gap:0.75rem; font-size:0.8125rem; color:#1e40af; font-weight:500;">
-            <span>●</span> You have unsaved changes.
-        </div>
-
         <!-- Editor Panel -->
         <aside class="editor">
             <header class="editor__header">
-                <h1 class="editor__title" id="editorTitle">Create Invoice</h1>
+                <div>
+                    <h1 class="editor__title" id="editorTitle">Create Invoice</h1>
+                    <p class="editor__subtitle" id="editorSubtitle">Build, review, and save invoices before sending them out.</p>
+                </div>
                 <div class="editor__actions">
                     <button type="button" id="newBtn" class="btn btn--outline btn--sm">New</button>
                     <button type="button" id="saveBtn" class="btn btn--outline btn--sm">Save</button>
                 </div>
             </header>
+
+            <div id="editorStatusBar" class="editor-statusbar" style="display:none;">
+                <div class="editor-statusbar__main">
+                    <span id="editorModePill" class="editor-statusbar__pill editor-statusbar__pill--neutral">Draft</span>
+                    <span id="editorStatusText" class="editor-statusbar__text">Ready to edit.</span>
+                </div>
+                <div class="editor-statusbar__actions">
+                    <span id="unsavedBadge" class="editor-statusbar__pill editor-statusbar__pill--info" style="display:none;">Unsaved changes</span>
+                    <button id="invoiceUnlockBtn" type="button" class="btn btn--outline btn--sm" style="display:none;">Unlock to Edit</button>
+                </div>
+            </div>
 
 
             <!-- Template Bar -->
@@ -301,26 +298,23 @@
                     </div>
                 </section>
 
-                <!-- Action Buttons -->
-                <div class="editor__footer">
-                    <button type="button" id="emailBtn" class="btn btn--outline btn--lg btn--block"
-                        style="margin-bottom: 0.75rem;">
-                        📧 Email Invoice
-                    </button>
-                    <button type="button" id="downloadPdfBtn" class="btn btn--primary btn--lg btn--block">
-                        Download PDF
-                    </button>
-                </div>
             </form>
         </aside>
 
         <!-- Preview Panel -->
         <main class="preview">
             <header class="preview__header">
-                <span class="preview__title">Live Preview</span>
-                <button type="button" id="printBtn" class="btn btn--icon" title="Print">
-                    🖨️
-                </button>
+                <div class="preview__header-main">
+                    <span class="preview__title">Live Preview</span>
+                    <span class="preview__subtitle" id="previewSubtitle">Changes appear here as you edit.</span>
+                </div>
+                <div class="preview__actions">
+                    <button type="button" id="emailBtn" class="btn btn--outline btn--sm">Email</button>
+                    <button type="button" id="downloadPdfBtn" class="btn btn--primary btn--sm">Download PDF</button>
+                    <button type="button" id="printBtn" class="btn btn--icon" title="Print">
+                        🖨️
+                    </button>
+                </div>
             </header>
             <div class="preview__container">
                 <div id="invoicePreview" class="invoice-paper">

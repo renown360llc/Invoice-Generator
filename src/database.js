@@ -1,5 +1,6 @@
 import { supabase } from './config.js'
 import { getCurrentUser } from './auth.js'
+import { logAuditEvent } from './modules/audit-trail.js'
 
 // ============================================================================
 // TEMPLATES
@@ -8,6 +9,17 @@ import { getCurrentUser } from './auth.js'
 export async function saveTemplate(templateData) {
     const user = await getCurrentUser()
     if (!user) throw new Error('Not authenticated')
+
+    let beforeRecord = null
+    if (templateData.id) {
+        const { data: existing } = await supabase
+            .from('templates')
+            .select('*')
+            .eq('id', templateData.id)
+            .eq('user_id', user.id)
+            .single()
+        beforeRecord = existing || null
+    }
 
     const { data, error } = await supabase
         .from('templates')
@@ -26,12 +38,29 @@ export async function saveTemplate(templateData) {
         throw error
     }
 
+    await logAuditEvent({
+        entityType: 'template',
+        entityId: data?.id,
+        entityKey: data?.name,
+        action: 'created',
+        summary: `Created template ${data?.name || templateData.name || ''}`.trim(),
+        before: beforeRecord,
+        after: data
+    })
+
     return data
 }
 
 export async function updateTemplate(templateId, templateData) {
     const user = await getCurrentUser()
     if (!user) throw new Error('Not authenticated')
+
+    const { data: beforeRecord } = await supabase
+        .from('templates')
+        .select('*')
+        .eq('id', templateId)
+        .eq('user_id', user.id)
+        .single()
 
     const { data, error } = await supabase
         .from('templates')
@@ -50,6 +79,16 @@ export async function updateTemplate(templateId, templateData) {
         console.error('Update template error:', error)
         throw error
     }
+
+    await logAuditEvent({
+        entityType: 'template',
+        entityId: data?.id || templateId,
+        entityKey: data?.name || templateData.name,
+        action: 'updated',
+        summary: `Updated template ${data?.name || templateData.name || ''}`.trim(),
+        before: beforeRecord,
+        after: data
+    })
 
     return data
 }
@@ -73,6 +112,14 @@ export async function getTemplates() {
 }
 
 export async function deleteTemplate(templateId) {
+    const user = await getCurrentUser()
+    const { data: existing } = await supabase
+        .from('templates')
+        .select('*')
+        .eq('id', templateId)
+        .eq('user_id', user?.id || '')
+        .single()
+
     const { error } = await supabase
         .from('templates')
         .delete()
@@ -82,6 +129,15 @@ export async function deleteTemplate(templateId) {
         console.error('Delete template error:', error)
         throw error
     }
+
+    await logAuditEvent({
+        entityType: 'template',
+        entityId: existing?.id || templateId,
+        entityKey: existing?.name || null,
+        action: 'deleted',
+        summary: `Deleted template ${existing?.name || ''}`.trim(),
+        before: existing || { id: templateId }
+    })
 }
 
 // ============================================================================
@@ -91,6 +147,13 @@ export async function deleteTemplate(templateId) {
 export async function saveInvoice(invoiceData) {
     const user = await getCurrentUser()
     if (!user) throw new Error('Not authenticated')
+
+    const { data: beforeRecord } = await supabase
+        .from('invoices')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('invoice_number', invoiceData.invoice_number)
+        .maybeSingle()
 
     const { data, error } = await supabase
         .from('invoices')
@@ -118,6 +181,16 @@ export async function saveInvoice(invoiceData) {
         throw error
     }
 
+    await logAuditEvent({
+        entityType: 'invoice',
+        entityId: data?.id,
+        entityKey: data?.invoice_number || invoiceData.invoice_number,
+        action: beforeRecord ? 'updated' : 'created',
+        summary: `${beforeRecord ? 'Updated' : 'Created'} invoice ${data?.invoice_number || invoiceData.invoice_number}`.trim(),
+        before: beforeRecord,
+        after: data
+    })
+
     return data
 }
 
@@ -128,6 +201,13 @@ export async function saveInvoice(invoiceData) {
 export async function updateInvoiceStatus(invoiceId, status, paidDate = null) {
     const user = await getCurrentUser()
     if (!user) throw new Error('Not authenticated')
+
+    const { data: beforeRecord } = await supabase
+        .from('invoices')
+        .select('*')
+        .eq('id', invoiceId)
+        .eq('user_id', user.id)
+        .single()
 
     const updatePayload = { status }
     if (paidDate) {
@@ -149,6 +229,20 @@ export async function updateInvoiceStatus(invoiceId, status, paidDate = null) {
         console.error('Update invoice status error:', error)
         throw error
     }
+
+    await logAuditEvent({
+        entityType: 'invoice',
+        entityId: data?.id || invoiceId,
+        entityKey: data?.invoice_number || beforeRecord?.invoice_number || null,
+        action: 'status_changed',
+        summary: `Invoice ${data?.invoice_number || beforeRecord?.invoice_number || ''} marked ${status}`.trim(),
+        before: beforeRecord,
+        after: data,
+        context: {
+            status,
+            paid_date: paidDate || null
+        }
+    })
 
     return data
 }

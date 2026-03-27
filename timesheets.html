@@ -23,31 +23,6 @@
             overflow: hidden;
         }
 
-        .ts-filter-bar {
-            display: grid;
-            grid-template-columns: repeat(9, minmax(0, 1fr)) auto;
-            gap: 0.75rem;
-            margin-bottom: 1rem;
-        }
-
-        @media (max-width: 1100px) {
-            .ts-filter-bar {
-                grid-template-columns: repeat(4, minmax(0, 1fr));
-            }
-        }
-
-        @media (max-width: 720px) {
-            .ts-filter-bar {
-                grid-template-columns: repeat(2, minmax(0, 1fr));
-            }
-        }
-
-        @media (max-width: 520px) {
-            .ts-filter-bar {
-                grid-template-columns: 1fr;
-            }
-        }
-
         .ts-inline-controls {
             display: flex;
             gap: 0.5rem;
@@ -140,31 +115,71 @@
                 </div>
             </div>
 
-            <div class="section">
-                <div class="ts-filter-bar">
-                    <select id="yearFilter" class="sort-select" aria-label="Filter year"></select>
-                    <select id="monthFilter" class="sort-select" aria-label="Filter month"></select>
-                    <button id="allMonthsToggleBtn" class="btn btn--outline btn--sm" type="button">All Months: OFF</button>
-                    <select id="statusFilter" class="sort-select" aria-label="Filter status">
+            <div class="crm-toolbar">
+                <div class="crm-toolbar__search">
+                    <svg class="crm-toolbar__search-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                    <input type="text" id="searchInput" placeholder="Search consultant, client, W2...">
+                </div>
+                <div class="crm-toolbar__divider"></div>
+                <div class="crm-toolbar__filters">
+                    <select id="statusFilter" class="crm-toolbar__pill" aria-label="Status">
                         <option value="all">All Status</option>
                         <option value="pending">Pending</option>
                         <option value="invoiced">Invoiced</option>
                     </select>
-                    <select id="clientFilter" class="sort-select" aria-label="Filter client">
+                    <select id="clientFilter" class="crm-toolbar__pill" aria-label="Client">
                         <option value="all">All Clients</option>
                     </select>
-                    <select id="w2Filter" class="sort-select" aria-label="Filter W2 company">
-                        <option value="all">All W2 Companies</option>
+                    <select id="w2Filter" class="crm-toolbar__pill" aria-label="W2 Company">
+                        <option value="all">All W2</option>
                     </select>
-                    <select id="currencyFilter" class="sort-select" aria-label="Filter currency">
+                    <select id="currencyFilter" class="crm-toolbar__pill" aria-label="Currency">
                         <option value="all">All Currencies</option>
                     </select>
-                    <input type="text" id="searchInput" class="search-input" placeholder="Search consultant, client, W2...">
-                    <button id="resetFiltersBtn" class="btn btn--ghost" type="button">Clear All</button>
                 </div>
-                <p id="timesheetMeta" style="color: var(--text-secondary); font-size: 0.85rem;">Loading...</p>
-                <p id="timesheetFilterSummary" class="filters-meta">0 filters applied</p>
+                <div class="crm-toolbar__divider"></div>
+                <div class="crm-toolbar__period">
+                    <button type="button" id="periodPrevBtn" class="crm-toolbar__period-btn" aria-label="Previous month">
+                        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path d="m15 19-7-7 7-7"/></svg>
+                    </button>
+                    <span id="periodLabel" class="crm-toolbar__period-label">—</span>
+                    <button type="button" id="periodNextBtn" class="crm-toolbar__period-btn" aria-label="Next month">
+                        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path d="m9 5 7 7-7 7"/></svg>
+                    </button>
+                </div>
+                <div class="crm-toolbar__divider"></div>
+                <div class="crm-toolbar__views">
+                    <select id="savedViewSelect" aria-label="Saved views">
+                        <option value="">Saved Views</option>
+                    </select>
+                </div>
+                <div class="crm-toolbar__spacer"></div>
+                <button type="button" id="resetFiltersBtn" class="crm-toolbar__clear">Clear</button>
+
+                <!-- Expandable saved views controls -->
+                <div id="savedViewExpandRow" class="crm-toolbar__views-expand">
+                    <input type="text" id="savedViewName" placeholder="Name this view">
+                    <button id="saveViewBtn" class="btn btn--outline btn--sm" type="button">Save</button>
+                    <button id="updateViewBtn" class="btn btn--ghost btn--sm" type="button" disabled>Update</button>
+                    <button id="deleteViewBtn" class="btn btn--ghost btn--sm" type="button" disabled>Delete</button>
+                    <span id="savedViewMeta" class="crm-toolbar__views-expand__meta">No saved views</span>
+                </div>
             </div>
+            <div class="crm-stats-strip">
+                <span class="crm-stats-strip__stat"><strong id="timesheetPeriodTitle">Loading...</strong></span>
+                <span class="crm-stats-strip__dot">·</span>
+                <span class="crm-stats-strip__stat"><strong id="timesheetConsultantsStat">0</strong> consultants</span>
+                <span class="crm-stats-strip__dot">·</span>
+                <span class="crm-stats-strip__stat"><strong id="timesheetHoursStat">0.00</strong> hours</span>
+                <span class="crm-stats-strip__dot">·</span>
+                <span class="crm-stats-strip__stat"><strong id="timesheetInvoicedStat">0.00</strong> invoiced</span>
+                <span id="timesheetMeta" style="display:none;"></span>
+            </div>
+
+            <!-- Hidden selects for year/month (used by JS) -->
+            <select id="yearFilter" style="display:none;" aria-label="Filter year"></select>
+            <select id="monthFilter" style="display:none;" aria-label="Filter month"></select>
+            <button id="allMonthsToggleBtn" style="display:none;" type="button">All Months: OFF</button>
 
             <div class="section">
                 <div class="table-container">

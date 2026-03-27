@@ -46,35 +46,71 @@ function setLocked(locked, status = 'paid') {
     state.isLocked = locked;
     state.currentStatus = status;
 
-    const banner = document.getElementById('invoiceLockBanner');
-    const bannerText = document.getElementById('invoiceLockBannerText');
+    const statusBar = document.getElementById('editorStatusBar');
+    const statusText = document.getElementById('editorStatusText');
+    const modePill = document.getElementById('editorModePill');
     const unlockBtn = document.getElementById('invoiceUnlockBtn');
+    const unsavedBadge = document.getElementById('unsavedBadge');
     const saveBtn = document.getElementById('saveBtn');
     const form = document.getElementById('invoiceForm');
     const title = document.getElementById('editorTitle');
+    const subtitle = document.getElementById('editorSubtitle');
+    const previewTitle = document.querySelector('.preview__title');
+    const previewSubtitle = document.getElementById('previewSubtitle');
 
     if (locked) {
-        if (banner) banner.style.display = 'flex';
         const label = status === 'sent' ? 'sent' : 'paid';
-        if (bannerText) bannerText.innerHTML = `This invoice is <strong>${label}</strong> — editing is locked to protect your billing record.`;
+        if (statusBar) statusBar.style.display = 'flex';
+        if (modePill) {
+            modePill.textContent = label === 'sent' ? 'Read Only' : 'Paid';
+            modePill.className = `editor-statusbar__pill ${label === 'sent' ? 'editor-statusbar__pill--neutral' : 'editor-statusbar__pill--warning'}`;
+        }
+        if (statusText) statusText.textContent = `This invoice is ${label}. Editing is locked to protect the billing record.`;
         if (unlockBtn) unlockBtn.style.display = '';
+        if (unsavedBadge) unsavedBadge.style.display = 'none';
         if (saveBtn) { saveBtn.disabled = true; saveBtn.title = 'Unlock the invoice to save changes'; }
         if (title) title.textContent = 'View Invoice';
+        if (subtitle) subtitle.textContent = 'Review invoice details and unlock only if you need to make a correction.';
+        if (previewTitle) previewTitle.textContent = 'Invoice Preview';
+        if (previewSubtitle) previewSubtitle.textContent = 'Read-only mode is on to protect the current billing record.';
         // Disable all form inputs
         if (form) {
-            form.querySelectorAll('input,select,textarea,button[id!="saveBtn"]').forEach(el => {
+            form.querySelectorAll('input, select, textarea, button').forEach(el => {
+                if (el.id === 'saveBtn' || el.id === 'invoiceUnlockBtn') return;
                 el.disabled = true;
                 el.style.opacity = '0.6';
                 el.style.cursor = 'not-allowed';
             });
         }
     } else {
-        if (banner) banner.style.display = 'none';
+        if (modePill) {
+            modePill.textContent = state.currentInvoiceNumber ? 'Editable' : 'Draft';
+            modePill.className = 'editor-statusbar__pill editor-statusbar__pill--success';
+        }
+        if (statusText) {
+            statusText.textContent = state.currentInvoiceNumber
+                ? 'You can edit invoice details and save changes.'
+                : 'Build, review, and save invoices before sending them out.';
+        }
+        if (statusBar) statusBar.style.display = state.isDirty || state.currentInvoiceNumber ? 'flex' : 'none';
+        if (unlockBtn) unlockBtn.style.display = 'none';
+        if (unsavedBadge) unsavedBadge.style.display = state.isDirty ? 'inline-flex' : 'none';
         if (saveBtn) { saveBtn.disabled = false; saveBtn.title = ''; }
         if (title) title.textContent = state.currentInvoiceNumber ? 'Edit Invoice' : 'Create Invoice';
+        if (subtitle) {
+            subtitle.textContent = state.currentInvoiceNumber
+                ? 'Update line items, client details, and payment settings in one place.'
+                : 'Build, review, and save invoices before sending them out.';
+        }
+        if (previewTitle) previewTitle.textContent = 'Live Preview';
+        if (previewSubtitle) {
+            previewSubtitle.textContent = state.currentInvoiceNumber
+                ? 'Preview updates instantly while you edit the invoice.'
+                : 'Add invoice details on the left and review the final output here.';
+        }
         // Re-enable all form inputs
         if (form) {
-            form.querySelectorAll('input,select,textarea,button').forEach(el => {
+            form.querySelectorAll('input, select, textarea, button').forEach(el => {
                 el.disabled = false;
                 el.style.opacity = '';
                 el.style.cursor = '';
@@ -92,8 +128,25 @@ function setLocked(locked, status = 'paid') {
 
 function setDirty(dirty) {
     state.isDirty = dirty;
-    const banner = document.getElementById('unsavedBanner');
-    if (banner) banner.style.display = dirty ? 'flex' : 'none';
+    const statusBar = document.getElementById('editorStatusBar');
+    const unsavedBadge = document.getElementById('unsavedBadge');
+    const statusText = document.getElementById('editorStatusText');
+
+    if (unsavedBadge) {
+        unsavedBadge.style.display = dirty && !state.isLocked ? 'inline-flex' : 'none';
+    }
+
+    if (statusBar) {
+        statusBar.style.display = (state.isLocked || dirty || state.currentInvoiceNumber) ? 'flex' : 'none';
+    }
+
+    if (!state.isLocked && statusText) {
+        statusText.textContent = dirty
+            ? 'You have unsaved changes. Save when you are ready.'
+            : (state.currentInvoiceNumber
+                ? 'You can edit invoice details and save changes.'
+                : 'Build, review, and save invoices before sending them out.');
+    }
 }
 
 function showModal(id) {
@@ -104,6 +157,16 @@ function showModal(id) {
 function hideModal(id) {
     const el = document.getElementById(id);
     if (el) { el.style.display = 'none'; }
+}
+
+function bindModalDismiss(id) {
+    const modal = document.getElementById(id);
+    if (!modal || modal.dataset.dismissBound === 'true') return;
+
+    modal.dataset.dismissBound = 'true';
+    modal.addEventListener('click', (event) => {
+        if (event.target === modal) hideModal(id);
+    });
 }
 
 // Initialization
@@ -285,8 +348,14 @@ function bindEventListeners() {
             const invId = state.currentInvoiceId;
             if (invId) await updateInvoiceStatus(invId, 'draft');
         } catch (e) { /* non-fatal — unlock UI anyway */ }
+        const statusSelect = document.getElementById('invoiceStatus');
+        const paidDateField = document.getElementById('paidDateField');
+        if (statusSelect) statusSelect.value = 'draft';
+        if (paidDateField) paidDateField.style.display = 'none';
+        state.currentStatus = 'draft';
         setLocked(false);
         setDirty(false);
+        updatePreview(state);
         showToast('Invoice unlocked — now in Draft status', 'info');
     });
 
@@ -328,6 +397,16 @@ function bindEventListeners() {
             window.print();
         });
     }
+
+    ['timesheetModal', 'newInvoiceModal', 'unlockInvoiceModal'].forEach(bindModalDismiss);
+
+    document.addEventListener('keydown', (event) => {
+        if (event.key !== 'Escape') return;
+        ['timesheetModal', 'newInvoiceModal', 'unlockInvoiceModal'].forEach((id) => {
+            const modal = document.getElementById(id);
+            if (modal?.style.display === 'flex') hideModal(id);
+        });
+    });
 }
 
 async function handleUpdateTemplate() {
@@ -466,6 +545,9 @@ async function handleLoadInvoice(invoiceNumber) {
             invNumEl.title = 'Invoice number cannot be changed after saving';
         }
 
+        setDirty(false); // Just loaded — no pending changes
+        updatePreview(state);
+
         // ── Lock paid/sent invoices ─────────────────────────────────────
         if (data.status === 'paid' || data.status === 'sent') {
             setLocked(true, data.status);
@@ -473,8 +555,6 @@ async function handleLoadInvoice(invoiceNumber) {
             setLocked(false);
         }
 
-        setDirty(false); // Just loaded — no pending changes
-        updatePreview(state);
         showToast('Loaded invoice ' + invoiceNumber);
     } catch (e) {
         console.error('Load error:', e);

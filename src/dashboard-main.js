@@ -1,12 +1,199 @@
 import { getCurrentUser, signOut } from './auth.js'
 import { getInvoices, getInvoice, updateInvoiceStatus } from './database.js'
 import { dbGetConsultants } from './modules/db-consultants.js'
+import { dbGetTimesheetsForYear } from './modules/db-timesheets.js'
+import { getRecentAuditEvents } from './modules/audit-trail.js'
+import { setSharedFilters } from './modules/crm-filters.js'
 import { generatePDF } from './modules/pdf.js'
 import { formatCurrency } from './modules/utils.js'
 import './security.js'
 
 let allInvoicesCache = []
 let dashboardSearchQuery = ''
+let _chartInvoices = []
+let _chartSelectedCurrency = ''
+let dashboardOperationsCache = null
+
+function getInvoiceCurrency(inv) {
+    return String(inv.invoice_meta?.currency || 'USD').toUpperCase()
+}
+
+function isPaidInvoice(inv) {
+    return String(inv.status || '').toLowerCase() === 'paid'
+}
+
+function parseDateOnly(dateString) {
+    if (!dateString) return null
+    const raw = String(dateString).trim()
+    const match = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+    if (match) {
+        return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]), 12)
+    }
+
+    const parsed = new Date(raw)
+    if (Number.isNaN(parsed.getTime())) return null
+    return new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate(), 12)
+}
+
+function formatNumber(value) {
+    return new Intl.NumberFormat('en-US').format(Number(value) || 0)
+}
+
+function formatHours(value) {
+    const amount = Number(value) || 0
+    return `${new Intl.NumberFormat('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(amount)} hrs`
+}
+
+function formatCurrencyBreakdown(totals = {}) {
+    const entries = Object.entries(totals).filter(([, amount]) => Number(amount) > 0)
+    if (!entries.length) return 'No revenue calculated yet'
+    return entries
+        .sort((a, b) => a[0].localeCompare(b[0]))
+        .map(([currency, amount]) => formatCurrency(amount, currency))
+        .join(' • ')
+}
+
+function getCurrentMonthRange(baseDate = new Date()) {
+    const year = baseDate.getFullYear()
+    const monthIndex = baseDate.getMonth()
+    const month = String(monthIndex + 1).padStart(2, '0')
+    const start = `${year}-${month}-01`
+    const endDate = new Date(year, monthIndex + 1, 0)
+    const end = `${year}-${month}-${String(endDate.getDate()).padStart(2, '0')}`
+    const label = baseDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+    const shortLabel = baseDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
+    return { year, month, start, end, label, shortLabel }
+}
+
+function getMonthRangeForDate(date) {
+    const year = date.getFullYear()
+    const monthIndex = date.getMonth()
+    const month = String(monthIndex + 1).padStart(2, '0')
+    const start = `${year}-${month}-01`
+    const endDate = new Date(year, monthIndex + 1, 0)
+    const end = `${year}-${month}-${String(endDate.getDate()).padStart(2, '0')}`
+    const label = date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+    const shortLabel = date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
+    return { year, month, start, end, label, shortLabel }
+}
+
+function overlapsPeriod(periodStart, periodEnd, rangeStart, rangeEnd) {
+    if (!periodStart || !periodEnd) return false
+    return periodStart <= rangeEnd && periodEnd >= rangeStart
+}
+
+function isConsultantActiveForRange(consultant, range) {
+    if (!consultant) return false
+    const status = String(consultant.status || '').toLowerCase()
+    if (status === 'inactive' || status === 'pending') return false
+    const startDate = String(consultant.start_date || '').trim()
+    const endDate = String(consultant.end_date || '').trim()
+    if (startDate && startDate > range.end) return false
+    if (endDate && endDate < range.start) return false
+    return true
+}
+
+function getBillingCloseContext(baseDate = new Date(), approvalBufferDays = 3) {
+    const today = new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate())
+    const closeDate = new Date(today.getFullYear(), today.getMonth(), 0)
+    const range = getMonthRangeForDate(closeDate)
+    const bufferEndsOn = new Date(today.getFullYear(), today.getMonth(), approvalBufferDays)
+    const msPerDay = 86400000
+    const daysUntilBufferEnds = Math.max(0, Math.ceil((bufferEndsOn.getTime() - today.getTime()) / msPerDay))
+    const closeActive = today.getTime() > bufferEndsOn.getTime()
+    return {
+        range,
+        approvalBufferDays,
+        closeActive,
+        daysUntilBufferEnds,
+        bufferEndsOnLabel: bufferEndsOn.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    }
+}
+
+function getEffectiveRate(consultant) {
+    const billRate = Number(consultant?.bill_rate || 0)
+    if (billRate > 0) return { amount: billRate, label: 'Bill Rate' }
+    const commissionRate = Number(consultant?.commission_rate || 0)
+    if (commissionRate > 0) return { amount: commissionRate, label: 'Commission' }
+    return { amount: 0, label: 'Rate' }
+}
+
+function getInvoiceDisplayStatus(invoice) {
+    const status = String(invoice?.status || 'draft').toLowerCase()
+    if (status === 'sent' && invoice?.invoice_meta?.dueDateRaw) {
+        const dueDate = parseDateOnly(invoice.invoice_meta.dueDateRaw)
+        if (dueDate && dueDate < new Date()) return 'overdue'
+    }
+    return status
+}
+
+function dueDateLabel(invoice) {
+    const raw = String(invoice?.invoice_meta?.dueDateRaw || '').trim()
+    if (!raw) return 'No due date'
+    const parsed = parseDateOnly(raw)
+    return parsed ? formatDate(raw) : raw
+}
+
+function invoiceAgeInDays(invoice) {
+    const dateStr = getInvoiceDateStr(invoice)
+    const created = parseDateOnly(dateStr)
+    const today = parseDateOnly(new Date().toISOString().slice(0, 10))
+    if (!created || !today) return 0
+    return Math.max(0, Math.floor((today.getTime() - created.getTime()) / 86400000))
+}
+
+function daysUntilDate(dateString) {
+    const target = parseDateOnly(dateString)
+    const today = parseDateOnly(new Date().toISOString().slice(0, 10))
+    if (!target || !today) return null
+    return Math.ceil((target.getTime() - today.getTime()) / 86400000)
+}
+
+function renderCloseStepState(tone, label, meta) {
+    return { tone, label, meta }
+}
+
+function formatRelativeTime(timestamp) {
+    const value = parseDateOnly(String(timestamp || '').slice(0, 10)) || new Date(timestamp)
+    if (!(value instanceof Date) || Number.isNaN(value.getTime())) return 'Just now'
+    const diffMs = Date.now() - value.getTime()
+    const diffMinutes = Math.max(0, Math.round(diffMs / 60000))
+    if (diffMinutes < 1) return 'Just now'
+    if (diffMinutes < 60) return `${diffMinutes}m ago`
+    const diffHours = Math.round(diffMinutes / 60)
+    if (diffHours < 24) return `${diffHours}h ago`
+    const diffDays = Math.round(diffHours / 24)
+    if (diffDays < 7) return `${diffDays}d ago`
+    return new Date(timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+}
+
+function prettyEntityLabel(entityType) {
+    const normalized = String(entityType || '').toLowerCase()
+    if (normalized === 'invoice') return 'Invoice'
+    if (normalized === 'timesheet') return 'Timesheet'
+    if (normalized === 'consultant') return 'Consultant'
+    if (normalized === 'template') return 'Template'
+    return 'Activity'
+}
+
+function summarizeSample(values = [], max = 3) {
+    if (!values.length) return 'None'
+    const visible = values.slice(0, max)
+    const remaining = values.length - visible.length
+    return remaining > 0
+        ? `${visible.join(', ')} +${remaining} more`
+        : visible.join(', ')
+}
+
+function setText(id, value) {
+    const element = document.getElementById(id)
+    if (element) element.textContent = value
+}
+
+function setHtml(id, value) {
+    const element = document.getElementById(id)
+    if (element) element.innerHTML = value
+}
 
 // Check authentication
 async function checkAuth() {
@@ -51,6 +238,19 @@ function formatDate(dateString) {
     })
 }
 
+function formatCompactCurrency(amount, currency = 'USD') {
+    try {
+        return new Intl.NumberFormat('en-US', {
+            style: 'currency',
+            currency,
+            notation: 'compact',
+            maximumFractionDigits: 1
+        }).format(Number(amount) || 0)
+    } catch (error) {
+        return formatCurrency(amount, currency)
+    }
+}
+
 // Calculate statistics
 function calculateStats(invoices) {
     const now = new Date()
@@ -61,34 +261,37 @@ function calculateStats(invoices) {
     const sumByCurrency = (list) => {
         const totals = {}
         list.forEach(inv => {
-            const curr = inv.invoice_meta?.currency || 'USD'
+            const curr = getInvoiceCurrency(inv)
             totals[curr] = (totals[curr] || 0) + (inv.totals?.total || 0)
         })
         return totals
     }
 
-    // Filter lists
-    const thisMonth = invoices.filter(inv => {
-        const d = new Date(inv.created_at)
-        return d.getMonth() === currentMonth && d.getFullYear() === currentYear
+    const paidInvoices = invoices.filter(isPaidInvoice)
+
+    // Revenue recognition uses payment received date for paid invoices.
+    // For older paid invoices without paid_date, fall back to invoice date so legacy records still surface.
+    const thisMonthRevenue = paidInvoices.filter(inv => {
+        const d = parseDateOnly(getRevenueDateStr(inv))
+        return d && d.getMonth() === currentMonth && d.getFullYear() === currentYear
     })
 
-    const thisYear = invoices.filter(inv => {
-        const d = new Date(inv.created_at)
-        return d.getFullYear() === currentYear
+    const thisYearRevenue = paidInvoices.filter(inv => {
+        const d = parseDateOnly(getRevenueDateStr(inv))
+        return d && d.getFullYear() === currentYear
     })
 
     // Calculate aggregate buckets
-    const monthlyRevenue = sumByCurrency(thisMonth)
-    const yearlyRevenue = sumByCurrency(thisYear)
+    const monthlyRevenue = sumByCurrency(thisMonthRevenue)
+    const yearlyRevenue = sumByCurrency(thisYearRevenue)
 
     // Calculate Average Invoice Size per Currency
     // (Total Revenue in Currency X) / (Count of Invoices in Currency X)
-    const totalRevenueAllTime = sumByCurrency(invoices)
+    const totalRevenueAllTime = sumByCurrency(paidInvoices)
     const avgInvoice = {}
 
     Object.keys(totalRevenueAllTime).forEach(curr => {
-        const count = invoices.filter(inv => (inv.invoice_meta?.currency || 'USD') === curr).length
+        const count = paidInvoices.filter(inv => getInvoiceCurrency(inv) === curr).length
         if (count > 0) {
             avgInvoice[curr] = totalRevenueAllTime[curr] / count
         }
@@ -105,7 +308,7 @@ function calculateStats(invoices) {
         outstandingReceivables,
         outstandingCount: outstanding.length,
         totalInvoices: invoices.length,
-        thisMonthCount: thisMonth.length,
+        thisMonthCount: thisMonthRevenue.length,
         conversionRate: (() => {
             const paid = invoices.filter(inv => inv.status === 'paid').length
             const sent = invoices.filter(inv => inv.status === 'sent').length
@@ -165,9 +368,577 @@ function updateStatsCards(stats) {
     }
 
     // Update change indicators
-    document.getElementById('monthlyChange').textContent = `${stats.thisMonthCount} this month`
+    document.getElementById('monthlyChange').textContent = `${stats.thisMonthCount} payment${stats.thisMonthCount === 1 ? '' : 's'} this month`
     document.getElementById('invoiceChange').textContent = 'All time'
-    document.getElementById('yearlyChange').textContent = 'Year to date'
+    document.getElementById('yearlyChange').textContent = 'Paid year to date'
+}
+
+function calculateOperationsData({ consultants = [], timesheets = [], invoices = [] }) {
+    const closeContext = getBillingCloseContext()
+    const range = closeContext.range
+    const activeConsultants = consultants.filter((consultant) => isConsultantActiveForRange(consultant, range))
+    const activeConsultantIds = new Set(activeConsultants.map((consultant) => consultant.id))
+    const liveInvoiceIds = new Set(invoices.map((invoice) => invoice.id).filter(Boolean))
+    const liveInvoiceNumbers = new Set(invoices.map((invoice) => invoice.invoice_number).filter(Boolean))
+
+    const monthTimesheets = timesheets.filter((row) => (
+        activeConsultantIds.has(row.consultant_id) &&
+        overlapsPeriod(row.period_start, row.period_end, range.start, range.end)
+    ))
+
+    const consultantRowsMap = monthTimesheets.reduce((map, row) => {
+        const bucket = map.get(row.consultant_id) || []
+        bucket.push(row)
+        map.set(row.consultant_id, bucket)
+        return map
+    }, new Map())
+
+    const hoursLogged = monthTimesheets.reduce((sum, row) => sum + (Number(row.hours_worked) || 0), 0)
+
+    const staleLinkedTimesheets = monthTimesheets.filter((row) => {
+        const hasInvoiceRef = Boolean(row.invoice_id || row.invoice_number)
+        if (!hasInvoiceRef) return false
+        const hasLiveLink = (row.invoice_id && liveInvoiceIds.has(row.invoice_id))
+            || (row.invoice_number && liveInvoiceNumbers.has(row.invoice_number))
+        return !hasLiveLink
+    })
+
+    const zeroHourPendingRows = monthTimesheets.filter((row) => {
+        const hasLiveLink = (row.invoice_id && liveInvoiceIds.has(row.invoice_id))
+            || (row.invoice_number && liveInvoiceNumbers.has(row.invoice_number))
+        return !hasLiveLink && (Number(row.hours_worked) || 0) <= 0
+    })
+
+    const readyTimesheets = monthTimesheets.filter((row) => {
+        const hasHours = Number(row.hours_worked) > 0
+        if (!hasHours) return false
+        const hasLiveLink = (row.invoice_id && liveInvoiceIds.has(row.invoice_id))
+            || (row.invoice_number && liveInvoiceNumbers.has(row.invoice_number))
+        return !hasLiveLink
+    })
+
+    const readyRevenue = readyTimesheets.reduce((totals, row) => {
+        const consultant = row.consultants || {}
+        const { amount } = getEffectiveRate(consultant)
+        const currency = String(consultant.currency || 'USD').toUpperCase()
+        if (amount > 0) {
+            totals[currency] = (totals[currency] || 0) + (Number(row.hours_worked) || 0) * amount
+        }
+        return totals
+    }, {})
+
+    const readyConsultants = new Set(readyTimesheets.map((row) => row.consultant_id))
+    const readyConsultantNames = Array.from(new Set(
+        readyTimesheets
+            .map((row) => row.consultants?.name)
+            .filter(Boolean)
+    ))
+    const zeroHourPendingConsultants = Array.from(new Set(
+        zeroHourPendingRows
+            .map((row) => row.consultants?.name)
+            .filter(Boolean)
+    ))
+    const missingTimesheetConsultants = activeConsultants.filter((consultant) => !consultantRowsMap.has(consultant.id))
+
+    const overdueInvoices = invoices.filter((invoice) => getInvoiceDisplayStatus(invoice) === 'overdue')
+    const dueSoonInvoices = invoices.filter((invoice) => {
+        if (getInvoiceDisplayStatus(invoice) !== 'sent') return false
+        const due = parseDateOnly(invoice.invoice_meta?.dueDateRaw)
+        const today = parseDateOnly(new Date().toISOString().slice(0, 10))
+        if (!due || !today) return false
+        const diff = Math.ceil((due.getTime() - today.getTime()) / 86400000)
+        return diff >= 0 && diff <= 7
+    })
+    const dueSoonIds = new Set(dueSoonInvoices.map((inv) => inv.id))
+    const sentAwaitingInvoices = invoices.filter((invoice) => {
+        if (getInvoiceDisplayStatus(invoice) !== 'sent') return false
+        return !dueSoonIds.has(invoice.id)
+    })
+    const draftInvoices = invoices.filter((invoice) => String(invoice.status || '').toLowerCase() === 'draft')
+    const staleDraftInvoices = draftInvoices.filter((invoice) => invoiceAgeInDays(invoice) >= 7)
+    const recentlyPaidInvoices = invoices.filter((invoice) => {
+        if (!isPaidInvoice(invoice)) return false
+        const dateStr = getRevenueDateStr(invoice)
+        const age = daysUntilDate(dateStr)
+        return age !== null && age >= -14
+    })
+
+    const consultantsMissingRate = activeConsultants.filter((consultant) => getEffectiveRate(consultant).amount <= 0)
+    const consultantsMissingRateWithHours = consultantsMissingRate.filter((consultant) => {
+        const rows = consultantRowsMap.get(consultant.id) || []
+        return rows.some((row) => Number(row.hours_worked) > 0)
+    })
+
+    const exceptionItems = []
+    if (overdueInvoices.length) {
+        exceptionItems.push({
+            severity: 'critical',
+            title: `${overdueInvoices.length} overdue invoice${overdueInvoices.length === 1 ? '' : 's'}`,
+            meta: `${summarizeSample(overdueInvoices.map((invoice) => `${invoice.invoice_number} (${invoice.client_info?.name || 'Unknown client'})`))} • review collections immediately`,
+            actionLabel: 'Review overdue',
+            page: 'invoices.html',
+            filters: { status: 'overdue' }
+        })
+    }
+    if (consultantsMissingRate.length) {
+        exceptionItems.push({
+            severity: 'warning',
+            title: `${consultantsMissingRate.length} consultant${consultantsMissingRate.length === 1 ? '' : 's'} missing billing setup`,
+            meta: consultantsMissingRateWithHours.length
+                ? `${consultantsMissingRateWithHours.length} already have ${range.shortLabel} hours logged. ${summarizeSample(consultantsMissingRateWithHours.map((consultant) => consultant.name))}`
+                : `${summarizeSample(consultantsMissingRate.map((consultant) => consultant.name))} • add either bill rate or commission`,
+            actionLabel: 'Fix consultants',
+            page: 'consultants.html',
+            filters: {}
+        })
+    }
+    if (staleLinkedTimesheets.length) {
+        exceptionItems.push({
+            severity: 'warning',
+            title: `${new Set(staleLinkedTimesheets.map((row) => row.consultant_id)).size} consultant${new Set(staleLinkedTimesheets.map((row) => row.consultant_id)).size === 1 ? '' : 's'} have stale invoice links`,
+            meta: `${summarizeSample(Array.from(new Set(staleLinkedTimesheets.map((row) => row.consultants?.name).filter(Boolean))))} • their timesheets point to invoices that no longer exist`,
+            actionLabel: 'Review timesheets',
+            page: 'timesheets.html',
+            filters: { month: range.month, year: range.year }
+        })
+    }
+    if (closeContext.closeActive && zeroHourPendingConsultants.length) {
+        exceptionItems.push({
+            severity: 'info',
+            title: `${zeroHourPendingConsultants.length} consultant${zeroHourPendingConsultants.length === 1 ? '' : 's'} still awaiting approved hours for ${range.shortLabel}`,
+            meta: `${summarizeSample(zeroHourPendingConsultants)} • timesheet placeholders exist, but approved hours are still zero`,
+            actionLabel: 'Review close period',
+            page: 'timesheets.html',
+            filters: { month: range.month, year: range.year, status: 'pending' }
+        })
+    }
+    if (closeContext.closeActive && readyConsultants.size) {
+        exceptionItems.push({
+            severity: 'warning',
+            title: `${readyConsultants.size} consultant${readyConsultants.size === 1 ? '' : 's'} still unbilled for ${range.shortLabel}`,
+            meta: `${summarizeSample(readyConsultantNames)} • ${formatHours(readyTimesheets.reduce((sum, row) => sum + (Number(row.hours_worked) || 0), 0))} waiting to be invoiced`,
+            actionLabel: 'Invoice now',
+            page: 'timesheets.html',
+            filters: { month: range.month, year: range.year, status: 'pending' }
+        })
+    }
+    if (closeContext.closeActive && missingTimesheetConsultants.length) {
+        exceptionItems.push({
+            severity: 'info',
+            title: `${missingTimesheetConsultants.length} consultant${missingTimesheetConsultants.length === 1 ? '' : 's'} missing ${range.shortLabel} timesheets`,
+            meta: `${summarizeSample(missingTimesheetConsultants.map((consultant) => consultant.name))} • close-period hours are now overdue`,
+            actionLabel: 'Open timesheets',
+            page: 'timesheets.html',
+            filters: { month: range.month, year: range.year }
+        })
+    }
+    if (dueSoonInvoices.length) {
+        exceptionItems.push({
+            severity: 'info',
+            title: `${dueSoonInvoices.length} invoice${dueSoonInvoices.length === 1 ? '' : 's'} due in the next 7 days`,
+            meta: `${summarizeSample(dueSoonInvoices.map((invoice) => `${invoice.invoice_number} due ${dueDateLabel(invoice)}`))} • stay ahead of collections`,
+            actionLabel: 'Review sent',
+            page: 'invoices.html',
+            filters: { status: 'sent' }
+        })
+    }
+    if (staleDraftInvoices.length) {
+        exceptionItems.push({
+            severity: 'warning',
+            title: `${staleDraftInvoices.length} stale draft invoice${staleDraftInvoices.length === 1 ? '' : 's'}`,
+            meta: `${summarizeSample(staleDraftInvoices.map((invoice) => `${invoice.invoice_number} (${invoiceAgeInDays(invoice)}d)`))} • either send them or clean them up`,
+            actionLabel: 'Review drafts',
+            page: 'invoices.html',
+            filters: { status: 'draft' }
+        })
+    }
+
+    const closeSteps = [
+        closeContext.closeActive
+            ? ((missingTimesheetConsultants.length + zeroHourPendingConsultants.length) === 0
+                ? renderCloseStepState('done', 'Timesheets finalized', `All ${range.shortLabel} consultant rows are present and approved.`)
+                : renderCloseStepState('warning', 'Timesheets still need follow-up', `${missingTimesheetConsultants.length} missing rows and ${zeroHourPendingConsultants.length} awaiting approved hours.`))
+            : renderCloseStepState('active', 'Approval buffer active', `${range.shortLabel} hours are still being collected through ${closeContext.bufferEndsOnLabel}.`),
+        readyTimesheets.length === 0
+            ? renderCloseStepState('done', 'Invoices created', `No uninvoiced approved hours remain for ${range.shortLabel}.`)
+            : renderCloseStepState('warning', 'Invoices still to create', `${readyConsultants.size} consultant${readyConsultants.size === 1 ? '' : 's'} still need invoices.`),
+        draftInvoices.length === 0
+            ? renderCloseStepState('done', 'Draft review complete', 'No invoice drafts are waiting to be finalized.')
+            : renderCloseStepState('warning', 'Drafts waiting for review', `${draftInvoices.length} draft invoice${draftInvoices.length === 1 ? '' : 's'} still need review or sending.`),
+        overdueInvoices.length === 0
+            ? renderCloseStepState('done', 'Collections healthy', 'No overdue invoices are blocking collections right now.')
+            : renderCloseStepState('warning', 'Collections need attention', `${overdueInvoices.length} overdue invoice${overdueInvoices.length === 1 ? '' : 's'} need follow-up.`)
+    ]
+
+    const completedCloseSteps = closeSteps.filter((step) => step.tone === 'done').length
+    const closeProgress = Math.round((completedCloseSteps / closeSteps.length) * 100)
+
+    const collectionsActivity = [
+        ...overdueInvoices.map((invoice) => ({
+            type: 'overdue',
+            title: `${invoice.invoice_number || 'Invoice'} is overdue`,
+            meta: `${invoice.client_info?.name || 'Unknown client'} • due ${dueDateLabel(invoice)}`,
+            amount: formatCurrency(invoice.totals?.total || 0, getInvoiceCurrency(invoice)),
+            actionLabel: 'Open invoice',
+            page: 'invoices.html',
+            filters: { status: 'overdue' },
+            rank: 4
+        })),
+        ...dueSoonInvoices.map((invoice) => ({
+            type: 'due-soon',
+            title: `${invoice.invoice_number || 'Invoice'} is due soon`,
+            meta: `${invoice.client_info?.name || 'Unknown client'} • due ${dueDateLabel(invoice)}`,
+            amount: formatCurrency(invoice.totals?.total || 0, getInvoiceCurrency(invoice)),
+            actionLabel: 'Review sent',
+            page: 'invoices.html',
+            filters: { status: 'sent' },
+            rank: 3
+        })),
+        ...recentlyPaidInvoices.map((invoice) => ({
+            type: 'paid',
+            title: `${invoice.invoice_number || 'Invoice'} was paid`,
+            meta: `${invoice.client_info?.name || 'Unknown client'} • received ${formatDate(getRevenueDateStr(invoice))}`,
+            amount: formatCurrency(invoice.totals?.total || 0, getInvoiceCurrency(invoice)),
+            actionLabel: 'Open invoice',
+            page: 'invoices.html',
+            filters: {},
+            rank: 2
+        })),
+        ...draftInvoices.map((invoice) => ({
+            type: 'draft',
+            title: `${invoice.invoice_number || 'Invoice'} is still a draft`,
+            meta: `${invoice.client_info?.name || 'Unknown client'} • created ${invoiceAgeInDays(invoice)} day${invoiceAgeInDays(invoice) === 1 ? '' : 's'} ago`,
+            amount: formatCurrency(invoice.totals?.total || 0, getInvoiceCurrency(invoice)),
+            actionLabel: 'Open draft',
+            page: 'invoices.html',
+            filters: { status: 'draft' },
+            rank: 1
+        })),
+        ...sentAwaitingInvoices.map((invoice) => {
+            const dueStr = invoice.invoice_meta?.dueDateRaw
+            const dueInfo = dueStr ? `due ${dueDateLabel(invoice)}` : `sent ${invoiceAgeInDays(invoice)}d ago`
+            return {
+                type: 'awaiting',
+                title: `${invoice.invoice_number || 'Invoice'} awaiting payment`,
+                meta: `${invoice.client_info?.name || 'Unknown client'} • ${dueInfo}`,
+                amount: formatCurrency(invoice.totals?.total || 0, getInvoiceCurrency(invoice)),
+                actionLabel: 'View invoice',
+                page: 'invoices.html',
+                filters: { status: 'sent' },
+                rank: 1.5
+            }
+        })
+    ]
+        .sort((a, b) => b.rank - a.rank)
+        .slice(0, 8)
+
+    const workflowCards = [
+        {
+            eyebrow: 'Billing',
+            title: 'Ready to invoice',
+            value: formatNumber(readyTimesheets.length),
+            status: readyTimesheets.length ? 'Action needed' : 'All clear',
+            statusTone: readyTimesheets.length ? 'warn' : 'good',
+            meta: `${formatHours(readyTimesheets.reduce((sum, row) => sum + (Number(row.hours_worked) || 0), 0))} across ${readyConsultants.size} consultant${readyConsultants.size === 1 ? '' : 's'} • ${formatCurrencyBreakdown(readyRevenue)}`,
+            trend: readyTimesheets.length ? 'Use Create Invoice to pull these hours in' : 'No uninvoiced hours this month',
+            actionLabel: 'Review timesheets',
+            page: 'timesheets.html',
+            filters: { month: range.month, year: range.year, status: 'pending' }
+        },
+        {
+            eyebrow: 'Coverage',
+            title: closeContext.closeActive ? 'Close-period follow-up' : 'Awaiting approvals',
+            value: closeContext.closeActive
+                ? formatNumber(missingTimesheetConsultants.length + zeroHourPendingConsultants.length)
+                : formatNumber(closeContext.daysUntilBufferEnds),
+            status: closeContext.closeActive
+                ? ((missingTimesheetConsultants.length + zeroHourPendingConsultants.length) ? 'Needs follow-up' : 'Covered')
+                : 'Buffer active',
+            statusTone: closeContext.closeActive
+                ? ((missingTimesheetConsultants.length + zeroHourPendingConsultants.length) ? 'warn' : 'good')
+                : 'good',
+            meta: closeContext.closeActive
+                ? `${missingTimesheetConsultants.length} missing rows • ${zeroHourPendingConsultants.length} awaiting approved hours for ${range.shortLabel}`
+                : `${range.shortLabel} timesheets are still in the approval buffer until ${closeContext.bufferEndsOnLabel}`,
+            trend: closeContext.closeActive
+                ? ((missingTimesheetConsultants.length + zeroHourPendingConsultants.length) ? 'Follow up on missing or unapproved close-period entries' : 'Close period is fully covered')
+                : 'Candidates still have time to submit and approve hours',
+            actionLabel: 'Open close period',
+            page: 'timesheets.html',
+            filters: { month: range.month, year: range.year }
+        },
+        {
+            eyebrow: 'Collections',
+            title: 'Overdue invoices',
+            value: formatNumber(overdueInvoices.length),
+            status: overdueInvoices.length ? 'Critical' : 'Healthy',
+            statusTone: overdueInvoices.length ? 'bad' : 'good',
+            meta: overdueInvoices.length
+                ? overdueInvoices.slice(0, 2).map((invoice) => `${invoice.invoice_number} due ${dueDateLabel(invoice)}`).join(' • ')
+                : 'No overdue invoices right now',
+            trend: overdueInvoices.length ? 'Prioritize payment follow-up' : 'Collections are up to date',
+            actionLabel: 'Review overdue',
+            page: 'invoices.html',
+            filters: { status: 'overdue' }
+        },
+        {
+            eyebrow: 'Review',
+            title: 'Draft invoices',
+            value: formatNumber(draftInvoices.length),
+            status: draftInvoices.length ? 'Review needed' : 'Clear',
+            statusTone: draftInvoices.length ? 'warn' : 'good',
+            meta: draftInvoices.length
+                ? `${draftInvoices.slice(0, 2).map((invoice) => invoice.invoice_number).join(' • ')} waiting to be sent`
+                : 'No draft invoices waiting for approval',
+            trend: draftInvoices.length ? 'Send or finalize drafts once reviewed' : 'Nothing sitting in draft',
+            actionLabel: 'Open drafts',
+            page: 'invoices.html',
+            filters: { status: 'draft' }
+        }
+    ]
+
+    return {
+        range,
+        activeConsultants,
+        monthTimesheets,
+        hoursLogged,
+        readyTimesheets,
+        readyRevenue,
+        missingTimesheetConsultants,
+        overdueInvoices,
+        dueSoonInvoices,
+        draftInvoices,
+        staleDraftInvoices,
+        staleLinkedTimesheets,
+        zeroHourPendingRows,
+        zeroHourPendingConsultants,
+        closeSteps,
+        closeProgress,
+        collectionsActivity,
+        recentlyPaidInvoices,
+        closeContext,
+        exceptionItems: exceptionItems.slice(0, 8),
+        workflowCards
+    }
+}
+
+function renderOperationsSummary(data) {
+    const activeCount = data.activeConsultants.length
+    const loggedConsultants = new Set(data.monthTimesheets.map((row) => row.consultant_id)).size
+    setText('opsPeriodTitle', `${data.range.label} billing-close snapshot`)
+    setText(
+        'opsPeriodMeta',
+        data.closeContext.closeActive
+            ? `${loggedConsultants} consultants have ${data.range.shortLabel} timesheets. ${data.readyTimesheets.length} entries are ready to invoice, ${data.zeroHourPendingConsultants.length} are still awaiting approved hours, and ${data.overdueInvoices.length} invoice${data.overdueInvoices.length === 1 ? '' : 's'} need payment follow-up.`
+            : `${data.range.shortLabel} close is still inside the approval buffer until ${data.closeContext.bufferEndsOnLabel}. Missing timesheets are intentionally suppressed until that buffer ends.`
+    )
+    setText('opsActiveConsultants', formatNumber(activeCount))
+    setText('opsLoggedHours', formatHours(data.hoursLogged))
+    setText('opsReadyRevenue', formatCurrencyBreakdown(data.readyRevenue))
+
+    const chips = [
+        `Close period: ${data.range.label}`,
+        `${activeCount} active consultants`,
+        `${formatHours(data.hoursLogged)} logged`,
+        `${data.readyTimesheets.length} ready entries`,
+        `${data.zeroHourPendingConsultants.length} awaiting hours`,
+        `${data.overdueInvoices.length} overdue invoice${data.overdueInvoices.length === 1 ? '' : 's'}`,
+        data.closeContext.closeActive
+            ? 'Close workflow active'
+            : `Approval buffer through ${data.closeContext.bufferEndsOnLabel}`
+    ]
+
+    setHtml('opsActiveChips', chips.map((chip, index) => `<span class="period-chip ${index === 0 ? '' : 'period-chip--muted'}">${escapeHtml(chip)}</span>`).join(''))
+}
+
+function renderMonthCloseBanner(data) {
+    const container = document.getElementById('monthCloseBanner')
+    if (!container) return
+
+    const toneLabel = data.closeContext.closeActive
+        ? (data.closeProgress === 100 ? 'Close ready' : 'Close in progress')
+        : 'Approval buffer'
+
+    const summaryMeta = data.closeContext.closeActive
+        ? `${data.range.shortLabel} close period is active now. ${data.readyTimesheets.length} approved entries are ready to invoice, and ${data.zeroHourPendingConsultants.length} consultants are still waiting on final hours.`
+        : `${data.range.shortLabel} close stays in approval buffer through ${data.closeContext.bufferEndsOnLabel}. Use this time to collect and approve remaining consultant hours.`
+
+    container.innerHTML = `
+        <div class="close-banner__summary">
+            <div>
+                <div class="close-banner__eyebrow">${escapeHtml(toneLabel)}</div>
+                <h3 class="close-banner__title">${escapeHtml(data.range.label)} close is ${data.closeProgress}% complete</h3>
+                <p class="close-banner__meta">${escapeHtml(summaryMeta)}</p>
+            </div>
+            <div class="close-banner__progress">
+                <div class="close-banner__meter" aria-hidden="true">
+                    <div class="close-banner__meter-fill" style="width:${Math.max(6, data.closeProgress)}%"></div>
+                </div>
+                <span class="close-banner__progress-label">${data.closeProgress}% complete</span>
+            </div>
+            <div class="close-banner__actions">
+                <button type="button" class="btn btn--primary btn--sm" data-dashboard-link="true" data-page="timesheets.html" data-month="${escapeHtml(data.range.month)}" data-year="${escapeHtml(data.range.year)}">Review close period</button>
+                <button type="button" class="btn btn--outline btn--sm" data-dashboard-link="true" data-page="app.html" data-month="${escapeHtml(data.range.month)}" data-year="${escapeHtml(data.range.year)}" data-status="pending">Create invoices</button>
+            </div>
+        </div>
+        <div class="close-banner__checklist">
+            ${data.closeSteps.map((step, index) => `
+                <div class="close-banner__step close-banner__step--${escapeHtml(step.tone)}">
+                    <span class="close-banner__step-badge">${step.tone === 'done' ? '✓' : index + 1}</span>
+                    <div>
+                        <div class="close-banner__step-title">${escapeHtml(step.label)}</div>
+                        <div class="close-banner__step-meta">${escapeHtml(step.meta)}</div>
+                    </div>
+                </div>
+            `).join('')}
+        </div>
+    `
+}
+
+function renderWorkflowQueue(data) {
+    const container = document.getElementById('workflowQueue')
+    if (!container) return
+
+    container.innerHTML = data.workflowCards.map((card) => `
+        <article class="workflow-card">
+            <div class="workflow-card__head">
+                <div>
+                    <div class="workflow-card__eyebrow">${escapeHtml(card.eyebrow)}</div>
+                    <div class="workflow-card__value">${escapeHtml(card.value)}</div>
+                </div>
+                <span class="workflow-card__status workflow-card__status--${escapeHtml(card.statusTone)}">${escapeHtml(card.status)}</span>
+            </div>
+            <div>
+                <h3 class="workflow-card__title">${escapeHtml(card.title)}</h3>
+                <p class="workflow-card__meta">${escapeHtml(card.meta)}</p>
+            </div>
+            <div class="workflow-card__footer">
+                <span class="workflow-card__trend">${escapeHtml(card.trend)}</span>
+                <button
+                    type="button"
+                    class="btn btn--outline btn--sm"
+                    data-dashboard-link="true"
+                    data-page="${escapeHtml(card.page)}"
+                    data-month="${escapeHtml(card.filters.month || '')}"
+                    data-year="${escapeHtml(card.filters.year || '')}"
+                    data-status="${escapeHtml(card.filters.status || '')}"
+                    data-search="${escapeHtml(card.filters.search || '')}"
+                >${escapeHtml(card.actionLabel)}</button>
+            </div>
+        </article>
+    `).join('')
+}
+
+function renderCollectionsFeed(data) {
+    const container = document.getElementById('collectionsFeed')
+    if (!container) return
+
+    const q = dashboardSearchQuery.trim().toLowerCase()
+    const filtered = q
+        ? data.collectionsActivity.filter((item) => {
+            const haystack = `${item.title} ${item.meta}`.toLowerCase()
+            return haystack.includes(q)
+        })
+        : data.collectionsActivity
+
+    if (!filtered.length) {
+        container.innerHTML = `
+            <div class="empty-state" style="padding: 2rem 1rem;">
+                <span class="empty-state__icon">💳</span>
+                <p class="empty-state__text">${q ? `No collections activity matches "${escapeHtml(dashboardSearchQuery)}"` : 'No recent collections activity yet.'}</p>
+            </div>
+        `
+        return
+    }
+
+    container.innerHTML = filtered.map((item) => `
+        <article class="collection-item">
+            <span class="collection-item__badge collection-item__badge--${escapeHtml(item.type)}">${escapeHtml(item.type.replace('-', ' '))}</span>
+            <div>
+                <h3 class="collection-item__title">${escapeHtml(item.title)}</h3>
+                <p class="collection-item__meta">${escapeHtml(item.meta)}</p>
+                <div class="collection-item__amount">${escapeHtml(item.amount)}</div>
+            </div>
+            <div class="collection-item__actions">
+                <button
+                    type="button"
+                    class="btn btn--outline btn--sm"
+                    data-dashboard-link="true"
+                    data-page="${escapeHtml(item.page)}"
+                    data-month="${escapeHtml(item.filters.month || '')}"
+                    data-year="${escapeHtml(item.filters.year || '')}"
+                    data-status="${escapeHtml(item.filters.status || '')}"
+                    data-search="${escapeHtml(item.filters.search || '')}"
+                >${escapeHtml(item.actionLabel)}</button>
+            </div>
+        </article>
+    `).join('')
+}
+
+function renderRecentActivity(events = []) {
+    const container = document.getElementById('recentActivityFeed')
+    if (!container) return
+
+    if (!events.length) {
+        container.innerHTML = `
+            <div class="empty-state" style="padding: 2rem 1rem;">
+                <span class="empty-state__icon">🧾</span>
+                <p class="empty-state__text">No audit activity yet. Once you edit consultants, timesheets, invoices, or templates, it will show here.</p>
+            </div>
+        `
+        return
+    }
+
+    container.innerHTML = events.slice(0, 8).map((event) => {
+        const entityType = String(event.entity_type || '').toLowerCase()
+        return `
+            <div class="activity-timeline__item">
+                <span class="activity-timeline__dot activity-timeline__dot--${escapeHtml(entityType)}"></span>
+                <div class="activity-timeline__content">
+                    <div class="activity-timeline__title">${escapeHtml(event.summary || `${event.action || 'updated'} ${event.entity_type || 'record'}`)}</div>
+                    <div class="activity-timeline__meta">${escapeHtml(String(event.action || '').replace(/_/g, ' '))}${event.entity_key ? ` · ${escapeHtml(event.entity_key)}` : ''}</div>
+                </div>
+                <span class="activity-timeline__time">${escapeHtml(formatRelativeTime(event.created_at))}</span>
+            </div>
+        `
+    }).join('')
+}
+
+function renderExceptionCenter(data) {
+    const container = document.getElementById('exceptionCenter')
+    if (!container) return
+
+    if (!data.exceptionItems.length) {
+        container.innerHTML = `
+            <div class="empty-state" style="padding: 2rem 1rem;">
+                <span class="empty-state__icon">✅</span>
+                <p class="empty-state__text">No major workflow exceptions right now. Current month operations look healthy.</p>
+            </div>
+        `
+        return
+    }
+
+    container.innerHTML = data.exceptionItems.map((item) => `
+        <article class="exception-item">
+            <span class="exception-item__badge exception-item__badge--${escapeHtml(item.severity)}">${escapeHtml(item.severity)}</span>
+            <div>
+                <h3 class="exception-item__title">${escapeHtml(item.title)}</h3>
+                <p class="exception-item__meta">${escapeHtml(item.meta)}</p>
+            </div>
+            <div class="exception-item__actions">
+                <button
+                    type="button"
+                    class="btn btn--outline btn--sm"
+                    data-dashboard-link="true"
+                    data-page="${escapeHtml(item.page)}"
+                    data-month="${escapeHtml(item.filters.month || '')}"
+                    data-year="${escapeHtml(item.filters.year || '')}"
+                    data-status="${escapeHtml(item.filters.status || '')}"
+                    data-search="${escapeHtml(item.filters.search || '')}"
+                >${escapeHtml(item.actionLabel)}</button>
+            </div>
+        </article>
+    `).join('')
 }
 
 // Render recent invoices table
@@ -198,8 +969,8 @@ function renderRecentInvoices(invoices) {
         })
         : invoices
 
-    // Show last 5 invoices for current search result
-    const recent = filtered.slice(0, 5)
+    // Keep invoice activity lightweight on the dashboard.
+    const recent = filtered.slice(0, 4)
 
     if (recent.length === 0) {
         tbody.innerHTML = `
@@ -314,18 +1085,13 @@ function renderDashboardStatusChip(status) {
     return `<span style="display:inline-block;padding:0.2rem 0.6rem;border-radius:999px;font-size:0.7rem;font-weight:700;letter-spacing:0.04em;background:${cfg.bg};color:${cfg.color};border:1px solid ${cfg.border};text-transform:uppercase">${cfg.label}</span>`;
 }
 
-// Create revenue chart — smooth area curve with hover tooltip + range filters
-let _chartInvoices = [] // store for re-render on filter change
-
 /**
- * Extracts a reliable YYYY-MM-DD string from an invoice.
- * - Prefers invoice_meta.dateRaw (bare YYYY-MM-DD, stored from <input type="date">)
- * - Falls back to created_at (ISO timestamp), extracting LOCAL date components to avoid UTC shift
+ * Revenue overview uses paid_date for paid invoices.
+ * If older paid invoices have no paid_date, fall back to the invoice date so legacy data does not disappear.
  */
 function getInvoiceDateStr(inv) {
     const raw = inv.invoice_meta?.dateRaw
     if (raw && /^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw
-    // Fallback: timestamp → extract local components (avoids UTC midnight → previous day in EST)
     const ts = inv.created_at
     if (ts) {
         const d = new Date(ts)
@@ -334,11 +1100,83 @@ function getInvoiceDateStr(inv) {
     return ''
 }
 
-function createRevenueChart(invoices, range = 'ytd') {
+function getRevenueDateStr(inv) {
+    if (!isPaidInvoice(inv)) return ''
+
+    const paidRaw = String(inv.paid_date || '').trim()
+    if (/^\d{4}-\d{2}-\d{2}$/.test(paidRaw)) {
+        return paidRaw
+    }
+
+    return getInvoiceDateStr(inv)
+}
+
+function getPaidRevenueInvoices(invoices) {
+    return invoices.filter(inv => isPaidInvoice(inv) && getRevenueDateStr(inv))
+}
+
+function getRevenueCurrencies(invoices) {
+    return Array.from(new Set(getPaidRevenueInvoices(invoices).map(getInvoiceCurrency))).sort((a, b) => a.localeCompare(b))
+}
+
+function renderRevenueCurrencyFilter(invoices) {
+    const container = document.getElementById('revenueCurrencyFilter')
+    if (!container) return
+
+    const currencies = getRevenueCurrencies(invoices)
+    if (currencies.length === 0) {
+        _chartSelectedCurrency = ''
+        container.innerHTML = ''
+        container.style.display = 'none'
+        return
+    }
+
+    if (!currencies.includes(_chartSelectedCurrency)) {
+        _chartSelectedCurrency = currencies[0]
+    }
+
+    container.style.display = currencies.length > 1 ? 'flex' : 'none'
+    container.innerHTML = currencies.map((currency) => `
+        <button
+            type="button"
+            class="segmented__btn ${currency === _chartSelectedCurrency ? 'is-active' : ''}"
+            data-chart-currency="${currency}"
+            aria-pressed="${currency === _chartSelectedCurrency ? 'true' : 'false'}"
+        >
+            ${currency}
+        </button>
+    `).join('')
+
+    container.querySelectorAll('[data-chart-currency]').forEach((button) => {
+        button.addEventListener('click', () => {
+            _chartSelectedCurrency = button.dataset.chartCurrency || ''
+            renderRevenueCurrencyFilter(_chartInvoices)
+            createRevenueChart(_chartInvoices, getActiveRevenueRange())
+        })
+    })
+}
+
+function getActiveRevenueRange() {
+    return document.querySelector('.segmented__btn[data-range].is-active')?.dataset.range || '30d'
+}
+
+function createRevenueChart(invoices, range = '30d') {
     _chartInvoices = invoices
     const canvas = document.getElementById('revenueChart')
     if (!canvas) return
     const ctx = canvas.getContext('2d')
+
+    const paidRevenueInvoices = getPaidRevenueInvoices(invoices)
+    renderRevenueCurrencyFilter(invoices)
+
+    const currency = _chartSelectedCurrency || getRevenueCurrencies(invoices)[0] || 'USD'
+    const chartInvoices = paidRevenueInvoices.filter(inv => getInvoiceCurrency(inv) === currency)
+    const chartMeta = document.getElementById('chartMeta')
+    if (chartMeta) {
+        chartMeta.textContent = chartInvoices.length
+            ? `Paid revenue by received date • ${currency}`
+            : 'No paid revenue yet'
+    }
 
     // ── Build data based on range ───────────────────────────────────────────
     const now = new Date()
@@ -349,10 +1187,9 @@ function createRevenueChart(invoices, range = 'ytd') {
         for (let i = 29; i >= 0; i--) {
             const d = new Date(now); d.setDate(d.getDate() - i)
             const key = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-            // Build key using LOCAL date components (not UTC) to avoid timezone shift
             const dayKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
             labels.push(i % 5 === 0 ? key : '')  // Only show every 5th label
-            data.push(invoices.filter(inv => getInvoiceDateStr(inv) === dayKey)
+            data.push(chartInvoices.filter(inv => getRevenueDateStr(inv) === dayKey)
                 .reduce((s, inv) => s + (inv.totals?.total || 0), 0))
         }
     } else if (range === '90d') {
@@ -361,11 +1198,11 @@ function createRevenueChart(invoices, range = 'ytd') {
             const from = new Date(now); from.setDate(from.getDate() - i * 7 - 6)
             const to = new Date(now); to.setDate(to.getDate() - i * 7)
             labels.push(from.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }))
-            data.push(invoices.filter(inv => {
-                const ds = getInvoiceDateStr(inv)
+            data.push(chartInvoices.filter(inv => {
+                const ds = getRevenueDateStr(inv)
                 if (!ds) return false
-                const [y, m, dd] = ds.split('-').map(Number)
-                const invDate = new Date(y, m - 1, dd, 12) // noon local — avoids DST edge
+                const invDate = parseDateOnly(ds)
+                if (!invDate) return false
                 return invDate >= from && invDate <= to
             }).reduce((s, inv) => s + (inv.totals?.total || 0), 0))
         }
@@ -376,8 +1213,8 @@ function createRevenueChart(invoices, range = 'ytd') {
             const mo = String(d.getMonth() + 1).padStart(2, '0')
             const key = `${d.getFullYear()}-${mo}`
             labels.push(d.toLocaleDateString('en-US', { month: 'short' }))
-            data.push(invoices.filter(inv => {
-                const ds = getInvoiceDateStr(inv)
+            data.push(chartInvoices.filter(inv => {
+                const ds = getRevenueDateStr(inv)
                 return ds.slice(0, 7) === key
             }).reduce((s, inv) => s + (inv.totals?.total || 0), 0))
         }
@@ -386,7 +1223,7 @@ function createRevenueChart(invoices, range = 'ytd') {
     // ── Update header total ────────────────────────────────────────────────
     const totalYTD = data.reduce((a, b) => a + b, 0)
     const headerEl = document.getElementById('chartTotal')
-    if (headerEl) headerEl.textContent = formatCurrency(totalYTD)
+    if (headerEl) headerEl.textContent = chartInvoices.length ? formatCurrency(totalYTD, currency) : '—'
 
     // ── Canvas setup ───────────────────────────────────────────────────────
     const dpr = window.devicePixelRatio || 1
@@ -424,7 +1261,7 @@ function createRevenueChart(invoices, range = 'ytd') {
             const v = (maxVal / gridCount) * g
             const y = ptY(v)
             ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(pad.left + cw, y); ctx.stroke()
-            const l = v >= 1000 ? `$${(v / 1000).toFixed(v % 1000 === 0 ? 0 : 1)}k` : `$${Math.round(v)}`
+            const l = formatCompactCurrency(v, currency)
             ctx.fillText(l, pad.left - 8, y + 4)
         }
 
@@ -476,7 +1313,7 @@ function createRevenueChart(invoices, range = 'ytd') {
         ctx.strokeStyle = 'white'; ctx.lineWidth = 2; ctx.stroke()
 
         // Tooltip
-        const tooltipText = `${labels[closest] || ''} · ${formatCurrency(data[closest])}`
+        const tooltipText = `${labels[closest] || ''} · ${formatCurrency(data[closest], currency)}`
         ctx.font = 'bold 12px Inter, sans-serif'
         const tw = ctx.measureText(tooltipText).width
         const tp = 10, th = 28
@@ -494,6 +1331,7 @@ function createRevenueChart(invoices, range = 'ytd') {
     }
 
     canvas.onmouseleave = () => drawBase()
+    document.dispatchEvent(new CustomEvent('dashboard:chart-ready'))
 }
 
 // Wire up 30D / 90D / YTD segmented buttons
@@ -558,19 +1396,39 @@ async function initDashboard() {
         if (userNameEl) userNameEl.textContent = userName
         if (userNameDisplayEl) userNameDisplayEl.textContent = userName
 
-        // Load invoices
-        const invoices = await getInvoices(user)
+        const currentYear = new Date().getFullYear()
+        const [invoices, consultants, timesheets, auditEvents] = await Promise.all([
+            getInvoices(user),
+            dbGetConsultants().catch((error) => {
+                console.warn('Could not fetch consultants:', error)
+                return []
+            }),
+            dbGetTimesheetsForYear(currentYear).catch((error) => {
+                console.warn('Could not fetch timesheets:', error)
+                return []
+            }),
+            getRecentAuditEvents(8).catch((error) => {
+                console.warn('Could not fetch audit trail:', error)
+                return []
+            })
+        ])
+
         allInvoicesCache = invoices
 
         // Calculate and update stats
         const stats = calculateStats(invoices)
         updateStatsCards(stats)
 
-        // Render recent invoices
-        renderRecentInvoices(allInvoicesCache)
+        const operationsData = calculateOperationsData({ consultants, timesheets, invoices })
+        dashboardOperationsCache = operationsData
+        renderMonthCloseBanner(operationsData)
+        renderWorkflowQueue(operationsData)
+        renderExceptionCenter(operationsData)
+        renderRecentActivity(auditEvents)
+        renderCollectionsFeed(operationsData)
 
         // Create revenue chart
-        createRevenueChart(invoices)
+        createRevenueChart(invoices, getActiveRevenueRange())
 
         // Wire up Modal Events once
         if (!window.modalWired) {
@@ -602,29 +1460,20 @@ async function initDashboard() {
             })
         }
 
-        // ── Active Consultants KPI ────────────────────────────────────────
-        try {
-            const consultants = await dbGetConsultants();
-            const today = new Date().toISOString().slice(0, 10);
-            const active = consultants.filter(c => {
-                if (!c.end_date) return true; // No end date = active
-                return c.end_date >= today;   // End date is today or future = still active
-            });
-            const kpiEl = document.getElementById('activeConsultantsKpi');
-            const changeEl = document.getElementById('activeConsultantsChange');
-            if (kpiEl) kpiEl.textContent = String(active.length);
-            if (changeEl) {
-                const total = consultants.length;
-                const inactive = total - active.length;
-                changeEl.textContent = inactive > 0
-                    ? `${inactive} inactive of ${total} total`
-                    : `All ${total} active`;
-                changeEl.style.color = inactive > 0 ? '#d97706' : '#059669';
-            }
-        } catch (consultantErr) {
-            console.warn('Could not fetch consultant headcount:', consultantErr);
+        const active = consultants.filter((consultant) => isConsultantActiveForRange(consultant, getCurrentMonthRange()))
+        const kpiEl = document.getElementById('activeConsultantsKpi')
+        const changeEl = document.getElementById('activeConsultantsChange')
+        if (kpiEl) kpiEl.textContent = String(active.length)
+        if (changeEl) {
+            const total = consultants.length
+            const inactive = total - active.length
+            changeEl.textContent = inactive > 0
+                ? `${inactive} inactive of ${total} total`
+                : `All ${total} active`
+            changeEl.style.color = inactive > 0 ? '#d97706' : '#059669'
         }
-        // ── End Active Consultants KPI ────────────────────────────────────
+
+        document.dispatchEvent(new CustomEvent('dashboard:data-loaded'))
 
     } catch (error) {
         console.error('Dashboard initialization error:', error)
@@ -671,6 +1520,29 @@ function closePaidModalDash() {
 
 // Global Event Delegation for dynamic elements (Nav, etc.)
 document.addEventListener('click', (e) => {
+    const dashboardLink = e.target.closest('[data-dashboard-link="true"]')
+    if (dashboardLink) {
+        e.preventDefault()
+        const page = dashboardLink.dataset.page || 'timesheets.html'
+        const range = getCurrentMonthRange()
+        const patch = {
+            year: range.year,
+            month: range.month,
+            currency: 'all',
+            client: 'all',
+            w2: 'all',
+            status: 'all',
+            search: ''
+        }
+        if (dashboardLink.dataset.month) patch.month = dashboardLink.dataset.month
+        if (dashboardLink.dataset.year) patch.year = Number(dashboardLink.dataset.year)
+        if (dashboardLink.dataset.status) patch.status = dashboardLink.dataset.status
+        if (dashboardLink.dataset.search) patch.search = dashboardLink.dataset.search
+        setSharedFilters(patch)
+        window.location.href = page
+        return
+    }
+
     // User Menu Toggle
     const userMenuBtn = e.target.closest('#userMenuBtn');
     if (userMenuBtn) {
@@ -694,11 +1566,18 @@ document.addEventListener('click', (e) => {
 
 // Initialize on page load
 initDashboard()
+document.addEventListener('dashboard:refresh', () => {
+    initDashboard()
+})
 
 document.addEventListener('dashboard:global-search', (event) => {
     const query = String(event?.detail?.query || '')
     dashboardSearchQuery = query
-    renderRecentInvoices(allInvoicesCache)
+    renderCollectionsFeed(dashboardOperationsCache || calculateOperationsData({
+        consultants: [],
+        timesheets: [],
+        invoices: allInvoicesCache
+    }))
 })
 
 // Real-time Sync

@@ -1,5 +1,6 @@
 import { getCurrentUser, signOut } from './auth.js';
 import { showToast } from './utils.js';
+import { supabase } from './config.js';
 import './security.js';
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -10,15 +11,24 @@ document.addEventListener('DOMContentLoaded', async () => {
         return;
     }
 
-    // console.log('User loaded:', user);
+    const meta = user.user_metadata || {};
 
-    // Populate user data safe check
+    // Populate user data
     const emailInput = document.getElementById('email');
     if (emailInput) emailInput.value = user.email || '';
 
     const fullNameInput = document.getElementById('fullName');
-    const name = user.user_metadata?.full_name || user.email?.split('@')[0] || 'User';
+    const name = meta.full_name || user.email?.split('@')[0] || 'User';
     if (fullNameInput) fullNameInput.value = name;
+
+    const jobTitleInput = document.getElementById('jobTitle');
+    if (jobTitleInput) jobTitleInput.value = meta.job_title || '';
+
+    const companyNameInput = document.getElementById('companyName');
+    if (companyNameInput) companyNameInput.value = meta.company_name || '';
+
+    const phoneNumberInput = document.getElementById('phoneNumber');
+    if (phoneNumberInput) phoneNumberInput.value = meta.phone_number || '';
 
     // Update Avatar
     const avatarImg = document.getElementById('avatarImage');
@@ -31,36 +41,27 @@ document.addEventListener('DOMContentLoaded', async () => {
     const tabs = document.querySelectorAll('.profile-nav__link[data-tab]');
     const sections = document.querySelectorAll('.profile-section');
 
-    if (tabs.length === 0) console.warn('No tabs found!');
-    if (sections.length === 0) console.warn('No sections found!');
-
     tabs.forEach(tab => {
         tab.addEventListener('click', (e) => {
             e.preventDefault();
             const targetId = tab.dataset.tab;
-            console.log('Switching to tab:', targetId);
 
-            // Update Tabs
             tabs.forEach(t => t.classList.remove('active'));
             tab.classList.add('active');
 
-            // Update Sections
             sections.forEach(section => {
-                // Hide all first
                 section.style.display = 'none';
                 section.classList.remove('active');
 
-                // Show matching
                 if (section.id === targetId) {
                     section.style.display = 'block';
-                    // Small timeout to allow display:block to apply before adding active class for animation
                     setTimeout(() => section.classList.add('active'), 10);
                 }
             });
         });
     });
 
-    // Initialize first tab explicitly
+    // Initialize first tab
     if (tabs.length > 0) {
         const firstTab = tabs[0];
         const targetId = firstTab.dataset.tab;
@@ -77,13 +78,58 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
-    // 3. Handle Form Save (Mock implementation)
+    // 3. Handle Form Save — writes to Supabase user_metadata
     const form = document.getElementById('profileForm');
+    const saveBtn = form?.querySelector('button[type="submit"]');
     if (form) {
-        form.addEventListener('submit', (e) => {
+        form.addEventListener('submit', async (e) => {
             e.preventDefault();
-            // In a real app, update Supabase user metadata here
-            showToast('Profile updated successfully!', 'success');
+
+            const updatedName = fullNameInput?.value.trim() || '';
+            const updatedJobTitle = jobTitleInput?.value.trim() || '';
+            const updatedCompany = companyNameInput?.value.trim() || '';
+            const updatedPhone = phoneNumberInput?.value.trim() || '';
+
+            if (!updatedName) {
+                showToast('Full name is required.', 'error');
+                return;
+            }
+
+            if (saveBtn) {
+                saveBtn.disabled = true;
+                saveBtn.textContent = 'Saving…';
+            }
+
+            try {
+                const { error } = await supabase.auth.updateUser({
+                    data: {
+                        full_name: updatedName,
+                        job_title: updatedJobTitle,
+                        company_name: updatedCompany,
+                        phone_number: updatedPhone
+                    }
+                });
+
+                if (error) {
+                    console.error('Profile update error:', error);
+                    showToast(`Failed to save: ${error.message}`, 'error');
+                } else {
+                    showToast('Profile updated successfully!', 'success');
+
+                    // Update avatar to reflect new name
+                    if (avatarImg) {
+                        avatarImg.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(updatedName)}&background=F37021&color=fff&size=128`;
+                    }
+                }
+            } catch (err) {
+                console.error('Profile save error:', err);
+                showToast('An unexpected error occurred.', 'error');
+            } finally {
+                if (saveBtn) {
+                    saveBtn.disabled = false;
+                    saveBtn.textContent = 'Save Changes';
+                }
+            }
         });
     }
 

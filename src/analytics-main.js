@@ -1,6 +1,7 @@
 import { loadLayout } from './components/layout.js';
 import { showToast, debounce, createRenderScheduler } from './modules/utils.js';
 import { dbGetTimesheetsForYear } from './modules/db-timesheets.js';
+import { getInvoices } from './database.js';
 import {
     getSharedFilters,
     setSharedFilters,
@@ -9,6 +10,7 @@ import {
     setPagePrefs,
     countAppliedFilters
 } from './modules/crm-filters.js';
+import { listSavedViews, saveSavedView, deleteSavedView } from './modules/saved-views.js';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const now = new Date();
@@ -26,8 +28,10 @@ let selectedW2 = normalizeTextFilter(shared.w2);
 let selectedStatus = normalizeStatusFilter(shared.status);
 let searchTerm = String(shared.search || '').trim().toLowerCase();
 let pivotMetric = analyticsPrefs.pivotMetric === 'revenue' ? 'revenue' : 'hours';
+let currentSavedViewId = String(analyticsPrefs.savedViewId || '');
 
 let rawRows = [];
+let rawInvoices = [];
 
 const els = {};
 const requestRender = createRenderScheduler(() => renderAll());
@@ -47,6 +51,10 @@ async function init() {
     await refreshData();
 }
 
+let activeTab = 'overview';
+let activeKpiFilter = null;
+let drawerData = null;
+
 function cacheElements() {
     els.yearFilter = document.getElementById('yearFilter');
     els.monthFilter = document.getElementById('snapshotMonthFilter');
@@ -58,23 +66,60 @@ function cacheElements() {
     els.searchInput = document.getElementById('consultantSearch');
     els.clearFiltersBtn = document.getElementById('clearFiltersBtn');
     els.refreshBtn = document.getElementById('refreshBtn');
+    els.savedViewSelect = document.getElementById('savedViewSelect');
+    els.savedViewName = document.getElementById('savedViewName');
+    els.saveViewBtn = document.getElementById('saveViewBtn');
+    els.updateViewBtn = document.getElementById('updateViewBtn');
+    els.deleteViewBtn = document.getElementById('deleteViewBtn');
+    els.savedViewMeta = document.getElementById('savedViewMeta');
     els.exportCsvBtn = document.getElementById('exportCsvBtn');
     els.copyCsvBtn = document.getElementById('copyCsvBtn');
     els.hoursMetricBtn = document.getElementById('pivotHoursBtn');
     els.revenueMetricBtn = document.getElementById('pivotRevenueBtn');
 
     els.analyticsMeta = document.getElementById('analyticsMeta');
-    els.filterSummary = document.getElementById('analyticsFilterSummary');
+    els.analyticsPeriodTitle = document.getElementById('analyticsPeriodTitle');
+    els.analyticsConsultantsStat = document.getElementById('analyticsConsultantsStat');
+    els.analyticsHoursStat = document.getElementById('analyticsHoursStat');
+    els.analyticsCurrenciesStat = document.getElementById('analyticsCurrenciesStat');
 
     els.totalHoursCard = document.getElementById('totalHoursCard');
     els.projectedRevenueCard = document.getElementById('projectedRevenueCard');
     els.activeConsultantsCard = document.getElementById('activeConsultantsCard');
+    els.billingCoverageCard = document.getElementById('billingCoverageCard');
+    els.billingCoverageSub = document.getElementById('billingCoverageSub');
+    els.topClientInsight = document.getElementById('topClientInsight');
+    els.topConsultantInsight = document.getElementById('topConsultantInsight');
+    els.billingInsight = document.getElementById('billingInsight');
 
     els.monthSnapshotBody = document.getElementById('monthSnapshotBody');
     els.pivotHeadRow = document.getElementById('pivotHeadRow');
     els.pivotBody = document.getElementById('pivotBody');
     els.pivotTitle = document.getElementById('pivotTitle');
     els.monthSnapshotTitle = document.getElementById('monthSnapshotTitle');
+
+    // Tabs
+    els.tabBtns = document.querySelectorAll('.analytics-tabs__btn');
+    els.panels = document.querySelectorAll('.analytics-panel');
+    els.detailTabBadge = document.getElementById('detailTabBadge');
+
+    // Drawer
+    els.drawerOverlay = document.getElementById('drawerOverlay');
+    els.detailDrawer = document.getElementById('detailDrawer');
+    els.drawerTitle = document.getElementById('drawerTitle');
+    els.drawerBody = document.getElementById('drawerBody');
+    els.drawerCloseBtn = document.getElementById('drawerCloseBtn');
+    els.drawerCloseFooter = document.getElementById('drawerCloseFooter');
+    els.drawerOpenTimesheets = document.getElementById('drawerOpenTimesheets');
+
+    // New analytics
+    els.actualRevenueCard = document.getElementById('actualRevenueCard');
+    els.actualRevenueSub = document.getElementById('actualRevenueSub');
+    els.revenueTrendBars = document.getElementById('revenueTrendBars');
+    els.invoiceStatusDist = document.getElementById('invoiceStatusDist');
+    els.agingBuckets = document.getElementById('agingBuckets');
+    els.commissionInsight = document.getElementById('commissionInsight');
+    els.unbilledInsight = document.getElementById('unbilledInsight');
 }
 
 function setupFilters() {
@@ -98,6 +143,8 @@ function setupFilters() {
 
     updatePivotMetricButtons();
     updateAllMonthsToggleLabel();
+    updatePeriodLabel();
+    renderSavedViews();
 }
 
 function bindEvents() {
@@ -121,6 +168,37 @@ function bindEvents() {
         updateAllMonthsToggleLabel();
         requestRender();
     });
+
+    /* ── Period Prev / Next arrows ── */
+    document.getElementById('periodPrevBtn')?.addEventListener('click', async () => {
+        let m = selectedMonth === 'all' ? 1 : Number(selectedMonth);
+        let y = selectedYear;
+        m -= 1;
+        if (m < 1) { m = 12; y -= 1; }
+        selectedYear = y;
+        selectedMonth = String(m).padStart(2, '0');
+        if (els.yearFilter) els.yearFilter.value = String(y);
+        if (els.monthFilter) els.monthFilter.value = selectedMonth;
+        updateAllMonthsToggleLabel();
+        updatePeriodLabel();
+        persistShared();
+        await refreshData();
+    });
+    document.getElementById('periodNextBtn')?.addEventListener('click', async () => {
+        let m = selectedMonth === 'all' ? 12 : Number(selectedMonth);
+        let y = selectedYear;
+        m += 1;
+        if (m > 12) { m = 1; y += 1; }
+        selectedYear = y;
+        selectedMonth = String(m).padStart(2, '0');
+        if (els.yearFilter) els.yearFilter.value = String(y);
+        if (els.monthFilter) els.monthFilter.value = selectedMonth;
+        updateAllMonthsToggleLabel();
+        updatePeriodLabel();
+        persistShared();
+        await refreshData();
+    });
+
 
     els.currencyFilter?.addEventListener('change', () => {
         selectedCurrency = normalizeCurrency(els.currencyFilter.value);
@@ -157,7 +235,7 @@ function bindEvents() {
         await refreshData();
     });
 
-    els.clearFiltersBtn?.addEventListener('click', () => {
+    els.clearFiltersBtn?.addEventListener('click', async () => {
         const fresh = clearSharedFilters({ keepPeriod: false });
         selectedYear = fresh.year;
         selectedMonth = fresh.month;
@@ -172,9 +250,67 @@ function bindEvents() {
         if (els.statusFilter) els.statusFilter.value = selectedStatus;
         if (els.searchInput) els.searchInput.value = searchTerm;
 
+        // Remove active KPI highlight
+        document.querySelectorAll('.kpi-card--interactive').forEach(c => c.classList.remove('is-active'));
+        activeKpiFilter = null;
+
         updateAllMonthsToggleLabel();
+        updatePeriodLabel();
         populateFilterOptions();
-        requestRender();
+        await refreshData();
+    });
+
+    els.savedViewSelect?.addEventListener('change', async () => {
+        const id = String(els.savedViewSelect.value || '');
+        currentSavedViewId = id;
+        setPagePrefs('analytics', { savedViewId: currentSavedViewId, pivotMetric });
+        renderSavedViews();
+        if (!id) return;
+        const view = listSavedViews('analytics').find((item) => item.id === id);
+        if (view) await applySavedView(view);
+    });
+
+    els.saveViewBtn?.addEventListener('click', () => {
+        const name = String(els.savedViewName?.value || '').trim();
+        if (!name) {
+            showToast('Enter a name for this saved view.', 'error');
+            return;
+        }
+        const saved = saveSavedView('analytics', {
+            name,
+            state: captureSavedViewState()
+        });
+        currentSavedViewId = saved.id;
+        setPagePrefs('analytics', { savedViewId: currentSavedViewId, pivotMetric });
+        renderSavedViews();
+        showToast('Saved view created.', 'success');
+    });
+
+    els.updateViewBtn?.addEventListener('click', () => {
+        if (!currentSavedViewId) return;
+        const existing = listSavedViews('analytics').find((item) => item.id === currentSavedViewId);
+        const name = String(els.savedViewName?.value || existing?.name || '').trim();
+        if (!name) {
+            showToast('Enter a name for this saved view.', 'error');
+            return;
+        }
+        saveSavedView('analytics', {
+            id: currentSavedViewId,
+            name,
+            state: captureSavedViewState()
+        });
+        renderSavedViews();
+        showToast('Saved view updated.', 'success');
+    });
+
+    els.deleteViewBtn?.addEventListener('click', () => {
+        if (!currentSavedViewId) return;
+        if (!confirm('Delete this saved view?')) return;
+        deleteSavedView('analytics', currentSavedViewId);
+        currentSavedViewId = '';
+        setPagePrefs('analytics', { savedViewId: '', pivotMetric });
+        renderSavedViews();
+        showToast('Saved view deleted.', 'success');
     });
 
     els.exportCsvBtn?.addEventListener('click', () => {
@@ -201,14 +337,61 @@ function bindEvents() {
         renderPivot(getFilteredRows());
     });
 
+    // ── Tab Switching ──
+    els.tabBtns?.forEach(btn => {
+        btn.addEventListener('click', () => {
+            switchTab(btn.dataset.tab);
+        });
+    });
+
+    // ── KPI Card Drill-Down ──
+    document.querySelectorAll('.kpi-card--interactive').forEach(card => {
+        card.addEventListener('click', () => {
+            const filter = card.dataset.filter;
+            handleKpiClick(filter);
+        });
+    });
+
+    // ── Insight Card Drill-Through ──
+    document.querySelectorAll('.insight-card--clickable').forEach(card => {
+        card.addEventListener('click', () => {
+            handleInsightClick(card);
+        });
+    });
+
+    // ── Detail Table Row Click → Drawer ──
     document.addEventListener('click', (e) => {
         const target = e.target;
         if (!(target instanceof HTMLElement)) return;
 
-        const goBtn = target.closest('.open-timesheets-btn');
-        if (!goBtn) return;
+        // Pivot row expand
+        const summaryRow = target.closest('.pivot-row--summary');
+        if (summaryRow) {
+            const detailId = summaryRow.dataset.detailId;
+            const detailRow = document.getElementById(detailId);
+            if (detailRow) {
+                summaryRow.classList.toggle('is-expanded');
+                detailRow.classList.toggle('is-visible');
+            }
+            return;
+        }
 
-        const consultant = goBtn.getAttribute('data-consultant') || '';
+        // Detail table row → open drawer
+        const tableRow = target.closest('#monthSnapshotBody tr[data-consultant-id]');
+        if (tableRow) {
+            const consultantId = tableRow.dataset.consultantId;
+            const currency = tableRow.dataset.currency;
+            openDrawer(consultantId, currency);
+            return;
+        }
+    });
+
+    // ── Drawer close ──
+    els.drawerCloseBtn?.addEventListener('click', closeDrawer);
+    els.drawerCloseFooter?.addEventListener('click', closeDrawer);
+    els.drawerOverlay?.addEventListener('click', closeDrawer);
+    els.drawerOpenTimesheets?.addEventListener('click', () => {
+        if (!drawerData) return;
         setSharedFilters({
             year: selectedYear,
             month: selectedMonth,
@@ -216,22 +399,34 @@ function bindEvents() {
             client: selectedClient,
             w2: selectedW2,
             status: selectedStatus,
-            search: consultant
+            search: drawerData.consultant_name
         });
         window.location.href = 'timesheets.html';
+    });
+
+    // Keyboard: Escape closes drawer
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && els.detailDrawer?.classList.contains('is-open')) {
+            closeDrawer();
+        }
     });
 }
 
 async function refreshData() {
     setMeta('Loading analytics...');
     try {
-        const rows = await dbGetTimesheetsForYear(selectedYear);
+        const [rows, invoices] = await Promise.all([
+            dbGetTimesheetsForYear(selectedYear),
+            getInvoices()
+        ]);
         rawRows = normalizeRows(rows);
+        rawInvoices = invoices || [];
         populateFilterOptions();
         requestRender();
     } catch (err) {
         console.error(err);
         rawRows = [];
+        rawInvoices = [];
         requestRender();
         showToast('Failed to load analytics', 'error');
     }
@@ -251,6 +446,7 @@ function normalizeRows(rows) {
             client: consultant.client || '-',
             w2_company: consultant.w2_company || '-',
             bill_rate: billRate,
+            commission_rate: Number(consultant.commission_rate) || 0,
             currency,
             hours,
             projected: hours * billRate,
@@ -319,9 +515,22 @@ function renderAll() {
 
     renderSummary(monthRows);
     renderKpis(monthRows);
+    renderInsights(monthRows);
     renderMonthSnapshot(monthRows);
     renderPivot(filtered);
-    updateFilterSummary();
+    updateSummaryMeta(monthRows);
+
+    // New analytics (invoice-based)
+    renderActualRevenue();
+    renderRevenueTrend(filtered);
+    renderInvoiceStatusDist();
+    renderAgingBuckets();
+    renderCommissionInsight(monthRows);
+    renderUnbilledAlert(monthRows);
+
+    // Update detail tab badge count
+    const grouped = buildMonthSnapshotGroups(monthRows);
+    if (els.detailTabBadge) els.detailTabBadge.textContent = String(grouped.length);
 }
 
 function renderSummary(monthRows) {
@@ -334,11 +543,16 @@ function renderSummary(monthRows) {
 
     const byCurrency = aggregateByCurrency(monthRows);
     const revenueText = formatCurrencyGroup(byCurrency);
+    const currencyCount = Object.keys(byCurrency).length;
 
     setMeta(`Month: ${monthLabel} • Consultants: ${consultantsCount} • Hours: ${hours.toFixed(2)} • Revenue: ${revenueText}`);
+    if (els.analyticsPeriodTitle) els.analyticsPeriodTitle.textContent = monthLabel;
+    if (els.analyticsConsultantsStat) els.analyticsConsultantsStat.textContent = String(consultantsCount);
+    if (els.analyticsHoursStat) els.analyticsHoursStat.textContent = hours.toFixed(2);
+    if (els.analyticsCurrenciesStat) els.analyticsCurrenciesStat.textContent = String(currencyCount);
 
     if (els.monthSnapshotTitle) {
-        els.monthSnapshotTitle.textContent = `Selected Month View (${monthLabel})`;
+        els.monthSnapshotTitle.textContent = `Selected Month Performance (${monthLabel})`;
     }
 
     if (els.pivotTitle) {
@@ -350,9 +564,17 @@ function renderKpis(monthRows) {
     const totalHours = monthRows.reduce((sum, row) => sum + row.hours, 0);
     const consultants = new Set(monthRows.map(row => row.consultant_id)).size;
     const byCurrency = aggregateByCurrency(monthRows);
+    const invoicedHours = monthRows
+        .filter(row => row.status === 'invoiced')
+        .reduce((sum, row) => sum + row.hours, 0);
+    const coveragePct = totalHours > 0 ? (invoicedHours / totalHours) * 100 : 0;
 
     if (els.totalHoursCard) els.totalHoursCard.textContent = totalHours.toFixed(2);
     if (els.activeConsultantsCard) els.activeConsultantsCard.textContent = String(consultants);
+    if (els.billingCoverageCard) els.billingCoverageCard.textContent = `${Math.round(coveragePct)}%`;
+    if (els.billingCoverageSub) {
+        els.billingCoverageSub.textContent = `${invoicedHours.toFixed(2)} invoiced hrs of ${totalHours.toFixed(2)} total`;
+    }
 
     if (!els.projectedRevenueCard) return;
 
@@ -362,14 +584,18 @@ function renderKpis(monthRows) {
         return;
     }
 
-    els.projectedRevenueCard.innerHTML = entries
-        .map(([currency, amount]) => `<div style="font-size:0.875rem;line-height:1.35;">${formatMoney(amount, currency)}</div>`)
-        .join('');
+    els.projectedRevenueCard.innerHTML = `<div class="kpi-card__stack">${entries
+        .map(([currency, amount]) => `<div class="kpi-card__stack-item">${formatMoney(amount, currency)}</div>`)
+        .join('')}</div>`;
 }
 
-function renderMonthSnapshot(rows) {
-    if (!els.monthSnapshotBody) return;
+function renderInsights(monthRows) {
+    renderTopClientInsight(monthRows);
+    renderTopConsultantInsight(monthRows);
+    renderBillingInsight(monthRows);
+}
 
+function buildMonthSnapshotGroups(rows) {
     const grouped = new Map();
 
     rows.forEach((row) => {
@@ -380,6 +606,7 @@ function renderMonthSnapshot(rows) {
             client: row.client,
             w2_company: row.w2_company,
             currency: row.currency,
+            bill_rate: row.bill_rate,
             hours: 0,
             projected: 0,
             statuses: new Set(),
@@ -394,13 +621,19 @@ function renderMonthSnapshot(rows) {
         grouped.set(key, current);
     });
 
-    const list = Array.from(grouped.values())
-        .sort((a, b) => b.hours - a.hours);
+    return Array.from(grouped.values())
+        .sort((a, b) => (b.projected - a.projected) || (b.hours - a.hours));
+}
+
+function renderMonthSnapshot(rows) {
+    if (!els.monthSnapshotBody) return;
+
+    const list = buildMonthSnapshotGroups(rows);
 
     if (list.length === 0) {
         els.monthSnapshotBody.innerHTML = `
             <tr>
-                <td colspan="8" class="table__empty">
+                <td colspan="7" class="table__empty">
                     <div class="empty-state">
                         <span class="empty-state__icon">📉</span>
                         <p class="empty-state__text">No timesheets for selected filters.</p>
@@ -414,24 +647,23 @@ function renderMonthSnapshot(rows) {
 
     els.monthSnapshotBody.innerHTML = list.map((row) => {
         const status = row.statuses.size === 1 ? Array.from(row.statuses)[0] : 'mixed';
-        const invoiceLink = row.invoices.size === 0
-            ? 'unbilled'
-            : row.invoices.size === 1
-                ? Array.from(row.invoices)[0]
-                : 'multiple';
+        const invoiceLink = renderInvoiceLink(row.invoices);
+        const rateType = row.bill_rate > 0 ? `${row.currency} ${row.bill_rate.toFixed(2)}/hr` : `${row.currency} rate unavailable`;
 
         return `
-            <tr>
-                <td>${escapeHtml(row.consultant_name)}</td>
+            <tr data-consultant-id="${escapeHtml(row.consultant_id)}" data-currency="${escapeHtml(row.currency)}" style="cursor:pointer;" title="Click to view details">
+                <td>
+                    <div class="analytics-person">
+                        <span class="analytics-person__name">${escapeHtml(row.consultant_name)}</span>
+                        <span class="analytics-person__meta">${escapeHtml(rateType)}</span>
+                    </div>
+                </td>
                 <td>${escapeHtml(row.client)}</td>
                 <td>${escapeHtml(row.w2_company)}</td>
                 <td>${row.hours.toFixed(2)}</td>
                 <td>${formatMoney(row.projected, row.currency)}</td>
                 <td>${renderStatusBadge(status)}</td>
-                <td>${escapeHtml(invoiceLink)}</td>
-                <td>
-                    <button class="btn btn--outline btn--sm open-timesheets-btn" data-consultant="${escapeHtml(row.consultant_name)}">View/Edit in Timesheets</button>
-                </td>
+                <td>${invoiceLink}</td>
             </tr>
         `;
     }).join('');
@@ -441,7 +673,7 @@ function renderPivot(rows) {
     if (!els.pivotHeadRow || !els.pivotBody) return;
 
     const monthKeys = MONTHS.map((_, idx) => `${selectedYear}-${String(idx + 1).padStart(2, '0')}`);
-    els.pivotHeadRow.innerHTML = '<th>Consultant</th><th>Currency</th>' + MONTHS.map(label => `<th>${label}</th>`).join('');
+    els.pivotHeadRow.innerHTML = '<th></th><th>Consultant</th><th>Currency</th><th>Total</th>';
 
     const consultants = new Map();
 
@@ -461,31 +693,46 @@ function renderPivot(rows) {
         consultants.set(key, current);
     });
 
-    const list = Array.from(consultants.values())
-        .sort((a, b) => a.consultant_name.localeCompare(b.consultant_name));
+    const list = Array.from(consultants.entries())
+        .sort((a, b) => a[1].consultant_name.localeCompare(b[1].consultant_name));
 
     if (list.length === 0) {
-        els.pivotBody.innerHTML = '<tr><td colspan="14" class="table__empty">No pivot data for selected filters.</td></tr>';
+        els.pivotBody.innerHTML = '<tr><td colspan="4" class="table__empty">No pivot data for selected filters.</td></tr>';
         return;
     }
 
-    els.pivotBody.innerHTML = list.map((consultant) => {
-        const cells = monthKeys.map((monthKey) => {
+    const chevronSvg = '<svg class="pivot-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m9 5 7 7-7 7"/></svg>';
+
+    els.pivotBody.innerHTML = list.map(([key, consultant], idx) => {
+        const totalHours = Object.values(consultant.cells).reduce((s, c) => s + c.hours, 0);
+        const totalRevenue = Object.values(consultant.cells).reduce((s, c) => s + c.projected, 0);
+        const totalVal = pivotMetric === 'revenue'
+            ? formatMoney(totalRevenue, consultant.currency)
+            : totalHours.toFixed(2);
+
+        const detailId = `pivot-detail-${idx}`;
+
+        // Monthly breakdown grid
+        const monthCells = monthKeys.map((monthKey, mIdx) => {
             const cell = consultant.cells[monthKey];
-            if (!cell) return '<td>-</td>';
-
-            if (pivotMetric === 'revenue') {
-                return `<td>${formatMoney(cell.projected, consultant.currency)}</td>`;
-            }
-
-            return `<td>${cell.hours.toFixed(2)}</td>`;
-        }).join('');
+            if (!cell) return '';
+            const val = pivotMetric === 'revenue'
+                ? formatMoney(cell.projected, consultant.currency)
+                : cell.hours.toFixed(2);
+            return `<div class="pivot-month-cell"><span class="pivot-month-cell__label">${MONTHS[mIdx]}</span><span class="pivot-month-cell__value">${val}</span></div>`;
+        }).filter(Boolean).join('');
 
         return `
-            <tr>
-                <td style="font-weight:600;">${escapeHtml(consultant.consultant_name)}</td>
+            <tr class="pivot-row--summary" data-detail-id="${detailId}">
+                <td>${chevronSvg}</td>
+                <td>${escapeHtml(consultant.consultant_name)}</td>
                 <td>${consultant.currency}</td>
-                ${cells}
+                <td style="font-weight:700;">${totalVal}</td>
+            </tr>
+            <tr class="pivot-row--detail" id="${detailId}">
+                <td colspan="4">
+                    <div class="pivot-month-grid">${monthCells || '<span style="color:var(--text-tertiary);font-size:0.78rem;">No monthly data</span>'}</div>
+                </td>
             </tr>
         `;
     }).join('');
@@ -510,9 +757,7 @@ function formatCurrencyGroup(byCurrency) {
     return entries.map(([currency, amount]) => formatMoney(amount, currency)).join(' | ');
 }
 
-function updateFilterSummary() {
-    if (!els.filterSummary) return;
-
+function updateSummaryMeta(monthRows) {
     const applied = countAppliedFilters(
         {
             year: selectedYear,
@@ -533,8 +778,291 @@ function updateFilterSummary() {
             search: ''
         }
     );
+    const monthLabel = selectedMonth === 'all'
+        ? `All months in ${selectedYear}`
+        : `${MONTHS[Number(selectedMonth) - 1]} ${selectedYear}`;
+    const filterText = applied > 0
+        ? `${applied} extra filter${applied === 1 ? '' : 's'} active`
+        : 'Default filter set';
+    const consultantsCount = new Set(monthRows.map(row => row.consultant_id)).size;
+    const hours = monthRows.reduce((sum, row) => sum + row.hours, 0);
+    setMeta(`Month: ${monthLabel} • Consultants: ${consultantsCount} • Hours: ${hours.toFixed(2)} • ${filterText}`);
+}
 
-    els.filterSummary.textContent = `${applied} filter${applied === 1 ? '' : 's'} applied`;
+function renderTopClientInsight(rows) {
+    if (!els.topClientInsight) return;
+
+    const map = new Map();
+    rows.forEach((row) => {
+        const key = row.client;
+        const current = map.get(key) || {
+            name: row.client,
+            hours: 0,
+            projected: {},
+            consultants: new Set()
+        };
+        current.hours += row.hours;
+        current.projected[row.currency] = (current.projected[row.currency] || 0) + row.projected;
+        current.consultants.add(row.consultant_id);
+        map.set(key, current);
+    });
+
+    const top = Array.from(map.values())
+        .filter(entry => entry.name && entry.name !== '-')
+        .sort((a, b) => (b.hours - a.hours) || (totalCurrencyAmount(b.projected) - totalCurrencyAmount(a.projected)))[0];
+
+    if (!top) {
+        els.topClientInsight.innerHTML = `
+            <div class="insight-card__eyebrow">Top Client</div>
+            <div class="insight-card__title">No client data yet</div>
+            <div class="insight-card__body">Add timesheets for the selected period to identify top-billing clients.</div>
+        `;
+        return;
+    }
+
+    els.topClientInsight.innerHTML = `
+        <div class="insight-card__eyebrow">Top Client</div>
+        <div class="insight-card__title">${escapeHtml(top.name)}</div>
+        <div class="insight-card__body">Highest projected value in the current period.</div>
+        <div class="insight-card__meta">
+            <div class="insight-card__meta-row"><span>Projected revenue</span><strong>${escapeHtml(formatCurrencyGroup(top.projected))}</strong></div>
+            <div class="insight-card__meta-row"><span>Hours logged</span><strong>${top.hours.toFixed(2)}</strong></div>
+            <div class="insight-card__meta-row"><span>Consultants</span><strong>${top.consultants.size}</strong></div>
+        </div>
+        <div class="insight-card__drill"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m9 5 7 7-7 7"/></svg> View in Detail</div>
+    `;
+    els.topClientInsight.dataset.drillValue = normalizeTextFilter(top.name);
+}
+
+function renderTopConsultantInsight(rows) {
+    if (!els.topConsultantInsight) return;
+
+    const map = new Map();
+    rows.forEach((row) => {
+        const key = `${row.consultant_id}|${row.currency}`;
+        const current = map.get(key) || {
+            name: row.consultant_name,
+            currency: row.currency,
+            client: row.client,
+            hours: 0,
+            projected: 0,
+            pendingHours: 0
+        };
+        current.hours += row.hours;
+        current.projected += row.projected;
+        if (row.status === 'pending') current.pendingHours += row.hours;
+        map.set(key, current);
+    });
+
+    const top = Array.from(map.values())
+        .sort((a, b) => (b.hours - a.hours) || (b.projected - a.projected))[0];
+
+    if (!top) {
+        els.topConsultantInsight.innerHTML = `
+            <div class="insight-card__eyebrow">Top Consultant</div>
+            <div class="insight-card__title">No consultant data yet</div>
+            <div class="insight-card__body">Consultant-level performance appears here once hours are added.</div>
+        `;
+        return;
+    }
+
+    els.topConsultantInsight.innerHTML = `
+        <div class="insight-card__eyebrow">Top Consultant</div>
+        <div class="insight-card__title">${escapeHtml(top.name)}</div>
+        <div class="insight-card__body">${escapeHtml(top.client || 'No client assigned')} • ${escapeHtml(top.currency)}</div>
+        <div class="insight-card__meta">
+            <div class="insight-card__meta-row"><span>Projected revenue</span><strong>${formatMoney(top.projected, top.currency)}</strong></div>
+            <div class="insight-card__meta-row"><span>Total hours</span><strong>${top.hours.toFixed(2)}</strong></div>
+            <div class="insight-card__meta-row"><span>Pending hours</span><strong>${top.pendingHours.toFixed(2)}</strong></div>
+        </div>
+        <div class="insight-card__drill"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m9 5 7 7-7 7"/></svg> View in Detail</div>
+    `;
+    els.topConsultantInsight.dataset.drillValue = top.name;
+}
+
+function renderBillingInsight(rows) {
+    if (!els.billingInsight) return;
+
+    const pendingHours = rows.filter(row => row.status === 'pending').reduce((sum, row) => sum + row.hours, 0);
+    const invoicedHours = rows.filter(row => row.status === 'invoiced').reduce((sum, row) => sum + row.hours, 0);
+    const pendingRevenue = aggregateByCurrency(rows.filter(row => row.status === 'pending'));
+    const invoicedRevenue = aggregateByCurrency(rows.filter(row => row.status === 'invoiced'));
+    const hasData = pendingHours > 0 || invoicedHours > 0;
+
+    if (!hasData) {
+        els.billingInsight.innerHTML = `
+            <div class="insight-card__eyebrow">Billing Status</div>
+            <div class="insight-card__title">No billing data yet</div>
+            <div class="insight-card__body">This view will separate pending and invoiced hours for the selected period.</div>
+        `;
+        return;
+    }
+
+    els.billingInsight.innerHTML = `
+        <div class="insight-card__eyebrow">Billing Status</div>
+        <div class="insight-card__title">${invoicedHours >= pendingHours ? 'Mostly invoiced' : 'Pending work needs attention'}</div>
+        <div class="insight-card__body">Use this to spot hours that still need an invoice.</div>
+        <div class="insight-card__meta">
+            <div class="insight-card__meta-row"><span>Pending</span><strong>${pendingHours.toFixed(2)} hrs • ${escapeHtml(formatCurrencyGroup(pendingRevenue))}</strong></div>
+            <div class="insight-card__meta-row"><span>Invoiced</span><strong>${invoicedHours.toFixed(2)} hrs • ${escapeHtml(formatCurrencyGroup(invoicedRevenue))}</strong></div>
+            <div class="insight-card__meta-row"><span>Coverage</span><strong>${Math.round((invoicedHours / Math.max(invoicedHours + pendingHours, 1)) * 100)}%</strong></div>
+        </div>
+        <div class="insight-card__drill"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m9 5 7 7-7 7"/></svg> View pending in Detail</div>
+    `;
+    els.billingInsight.dataset.drillValue = 'pending';
+}
+
+/* ============================================================
+   Tab Switching
+   ============================================================ */
+function switchTab(tabId) {
+    activeTab = tabId;
+    els.tabBtns?.forEach(btn => {
+        const isActive = btn.dataset.tab === tabId;
+        btn.classList.toggle('is-active', isActive);
+        btn.setAttribute('aria-selected', String(isActive));
+    });
+    els.panels?.forEach(panel => {
+        panel.classList.toggle('is-visible', panel.id === `panel-${tabId}`);
+    });
+}
+
+/* ============================================================
+   KPI Card Drill-Down
+   ============================================================ */
+function handleKpiClick(filter) {
+    // Remove active from all KPI cards
+    document.querySelectorAll('.kpi-card--interactive').forEach(c => c.classList.remove('is-active'));
+
+    if (filter === 'all') {
+        // Reset status filter and switch to detail
+        selectedStatus = 'all';
+        if (els.statusFilter) els.statusFilter.value = 'all';
+        activeKpiFilter = null;
+        persistShared();
+        requestRender();
+        switchTab('detail');
+        return;
+    }
+
+    if (filter === 'pending') {
+        const toggledStatus = selectedStatus === 'pending' ? 'all' : 'pending';
+        selectedStatus = toggledStatus;
+        if (els.statusFilter) els.statusFilter.value = toggledStatus;
+        activeKpiFilter = toggledStatus === 'pending' ? 'pending' : null;
+
+        if (toggledStatus === 'pending') {
+            document.getElementById('kpiBilling')?.classList.add('is-active');
+        }
+
+        persistShared();
+        requestRender();
+        switchTab('detail');
+        return;
+    }
+
+    // For revenue / consultants, just switch to detail tab
+    const card = document.querySelector(`.kpi-card--interactive[data-filter="${filter}"]`);
+    if (card) card.classList.add('is-active');
+    switchTab('detail');
+}
+
+/* ============================================================
+   Insight Card Drill-Through
+   ============================================================ */
+function handleInsightClick(card) {
+    const drill = card.dataset.drill;
+    const value = card.dataset.drillValue;
+    if (!value) return;
+
+    if (drill === 'client') {
+        selectedClient = normalizeTextFilter(value);
+        if (els.clientFilter) els.clientFilter.value = selectedClient;
+        persistShared();
+        requestRender();
+        switchTab('detail');
+        return;
+    }
+
+    if (drill === 'consultant') {
+        searchTerm = value.toLowerCase();
+        if (els.searchInput) els.searchInput.value = value;
+        persistShared();
+        requestRender();
+        switchTab('detail');
+        return;
+    }
+
+    if (drill === 'billing') {
+        selectedStatus = 'pending';
+        if (els.statusFilter) els.statusFilter.value = 'pending';
+        persistShared();
+        requestRender();
+        switchTab('detail');
+        return;
+    }
+}
+
+/* ============================================================
+   Detail Drawer
+   ============================================================ */
+function openDrawer(consultantId, currency) {
+    const filtered = getFilteredRows();
+    const monthRows = getMonthRows(filtered);
+    const rows = monthRows.filter(r => r.consultant_id === consultantId && r.currency === currency);
+    if (rows.length === 0) return;
+
+    const first = rows[0];
+    const totalHours = rows.reduce((s, r) => s + r.hours, 0);
+    const totalRevenue = rows.reduce((s, r) => s + r.projected, 0);
+    const invoiceNums = [...new Set(rows.map(r => r.invoice_number).filter(Boolean))];
+    const statuses = [...new Set(rows.map(r => r.status))];
+    const statusLabel = statuses.length === 1 ? capitalize(statuses[0]) : 'Mixed';
+
+    drawerData = { consultant_name: first.consultant_name, consultant_id: consultantId, currency };
+
+    if (els.drawerTitle) els.drawerTitle.textContent = first.consultant_name;
+
+    // Build monthly bar chart from year data
+    const yearRows = filtered.filter(r => r.consultant_id === consultantId && r.currency === currency);
+    const monthlyHours = {};
+    yearRows.forEach(r => { monthlyHours[r.month_key] = (monthlyHours[r.month_key] || 0) + r.hours; });
+    const maxH = Math.max(...Object.values(monthlyHours), 1);
+    const barHtml = MONTHS.map((label, idx) => {
+        const key = `${selectedYear}-${String(idx + 1).padStart(2, '0')}`;
+        const h = monthlyHours[key] || 0;
+        const pct = Math.round((h / maxH) * 100);
+        return `<div class="drawer-bar__col"><div class="drawer-bar__fill" style="height:${pct}%"></div><div class="drawer-bar__label">${label}</div></div>`;
+    }).join('');
+
+    if (els.drawerBody) {
+        els.drawerBody.innerHTML = `
+            <div class="drawer-meta">
+                <div class="drawer-meta__row"><span class="drawer-meta__label">Client</span><span class="drawer-meta__value">${escapeHtml(first.client)}</span></div>
+                <div class="drawer-meta__row"><span class="drawer-meta__label">W2 Company</span><span class="drawer-meta__value">${escapeHtml(first.w2_company)}</span></div>
+                <div class="drawer-meta__row"><span class="drawer-meta__label">Bill Rate</span><span class="drawer-meta__value">${first.bill_rate > 0 ? `${currency} ${first.bill_rate.toFixed(2)}/hr` : 'N/A'}</span></div>
+                <div class="drawer-meta__row"><span class="drawer-meta__label">Hours (period)</span><span class="drawer-meta__value">${totalHours.toFixed(2)}</span></div>
+                <div class="drawer-meta__row"><span class="drawer-meta__label">Revenue (period)</span><span class="drawer-meta__value">${formatMoney(totalRevenue, currency)}</span></div>
+                <div class="drawer-meta__row"><span class="drawer-meta__label">Status</span><span class="drawer-meta__value">${statusLabel}</span></div>
+                <div class="drawer-meta__row"><span class="drawer-meta__label">Invoices</span><span class="drawer-meta__value">${invoiceNums.length > 0 ? escapeHtml(invoiceNums.join(', ')) : 'Unbilled'}</span></div>
+            </div>
+            <div class="drawer-section">
+                <div class="drawer-section__title">Hours by Month (${selectedYear})</div>
+                <div class="drawer-bar">${barHtml}</div>
+            </div>
+        `;
+    }
+
+    els.detailDrawer?.classList.add('is-open');
+    els.drawerOverlay?.classList.add('is-open');
+    document.body.style.overflow = 'hidden';
+}
+
+function closeDrawer() {
+    els.detailDrawer?.classList.remove('is-open');
+    els.drawerOverlay?.classList.remove('is-open');
+    document.body.style.overflow = '';
+    drawerData = null;
 }
 
 function updatePivotMetricButtons() {
@@ -545,6 +1073,270 @@ function updatePivotMetricButtons() {
 function updateAllMonthsToggleLabel() {
     if (!els.allMonthsToggleBtn) return;
     els.allMonthsToggleBtn.textContent = selectedMonth === 'all' ? 'All Months: ON' : 'All Months: OFF';
+}
+
+function updatePeriodLabel() {
+    const el = document.getElementById('periodLabel');
+    if (!el) return;
+    if (selectedMonth === 'all') {
+        el.textContent = `${selectedYear}`;
+    } else {
+        const mIdx = Number(selectedMonth) - 1;
+        el.textContent = `${MONTHS[mIdx]} ${selectedYear}`;
+    }
+}
+
+/* ============================================================
+   1. Actual (Collected) Revenue
+   ============================================================ */
+function renderActualRevenue() {
+    if (!els.actualRevenueCard) return;
+
+    const paidInvoices = rawInvoices.filter(inv => String(inv.status || '').toLowerCase() === 'paid');
+    const byCurrency = {};
+    paidInvoices.forEach(inv => {
+        const curr = String(inv.invoice_meta?.currency || 'USD').toUpperCase();
+        const dateStr = String(inv.paid_date || inv.invoice_meta?.dateRaw || inv.created_at || '');
+        const year = parseInt(dateStr.slice(0, 4), 10);
+        if (year !== selectedYear) return;
+
+        byCurrency[curr] = (byCurrency[curr] || 0) + (inv.totals?.total || 0);
+    });
+
+    const entries = Object.entries(byCurrency).sort((a, b) => a[0].localeCompare(b[0]));
+    if (entries.length === 0) {
+        els.actualRevenueCard.textContent = formatMoney(0, 'USD');
+        if (els.actualRevenueSub) els.actualRevenueSub.textContent = `${paidInvoices.length} paid invoices in ${selectedYear}`;
+    } else if (entries.length === 1) {
+        els.actualRevenueCard.textContent = formatMoney(entries[0][1], entries[0][0]);
+        if (els.actualRevenueSub) els.actualRevenueSub.textContent = `${paidInvoices.length} paid invoices in ${selectedYear}`;
+    } else {
+        els.actualRevenueCard.innerHTML = `<div class="kpi-card__stack">${entries
+            .map(([c, a]) => `<div class="kpi-card__stack-item">${formatMoney(a, c)}</div>`)
+            .join('')}</div>`;
+        if (els.actualRevenueSub) els.actualRevenueSub.textContent = `${paidInvoices.length} paid invoices in ${selectedYear}`;
+    }
+}
+
+/* ============================================================
+   2. Revenue Trend (Projected vs Collected by Month)
+   ============================================================ */
+function renderRevenueTrend(filteredRows) {
+    if (!els.revenueTrendBars) return;
+
+    const monthKeys = MONTHS.map((_, idx) => `${selectedYear}-${String(idx + 1).padStart(2, '0')}`);
+
+    // Projected from timesheets
+    const projectedByMonth = {};
+    filteredRows.forEach(row => {
+        projectedByMonth[row.month_key] = (projectedByMonth[row.month_key] || 0) + row.projected;
+    });
+
+    // Collected from paid invoices
+    const collectedByMonth = {};
+    rawInvoices.filter(inv => String(inv.status || '').toLowerCase() === 'paid').forEach(inv => {
+        const dateStr = String(inv.paid_date || inv.invoice_meta?.dateRaw || inv.created_at || '');
+        const monthKey = dateStr.slice(0, 7); // YYYY-MM
+        if (monthKey.startsWith(String(selectedYear))) {
+            collectedByMonth[monthKey] = (collectedByMonth[monthKey] || 0) + (inv.totals?.total || 0);
+        }
+    });
+
+    const allValues = [...Object.values(projectedByMonth), ...Object.values(collectedByMonth)];
+    const maxVal = Math.max(...allValues, 1);
+
+    els.revenueTrendBars.innerHTML = monthKeys.map((mk, idx) => {
+        const proj = projectedByMonth[mk] || 0;
+        const coll = collectedByMonth[mk] || 0;
+        const projPct = Math.round((proj / maxVal) * 100);
+        const collPct = Math.round((coll / maxVal) * 100);
+
+        return `<div class="trend-month">
+            <div class="trend-month__bars">
+                <div class="trend-month__bar trend-month__bar--projected" style="height:${projPct}%" title="Projected: ${formatMoney(proj, 'USD')}"></div>
+                <div class="trend-month__bar trend-month__bar--collected" style="height:${collPct}%" title="Collected: ${formatMoney(coll, 'USD')}"></div>
+            </div>
+            <div class="trend-month__label">${MONTHS[idx]}</div>
+        </div>`;
+    }).join('');
+}
+
+/* ============================================================
+   3. Invoice Status Distribution
+   ============================================================ */
+function renderInvoiceStatusDist() {
+    if (!els.invoiceStatusDist) return;
+
+    const counts = { draft: 0, sent: 0, paid: 0, overdue: 0 };
+    const amounts = { draft: 0, sent: 0, paid: 0, overdue: 0 };
+    const today = new Date();
+
+    rawInvoices.forEach(inv => {
+        let status = String(inv.status || 'draft').toLowerCase();
+        // Check for overdue
+        if (status === 'sent' && inv.invoice_meta?.dueDateRaw) {
+            const due = new Date(inv.invoice_meta.dueDateRaw);
+            if (due < today) status = 'overdue';
+        }
+        if (!counts.hasOwnProperty(status)) status = 'draft';
+        counts[status]++;
+        amounts[status] += (inv.totals?.total || 0);
+    });
+
+    const total = Math.max(Object.values(counts).reduce((s, c) => s + c, 0), 1);
+
+    const statusOrder = ['paid', 'sent', 'overdue', 'draft'];
+    els.invoiceStatusDist.innerHTML = statusOrder.map(status => {
+        const count = counts[status];
+        const pct = Math.round((count / total) * 100);
+        const amt = formatMoney(amounts[status], 'USD');
+
+        return `<div class="status-dist-row">
+            <span class="status-dist-row__label">${status}</span>
+            <div class="status-dist-row__bar-wrap">
+                <div class="status-dist-row__bar status-dist-row__bar--${status}" style="width:${pct}%"></div>
+            </div>
+            <span class="status-dist-row__count">${count} (${amt})</span>
+        </div>`;
+    }).join('');
+}
+
+/* ============================================================
+   4. Collections Aging Buckets
+   ============================================================ */
+function renderAgingBuckets() {
+    if (!els.agingBuckets) return;
+
+    const today = new Date();
+    const buckets = [
+        { label: '0–30 days', min: 0, max: 30, cls: 'current', count: 0, amount: 0 },
+        { label: '31–60 days', min: 31, max: 60, cls: 'warning', count: 0, amount: 0 },
+        { label: '61–90 days', min: 61, max: 90, cls: 'danger', count: 0, amount: 0 },
+        { label: '90+ days', min: 91, max: 9999, cls: 'critical', count: 0, amount: 0 }
+    ];
+
+    // Only outstanding invoices (sent/overdue)
+    const outstanding = rawInvoices.filter(inv => {
+        const s = String(inv.status || '').toLowerCase();
+        return s === 'sent' || s === 'overdue';
+    });
+
+    outstanding.forEach(inv => {
+        const invoiceDateStr = String(inv.invoice_meta?.dateRaw || inv.created_at || '');
+        const invoiceDate = new Date(invoiceDateStr);
+        if (isNaN(invoiceDate.getTime())) return;
+
+        const daysSince = Math.floor((today - invoiceDate) / (1000 * 60 * 60 * 24));
+        const bucket = buckets.find(b => daysSince >= b.min && daysSince <= b.max);
+        if (bucket) {
+            bucket.count++;
+            bucket.amount += (inv.totals?.total || 0);
+        }
+    });
+
+    els.agingBuckets.innerHTML = buckets.map(b => `
+        <div class="aging-bucket aging-bucket--${b.cls}">
+            <div class="aging-bucket__label">${b.label}</div>
+            <div class="aging-bucket__count">${b.count}</div>
+            <div class="aging-bucket__amount">${formatMoney(b.amount, 'USD')}</div>
+        </div>
+    `).join('');
+}
+
+/* ============================================================
+   5. Commission Tracking
+   ============================================================ */
+function renderCommissionInsight(monthRows) {
+    if (!els.commissionInsight) return;
+
+    // Group by consultant, calculate commissions
+    const consultants = new Map();
+    monthRows.forEach(row => {
+        const key = row.consultant_id;
+        const current = consultants.get(key) || {
+            name: row.consultant_name,
+            revenue: 0,
+            commissionRate: 0,
+            currency: row.currency
+        };
+        current.revenue += row.projected;
+        // We need commission_rate from raw data - check if it's in the row
+        if (row.commission_rate) current.commissionRate = row.commission_rate;
+        consultants.set(key, current);
+    });
+
+    // Also try to get commission from rawRows (might have it from consultant object)
+    const withCommission = Array.from(consultants.values()).filter(c => c.commissionRate > 0);
+
+    if (withCommission.length === 0) {
+        els.commissionInsight.innerHTML = `
+            <div class="insight-card__eyebrow">Commission Tracking</div>
+            <div class="insight-card__title">No commission rates set</div>
+            <div class="insight-card__body">Set commission_rate on consultants to track earned commissions here.</div>
+        `;
+        return;
+    }
+
+    const totalCommission = withCommission.reduce((sum, c) => sum + (c.revenue * c.commissionRate / 100), 0);
+    const topEarner = withCommission.sort((a, b) => (b.revenue * b.commissionRate / 100) - (a.revenue * a.commissionRate / 100))[0];
+
+    els.commissionInsight.innerHTML = `
+        <div class="insight-card__eyebrow">Commission Tracking</div>
+        <div class="insight-card__title">${formatMoney(totalCommission, topEarner.currency)}</div>
+        <div class="insight-card__body">Total commissions earned across ${withCommission.length} consultant(s) this period.</div>
+        <div class="insight-card__meta">
+            <div class="insight-card__meta-row"><span>Top earner</span><strong>${escapeHtml(topEarner.name)}</strong></div>
+            <div class="insight-card__meta-row"><span>Their rate</span><strong>${topEarner.commissionRate}%</strong></div>
+            <div class="insight-card__meta-row"><span>Their commission</span><strong>${formatMoney(topEarner.revenue * topEarner.commissionRate / 100, topEarner.currency)}</strong></div>
+        </div>
+    `;
+}
+
+/* ============================================================
+   6. Unbilled Hours Alert
+   ============================================================ */
+function renderUnbilledAlert(monthRows) {
+    if (!els.unbilledInsight) return;
+
+    const pending = monthRows.filter(row => row.status === 'pending');
+    if (pending.length === 0) {
+        els.unbilledInsight.innerHTML = `
+            <div class="insight-card__eyebrow">✅ Unbilled Hours</div>
+            <div class="insight-card__title">All clear</div>
+            <div class="insight-card__body">All hours have been invoiced for the selected period.</div>
+        `;
+        els.unbilledInsight.style.borderLeftColor = '#22c55e';
+        return;
+    }
+
+    // Group by consultant
+    const byConsultant = new Map();
+    pending.forEach(row => {
+        const key = row.consultant_id;
+        const current = byConsultant.get(key) || { name: row.consultant_name, hours: 0, projected: 0, currency: row.currency };
+        current.hours += row.hours;
+        current.projected += row.projected;
+        byConsultant.set(key, current);
+    });
+
+    const sorted = Array.from(byConsultant.values()).sort((a, b) => b.hours - a.hours);
+    const totalUnbilled = sorted.reduce((s, c) => s + c.hours, 0);
+    const top3 = sorted.slice(0, 3);
+
+    els.unbilledInsight.style.borderLeftColor = totalUnbilled > 100 ? '#ef4444' : '#f59e0b';
+    els.unbilledInsight.innerHTML = `
+        <div class="insight-card__eyebrow">⚠ Unbilled Hours Alert</div>
+        <div class="insight-card__title">${totalUnbilled.toFixed(1)} hours unbilled</div>
+        <div class="insight-card__body">${sorted.length} consultant(s) with pending hours that need invoicing.</div>
+        <div class="insight-card__meta">
+            ${top3.map(c => `
+                <div class="insight-card__meta-row">
+                    <span>${escapeHtml(c.name)}</span>
+                    <strong>${c.hours.toFixed(1)} hrs • ${formatMoney(c.projected, c.currency)}</strong>
+                </div>
+            `).join('')}
+        </div>
+    `;
 }
 
 function buildPivotCsv() {
@@ -655,6 +1447,69 @@ function persistShared() {
     });
 }
 
+function captureSavedViewState() {
+    return {
+        year: selectedYear,
+        month: selectedMonth,
+        currency: selectedCurrency,
+        client: selectedClient,
+        w2: selectedW2,
+        status: selectedStatus,
+        search: searchTerm,
+        pivotMetric
+    };
+}
+
+function renderSavedViews() {
+    const views = listSavedViews('analytics');
+    if (els.savedViewSelect) {
+        els.savedViewSelect.innerHTML = ['<option value="">Saved Views</option>', ...views.map((view) => (
+            `<option value="${escapeHtml(view.id)}">${escapeHtml(view.name)}</option>`
+        ))].join('');
+        els.savedViewSelect.value = views.some((view) => view.id === currentSavedViewId) ? currentSavedViewId : '';
+    }
+
+    const activeView = views.find((view) => view.id === currentSavedViewId);
+    if (els.savedViewName) {
+        if (document.activeElement !== els.savedViewName || !els.savedViewName.value.trim()) {
+            els.savedViewName.value = activeView?.name || '';
+        }
+    }
+    if (els.savedViewMeta) {
+        const totalText = views.length
+            ? `${views.length} saved view${views.length === 1 ? '' : 's'}`
+            : 'No saved views yet';
+        els.savedViewMeta.textContent = activeView
+            ? `Active: ${activeView.name} • ${totalText}`
+            : totalText;
+    }
+    if (els.updateViewBtn) els.updateViewBtn.disabled = !activeView;
+    if (els.deleteViewBtn) els.deleteViewBtn.disabled = !activeView;
+}
+
+async function applySavedView(view) {
+    const state = view?.state || {};
+    selectedYear = Number(state.year) || defaultYear;
+    selectedMonth = state.month || defaultMonth;
+    selectedCurrency = normalizeCurrency(state.currency);
+    selectedClient = normalizeTextFilter(state.client);
+    selectedW2 = normalizeTextFilter(state.w2);
+    selectedStatus = normalizeStatusFilter(state.status);
+    searchTerm = String(state.search || '').trim().toLowerCase();
+    pivotMetric = state.pivotMetric === 'revenue' ? 'revenue' : 'hours';
+
+    if (els.yearFilter) els.yearFilter.value = String(selectedYear);
+    if (els.monthFilter) els.monthFilter.value = selectedMonth;
+    if (els.statusFilter) els.statusFilter.value = selectedStatus;
+    if (els.searchInput) els.searchInput.value = searchTerm;
+
+    updatePivotMetricButtons();
+    persistShared();
+    setPagePrefs('analytics', { savedViewId: currentSavedViewId, pivotMetric });
+    updateAllMonthsToggleLabel();
+    await refreshData();
+}
+
 function setMeta(text) {
     if (els.analyticsMeta) els.analyticsMeta.textContent = text;
 }
@@ -702,6 +1557,30 @@ function renderStatusBadge(status) {
     if (status === 'invoiced') return '<span class="status-badge status-invoiced">Invoiced</span>';
     if (status === 'pending') return '<span class="status-badge status-pending">Pending</span>';
     return '<span class="status-badge status-mixed">Mixed</span>';
+}
+
+function renderInvoiceLink(invoices) {
+    if (!invoices || invoices.size === 0) {
+        return '<span class="invoice-pill invoice-pill--unbilled">Unbilled</span>';
+    }
+    if (invoices.size === 1) {
+        return `<span class="invoice-pill invoice-pill--linked">${escapeHtml(Array.from(invoices)[0])}</span>`;
+    }
+    return '<span class="invoice-pill invoice-pill--multiple">Multiple invoices</span>';
+}
+
+function totalCurrencyAmount(map = {}) {
+    return Object.values(map).reduce((sum, amount) => sum + (Number(amount) || 0), 0);
+}
+
+function findLabel(values, normalizedValue) {
+    const hit = values.find((value) => normalizeTextFilter(value) === normalizedValue);
+    return hit || normalizedValue;
+}
+
+function capitalize(value) {
+    const text = String(value || '');
+    return text ? text.charAt(0).toUpperCase() + text.slice(1) : '';
 }
 
 function csvSafe(value) {
