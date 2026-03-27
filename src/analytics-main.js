@@ -136,6 +136,7 @@ function cacheElements() {
     els.consultantsLabelMeta = document.getElementById('consultantsLabelMeta');
     els.billingCoverageLabelMeta = document.getElementById('billingCoverageLabelMeta');
     els.revenueTrendBars = document.getElementById('revenueTrendBars');
+    els.cashFlowTrendLegend = document.getElementById('cashFlowTrendLegend');
     els.cashFlowTrendBars = document.getElementById('cashFlowTrendBars');
     els.invoiceStatusDist = document.getElementById('invoiceStatusDist');
     els.invoiceStatusLegend = document.getElementById('invoiceStatusLegend');
@@ -1517,13 +1518,15 @@ function renderRevenueTrend(filteredRows) {
 }
 
 /* ============================================================
-   2b. Cash Flow Trend (Paid Date)
+   2b. Cash Flow Trend (Paid Date - Stacked Multi-Currency)
    ============================================================ */
 function renderCashFlowTrend() {
     if (!els.cashFlowTrendBars) return;
 
     const monthKeys = MONTHS.map((_, idx) => `${selectedYear}-${String(idx + 1).padStart(2, '0')}`);
-    const receivedByMonth = {};
+    const receivedByMonthAndCurr = {};
+    const allCurrencies = new Set();
+    let maxGroupTotal = 0;
 
     rawInvoices.filter(inv => {
         if (String(inv.status || '').toLowerCase() !== 'paid') return false;
@@ -1541,21 +1544,41 @@ function renderCashFlowTrend() {
         }
 
         if (paidMonth.startsWith(String(selectedYear))) {
-            receivedByMonth[paidMonth] = (receivedByMonth[paidMonth] || 0) + (inv.totals?.total || 0);
+            if (!receivedByMonthAndCurr[paidMonth]) receivedByMonthAndCurr[paidMonth] = {};
+            const curr = String(inv.invoice_meta?.currency || 'USD').toUpperCase();
+            allCurrencies.add(curr);
+            receivedByMonthAndCurr[paidMonth][curr] = (receivedByMonthAndCurr[paidMonth][curr] || 0) + (inv.totals?.total || 0);
         }
     });
 
-    const allValues = Object.values(receivedByMonth);
-    const maxVal = Math.max(...allValues, 1);
-    const currencyStr = selectedCurrency === 'all' ? '' : selectedCurrency;
+    const activeCurrencies = Array.from(allCurrencies).sort();
 
-    if (allValues.every(v => v === 0)) {
+    // Render legend
+    if (els.cashFlowTrendLegend) {
+        if (activeCurrencies.length === 0) {
+            els.cashFlowTrendLegend.innerHTML = '';
+        } else {
+            els.cashFlowTrendLegend.innerHTML = activeCurrencies.map(c => 
+                `<span style="display:inline-flex;align-items:center;gap:3px;font-size:0.6rem;font-weight:700;color:var(--text-tertiary);">
+                 <span style="width:10px;height:10px;border-radius:3px;background:${getCurrencyColor(c)};display:inline-block;"></span> 
+                 ${escapeHtml(c)} Received</span>`
+            ).join('  ');
+        }
+    }
+
+    monthKeys.forEach(mk => {
+        const monthData = receivedByMonthAndCurr[mk] || {};
+        const groupTotal = Object.values(monthData).reduce((a, b) => a + b, 0);
+        if (groupTotal > maxGroupTotal) maxGroupTotal = groupTotal;
+    });
+
+    if (maxGroupTotal === 0) {
         els.cashFlowTrendBars.className = 'analytics-trend-chart analytics-trend-chart--empty';
         els.cashFlowTrendBars.innerHTML = `<div>No cash flow data for ${selectedYear} yet.</div>`;
         return;
     }
 
-    const niceMax = niceRoundUp(maxVal);
+    const niceMax = niceRoundUp(maxGroupTotal);
     const ticks = [0, niceMax / 2, niceMax];
 
     const vW = 600, vH = 220;
@@ -1576,19 +1599,38 @@ function renderCashFlowTrend() {
     }).join('');
 
     const bars = monthKeys.map((mk, idx) => {
-        const rec = receivedByMonth[mk] || 0;
-        const recH = niceMax > 0 ? (rec / niceMax) * chartH : 0;
+        const monthData = receivedByMonthAndCurr[mk] || {};
+        const groupTotal = Object.values(monthData).reduce((a, b) => a + b, 0);
+        const groupTotalH = niceMax > 0 ? (groupTotal / niceMax) * chartH : 0;
+        
         const groupX = padL + idx * groupW + groupW / 2;
         const baseY = padT + chartH;
-        const recTip = `${MONTHS[idx]}: Received ${formatMoney(rec, currencyStr)}`;
-
-        const recLabel = rec > 0 ? `<text class="bar-val-label bar-val-label--coll" x="${groupX}" y="${baseY - recH - 5}" text-anchor="middle" fill="#10b981" font-size="7.5" font-weight="700" font-family="inherit">${formatCompactNumber(rec)}</text>` : '';
         const hoverZone = `<rect x="${padL + idx * groupW}" y="${padT}" width="${groupW}" height="${chartH + 4}" fill="transparent" class="trend-bar-hover-zone"/>`;
+
+        let stackHTML = '';
+        let currentY = baseY;
+
+        activeCurrencies.forEach(curr => {
+            const val = monthData[curr] || 0;
+            if (val > 0) {
+                const h = (val / niceMax) * chartH;
+                const tooltip = `${MONTHS[idx]}: Received ${formatMoney(val, curr)}`;
+                stackHTML += `<rect x="${groupX - barW / 2}" y="${currentY - h}" width="${barW}" height="${Math.max(h, 0)}" rx="0" fill="${getCurrencyColor(curr)}"><title>${escapeHtml(tooltip)}</title></rect>`;
+                currentY -= h;
+            }
+        });
+
+        let recLabel = '';
+        if (groupTotal > 0) {
+            const isMixed = activeCurrencies.length > 1 && Object.values(monthData).filter(v => v>0).length > 1;
+            const topLabelColor = isMixed ? '#64748b' : getCurrencyColor(Object.keys(monthData).find(k=>monthData[k]>0) || 'USD');
+            recLabel = `<text class="bar-val-label bar-val-label--coll" x="${groupX}" y="${baseY - groupTotalH - 5}" text-anchor="middle" fill="${topLabelColor}" font-size="7.5" font-weight="700" font-family="inherit">${formatCompactNumber(groupTotal)}</text>`;
+        }
 
         return `
             <g class="trend-bar-group">
                 ${hoverZone}
-                <rect x="${groupX - barW / 2}" y="${baseY - recH}" width="${barW}" height="${Math.max(recH, 0)}" rx="3" fill="#10b981"><title>${escapeHtml(recTip)}</title></rect>
+                ${stackHTML}
                 ${recLabel}
             </g>
         `;
