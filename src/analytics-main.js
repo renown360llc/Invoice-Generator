@@ -611,12 +611,37 @@ function renderAll() {
     if (els.detailTabBadge) els.detailTabBadge.textContent = String(grouped.length);
 }
 
+function getActiveConsultantsPool() {
+    let rangeStart = `${selectedYear}-01-01`;
+    let rangeEnd = `${selectedYear}-12-31`;
+    if (selectedMonth !== 'all') {
+        const m = Number(selectedMonth);
+        const d = new Date(selectedYear, m, 0);
+        rangeStart = `${selectedYear}-${String(m).padStart(2, '0')}-01`;
+        rangeEnd = `${selectedYear}-${String(m).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    }
+
+    return rawConsultants.filter(c => {
+        if (!c.start_date) return false;
+        const cCurr = normalizeCurrency(c.currency || 'USD');
+        if (selectedCurrency !== 'all' && cCurr !== selectedCurrency) return false;
+        if (selectedClient !== 'all' && normalizeTextFilter(c.client) !== selectedClient) return false;
+        if (selectedW2 !== 'all' && normalizeTextFilter(c.w2_company) !== selectedW2) return false;
+        
+        const cStart = c.start_date;
+        const cEnd = c.end_date || '9999-12-31';
+        
+        return cStart <= rangeEnd && cEnd >= rangeStart;
+    });
+}
+
 function renderSummary(monthRows) {
     const monthLabel = selectedMonth === 'all'
         ? `All Months ${selectedYear}`
         : `${MONTHS[Number(selectedMonth) - 1]} ${selectedYear}`;
 
-    const consultantsCount = new Set(monthRows.map(row => row.consultant_id)).size;
+    const activePool = getActiveConsultantsPool();
+    const consultantsCount = activePool.length;
     const hours = monthRows.reduce((sum, row) => sum + row.hours, 0);
 
     const byCurrency = aggregateByCurrency(monthRows);
@@ -640,7 +665,8 @@ function renderSummary(monthRows) {
 
 function renderKpis(monthRows) {
     const totalHours = monthRows.reduce((sum, row) => sum + row.hours, 0);
-    const consultants = new Set(monthRows.map(row => row.consultant_id)).size;
+    const activePool = getActiveConsultantsPool();
+    const consultants = activePool.length;
     const byCurrency = aggregateByCurrency(monthRows);
     const invoicedHours = monthRows
         .filter(row => row.status === 'invoiced')
@@ -651,7 +677,7 @@ function renderKpis(monthRows) {
     if (els.activeConsultantsCard) els.activeConsultantsCard.textContent = String(consultants);
     if (els.billingCoverageCard) els.billingCoverageCard.textContent = `${Math.round(coveragePct)}%`;
     if (els.totalHoursLabelMeta) els.totalHoursLabelMeta.textContent = `(${getSelectedPeriodShortLabel()})`;
-    if (els.consultantsLabelMeta) els.consultantsLabelMeta.textContent = `(${getSelectedPeriodShortLabel()})`;
+    if (els.consultantsLabelMeta) els.consultantsLabelMeta.textContent = `(Active ${getSelectedPeriodShortLabel()})`;
     if (els.billingCoverageLabelMeta) els.billingCoverageLabelMeta.textContent = `(${getSelectedPeriodShortLabel()})`;
     if (els.billingCoverageSub) {
         els.billingCoverageSub.textContent = `${invoicedHours.toFixed(2)} invoiced hrs of ${totalHours.toFixed(2)} total`;
@@ -1317,30 +1343,11 @@ function renderCashFlowKPI() {
    ============================================================ */
 function renderActiveConsultantsRunRate() {
     if (!els.consultantsSub || !els.activeConsultantsCard) return;
-    
-    let rangeStart = `${selectedYear}-01-01`;
-    let rangeEnd = `${selectedYear}-12-31`;
-    if (selectedMonth !== 'all') {
-        const m = Number(selectedMonth);
-        const d = new Date(selectedYear, m, 0); // last day of month
-        rangeStart = `${selectedYear}-${String(m).padStart(2, '0')}-01`;
-        rangeEnd = `${selectedYear}-${String(m).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-    }
 
+    const activePool = getActiveConsultantsPool();
     const activeGen = { total: 0, byCurrency: {} };
     
-    rawConsultants.filter(c => {
-        if (!c.start_date) return false;
-        const cCurr = normalizeCurrency(c.currency || 'USD');
-        if (selectedCurrency !== 'all' && cCurr !== selectedCurrency) return false;
-        if (selectedClient !== 'all' && normalizeTextFilter(c.client) !== selectedClient) return false;
-        if (selectedW2 !== 'all' && normalizeTextFilter(c.w2_company) !== selectedW2) return false;
-        
-        const cStart = c.start_date;
-        const cEnd = c.end_date || '9999-12-31';
-        
-        return cStart <= rangeEnd && cEnd >= rangeStart;
-    }).forEach(c => {
+    activePool.forEach(c => {
         const cCurr = normalizeCurrency(c.currency || 'USD');
         const rate = Number(c.bill_rate) || 0;
         if (rate > 0) {
