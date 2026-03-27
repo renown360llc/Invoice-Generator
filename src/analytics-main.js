@@ -1318,12 +1318,12 @@ function renderRevenueTrend(filteredRows) {
     const ticks = [0, niceMax / 2, niceMax];
 
     // SVG dimensions in viewBox units
-    const vW = 600, vH = 200;
-    const padL = 60, padR = 20, padT = 12, padB = 28;
+    const vW = 600, vH = 220;
+    const padL = 60, padR = 20, padT = 28, padB = 28;
     const chartW = vW - padL - padR;
     const chartH = vH - padT - padB;
     const groupW = chartW / 12;
-    const barW = groupW * 0.32;
+    const barW = groupW * 0.34;
     const gap = 3;
 
     // Grid lines
@@ -1338,7 +1338,7 @@ function renderRevenueTrend(filteredRows) {
         return `<text x="${padL - 8}" y="${y + 3}" text-anchor="end" fill="#94a3b8" font-size="9" font-weight="600" font-family="inherit">${formatCompactNumber(t)}</text>`;
     }).join('');
 
-    // Bars per month
+    // Bars per month with hover value labels (Tableau-style)
     const bars = monthKeys.map((mk, idx) => {
         const proj = projectedByMonth[mk] || 0;
         const coll = collectedByMonth[mk] || 0;
@@ -1349,10 +1349,20 @@ function renderRevenueTrend(filteredRows) {
         const projTip = `${MONTHS[idx]}: Projected ${formatMoney(proj, currencyStr)}`;
         const collTip = `${MONTHS[idx]}: Collected ${formatMoney(coll, currencyStr)}`;
 
+        // Value labels positioned above bars
+        const projLabel = proj > 0 ? `<text class="bar-val-label bar-val-label--proj" x="${groupX - barW / 2 - gap / 2}" y="${baseY - projH - 5}" text-anchor="middle" fill="#64748b" font-size="7.5" font-weight="700" font-family="inherit">${formatCompactNumber(proj)}</text>` : '';
+        const collLabel = coll > 0 ? `<text class="bar-val-label bar-val-label--coll" x="${groupX + barW / 2 + gap / 2}" y="${baseY - collH - 5}" text-anchor="middle" fill="#2563eb" font-size="7.5" font-weight="700" font-family="inherit">${formatCompactNumber(coll)}</text>` : '';
+
+        // Invisible hover zone for the entire group
+        const hoverZone = `<rect x="${padL + idx * groupW}" y="${padT}" width="${groupW}" height="${chartH + 4}" fill="transparent" class="trend-bar-hover-zone"/>`;
+
         return `
             <g class="trend-bar-group">
-                <rect x="${groupX - barW - gap / 2}" y="${baseY - projH}" width="${barW}" height="${Math.max(projH, 0)}" rx="3" fill="#cbd5e1" opacity="0.55"><title>${escapeHtml(projTip)}</title></rect>
+                ${hoverZone}
+                <rect x="${groupX - barW - gap / 2}" y="${baseY - projH}" width="${barW}" height="${Math.max(projH, 0)}" rx="3" fill="#cbd5e1" opacity="0.75"><title>${escapeHtml(projTip)}</title></rect>
                 <rect x="${groupX + gap / 2}" y="${baseY - collH}" width="${barW}" height="${Math.max(collH, 0)}" rx="3" fill="#3b82f6"><title>${escapeHtml(collTip)}</title></rect>
+                ${projLabel}
+                ${collLabel}
             </g>
         `;
     }).join('');
@@ -1369,6 +1379,11 @@ function renderRevenueTrend(filteredRows) {
     els.revenueTrendBars.className = 'analytics-trend-chart';
     els.revenueTrendBars.innerHTML = `
         <svg viewBox="0 0 ${vW} ${vH}" preserveAspectRatio="xMidYMid meet" style="width:100%; height:auto; display:block;">
+            <style>
+                .bar-val-label { opacity: 0; transition: opacity 0.15s ease; pointer-events: none; }
+                .trend-bar-group:hover .bar-val-label { opacity: 1; }
+                .trend-bar-group:hover .trend-bar-hover-zone { fill: rgba(0,0,0,0.02); }
+            </style>
             ${gridLines}
             ${baseline}
             ${yLabels}
