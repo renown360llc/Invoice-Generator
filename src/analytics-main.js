@@ -623,6 +623,8 @@ function getActiveConsultantsPool() {
 
     return rawConsultants.filter(c => {
         if (!c.start_date) return false;
+        if (c.status === 'inactive' || c.status === 'pending') return false;
+        
         const cCurr = normalizeCurrency(c.currency || 'USD');
         if (selectedCurrency !== 'all' && cCurr !== selectedCurrency) return false;
         if (selectedClient !== 'all' && normalizeTextFilter(c.client) !== selectedClient) return false;
