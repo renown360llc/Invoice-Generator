@@ -1,6 +1,7 @@
 import { loadLayout } from './components/layout.js';
 import { showToast, debounce, createRenderScheduler } from './modules/utils.js';
 import { dbGetTimesheetsForYear } from './modules/db-timesheets.js';
+import { dbGetConsultants } from './modules/db-consultants.js';
 import { getInvoices } from './database.js';
 import {
     getSharedFilters,
@@ -39,6 +40,7 @@ let currentSavedViewId = String(analyticsPrefs.savedViewId || '');
 
 let rawRows = [];
 let rawInvoices = [];
+let rawConsultants = [];
 
 const els = {};
 const requestRender = createRenderScheduler(() => renderAll());
@@ -99,6 +101,7 @@ function cacheElements() {
     els.totalHoursCard = document.getElementById('totalHoursCard');
     els.projectedRevenueCard = document.getElementById('projectedRevenueCard');
     els.activeConsultantsCard = document.getElementById('activeConsultantsCard');
+    els.consultantsSub = document.getElementById('consultantsSub');
     els.billingCoverageCard = document.getElementById('billingCoverageCard');
     els.billingCoverageSub = document.getElementById('billingCoverageSub');
     els.topClientInsight = document.getElementById('topClientInsight');
@@ -483,18 +486,21 @@ function bindEvents() {
 async function refreshData() {
     setMeta('Loading analytics...');
     try {
-        const [rows, invoices] = await Promise.all([
+        const [rows, invoices, consultants] = await Promise.all([
             dbGetTimesheetsForYear(selectedYear),
-            getInvoices()
+            getInvoices(),
+            dbGetConsultants()
         ]);
         rawRows = normalizeRows(rows);
         rawInvoices = invoices || [];
+        rawConsultants = consultants || [];
         populateFilterOptions();
         requestRender();
     } catch (err) {
         console.error(err);
         rawRows = [];
         rawInvoices = [];
+        rawConsultants = [];
         requestRender();
         showToast('Failed to load analytics', 'error');
     }
@@ -592,6 +598,7 @@ function renderAll() {
     // New analytics (invoice-based)
     renderActualRevenue();
     renderCashFlowKPI();
+    renderActiveConsultantsRunRate();
     renderRevenueTrend(filtered);
     renderCashFlowTrend(filtered);
     renderInvoiceStatusDist();
@@ -1303,6 +1310,53 @@ function renderCashFlowKPI() {
             .map(([c, a]) => `<div class="kpi-card__stack-item">${formatMoney(a, c)}</div>`)
             .join('')}</div>`;
     }
+}
+
+/* ============================================================
+   1c. Active Consultants Hourly Run Rate
+   ============================================================ */
+function renderActiveConsultantsRunRate() {
+    if (!els.consultantsSub || !els.activeConsultantsCard) return;
+    
+    let rangeStart = `${selectedYear}-01-01`;
+    let rangeEnd = `${selectedYear}-12-31`;
+    if (selectedMonth !== 'all') {
+        const m = Number(selectedMonth);
+        const d = new Date(selectedYear, m, 0); // last day of month
+        rangeStart = `${selectedYear}-${String(m).padStart(2, '0')}-01`;
+        rangeEnd = `${selectedYear}-${String(m).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    }
+
+    const activeGen = { total: 0, byCurrency: {} };
+    
+    rawConsultants.filter(c => {
+        if (!c.start_date) return false;
+        const cCurr = normalizeCurrency(c.currency || 'USD');
+        if (selectedCurrency !== 'all' && cCurr !== selectedCurrency) return false;
+        if (selectedClient !== 'all' && normalizeTextFilter(c.client) !== selectedClient) return false;
+        if (selectedW2 !== 'all' && normalizeTextFilter(c.w2_company) !== selectedW2) return false;
+        
+        const cStart = c.start_date;
+        const cEnd = c.end_date || '9999-12-31';
+        
+        return cStart <= rangeEnd && cEnd >= rangeStart;
+    }).forEach(c => {
+        const cCurr = normalizeCurrency(c.currency || 'USD');
+        const rate = Number(c.bill_rate) || 0;
+        if (rate > 0) {
+            activeGen.byCurrency[cCurr] = (activeGen.byCurrency[cCurr] || 0) + rate;
+            activeGen.total += 1;
+        }
+    });
+
+    const currencies = Object.keys(activeGen.byCurrency).sort();
+    if (currencies.length === 0) {
+        els.consultantsSub.innerHTML = 'No active hourly generation';
+        return;
+    }
+
+    const breakdown = currencies.map(c => `<span style="color:${getCurrencyColor(c)}">${formatMoney(activeGen.byCurrency[c], c)}/hr</span>`);
+    els.consultantsSub.innerHTML = `Generating ${breakdown.join(' <span style="color:var(--surface-glass-border);margin:0 4px;">•</span> ')}`;
 }
 
 function getSelectedPeriodContextLabel() {
