@@ -13,6 +13,13 @@ import {
 import { listSavedViews, saveSavedView, deleteSavedView } from './modules/saved-views.js';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const CURRENCY_COLORS = {
+    USD: '#2563eb',
+    CAD: '#0f766e',
+    EUR: '#7c3aed',
+    GBP: '#ea580c',
+    AUD: '#dc2626'
+};
 const now = new Date();
 const defaultYear = now.getFullYear();
 const defaultMonth = String(now.getMonth() + 1).padStart(2, '0');
@@ -59,6 +66,12 @@ function cacheElements() {
     els.yearFilter = document.getElementById('yearFilter');
     els.monthFilter = document.getElementById('snapshotMonthFilter');
     els.allMonthsToggleBtn = document.getElementById('allMonthsToggleBtn');
+    els.periodLabel = document.getElementById('periodLabel');
+    els.periodLabelText = document.getElementById('periodLabelText');
+    els.periodJumpMenu = document.getElementById('periodJumpMenu');
+    els.periodJumpYear = document.getElementById('periodJumpYear');
+    els.periodJumpMonths = document.getElementById('periodJumpMonths');
+    els.periodJumpAllBtn = document.getElementById('periodJumpAllBtn');
     els.currencyFilter = document.getElementById('currencyFilter');
     els.clientFilter = document.getElementById('clientFilter');
     els.w2Filter = document.getElementById('w2Filter');
@@ -115,8 +128,14 @@ function cacheElements() {
     // New analytics
     els.actualRevenueCard = document.getElementById('actualRevenueCard');
     els.actualRevenueSub = document.getElementById('actualRevenueSub');
+    els.totalHoursLabelMeta = document.getElementById('totalHoursLabelMeta');
+    els.actualRevenueLabelMeta = document.getElementById('actualRevenueLabelMeta');
+    els.projectedRevenueLabelMeta = document.getElementById('projectedRevenueLabelMeta');
+    els.consultantsLabelMeta = document.getElementById('consultantsLabelMeta');
+    els.billingCoverageLabelMeta = document.getElementById('billingCoverageLabelMeta');
     els.revenueTrendBars = document.getElementById('revenueTrendBars');
     els.invoiceStatusDist = document.getElementById('invoiceStatusDist');
+    els.invoiceStatusLegend = document.getElementById('invoiceStatusLegend');
     els.agingBuckets = document.getElementById('agingBuckets');
     els.commissionInsight = document.getElementById('commissionInsight');
     els.unbilledInsight = document.getElementById('unbilledInsight');
@@ -144,6 +163,7 @@ function setupFilters() {
     updatePivotMetricButtons();
     updateAllMonthsToggleLabel();
     updatePeriodLabel();
+    renderPeriodJumpMenu();
     renderSavedViews();
 }
 
@@ -151,6 +171,7 @@ function bindEvents() {
     els.yearFilter?.addEventListener('change', async (e) => {
         selectedYear = Number(e.target.value);
         persistShared();
+        updatePeriodLabel();
         await refreshData();
     });
 
@@ -158,6 +179,7 @@ function bindEvents() {
         selectedMonth = els.monthFilter.value;
         persistShared();
         updateAllMonthsToggleLabel();
+        updatePeriodLabel();
         requestRender();
     });
 
@@ -166,6 +188,43 @@ function bindEvents() {
         if (els.monthFilter) els.monthFilter.value = selectedMonth;
         persistShared();
         updateAllMonthsToggleLabel();
+        updatePeriodLabel();
+        requestRender();
+    });
+
+    els.periodLabel?.addEventListener('click', (event) => {
+        event.stopPropagation();
+        togglePeriodJumpMenu();
+    });
+
+    els.periodJumpYear?.addEventListener('change', async (event) => {
+        selectedYear = Number(event.target.value) || defaultYear;
+        if (els.yearFilter) els.yearFilter.value = String(selectedYear);
+        persistShared();
+        updateAllMonthsToggleLabel();
+        updatePeriodLabel();
+        await refreshData();
+    });
+
+    els.periodJumpMonths?.addEventListener('click', (event) => {
+        const button = event.target.closest('button[data-month]');
+        if (!(button instanceof HTMLElement)) return;
+        selectedMonth = String(button.dataset.month || defaultMonth);
+        if (els.monthFilter) els.monthFilter.value = selectedMonth;
+        persistShared();
+        updateAllMonthsToggleLabel();
+        updatePeriodLabel();
+        closePeriodJumpMenu();
+        requestRender();
+    });
+
+    els.periodJumpAllBtn?.addEventListener('click', () => {
+        selectedMonth = 'all';
+        if (els.monthFilter) els.monthFilter.value = selectedMonth;
+        persistShared();
+        updateAllMonthsToggleLabel();
+        updatePeriodLabel();
+        closePeriodJumpMenu();
         requestRender();
     });
 
@@ -364,6 +423,10 @@ function bindEvents() {
         const target = e.target;
         if (!(target instanceof HTMLElement)) return;
 
+        if (els.periodJumpMenu && !els.periodJumpMenu.hidden && !target.closest('.crm-toolbar__period-wrap')) {
+            closePeriodJumpMenu();
+        }
+
         // Pivot row expand
         const summaryRow = target.closest('.pivot-row--summary');
         if (summaryRow) {
@@ -406,6 +469,7 @@ function bindEvents() {
 
     // Keyboard: Escape closes drawer
     document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') closePeriodJumpMenu();
         if (e.key === 'Escape' && els.detailDrawer?.classList.contains('is-open')) {
             closeDrawer();
         }
@@ -443,6 +507,7 @@ function normalizeRows(rows) {
             id: row.id,
             consultant_id: row.consultant_id,
             consultant_name: consultant.name || 'Unknown',
+            notes: consultant.notes || '',
             client: consultant.client || '-',
             w2_company: consultant.w2_company || '-',
             bill_rate: billRate,
@@ -504,7 +569,7 @@ function getFilteredRows() {
         .filter(row => selectedStatus === 'all' || row.status === selectedStatus)
         .filter(row => {
             if (!searchTerm) return true;
-            const hay = `${row.consultant_name} ${row.client} ${row.w2_company}`.toLowerCase();
+            const hay = `${row.consultant_name} ${row.notes || ''} ${row.client} ${row.w2_company}`.toLowerCase();
             return hay.includes(searchTerm);
         });
 }
@@ -572,8 +637,14 @@ function renderKpis(monthRows) {
     if (els.totalHoursCard) els.totalHoursCard.textContent = totalHours.toFixed(2);
     if (els.activeConsultantsCard) els.activeConsultantsCard.textContent = String(consultants);
     if (els.billingCoverageCard) els.billingCoverageCard.textContent = `${Math.round(coveragePct)}%`;
+    if (els.totalHoursLabelMeta) els.totalHoursLabelMeta.textContent = `(${getSelectedPeriodShortLabel()})`;
+    if (els.consultantsLabelMeta) els.consultantsLabelMeta.textContent = `(Active ${getSelectedPeriodShortLabel()})`;
+    if (els.billingCoverageLabelMeta) els.billingCoverageLabelMeta.textContent = `(${getSelectedPeriodShortLabel()})`;
     if (els.billingCoverageSub) {
         els.billingCoverageSub.textContent = `${invoicedHours.toFixed(2)} invoiced hrs of ${totalHours.toFixed(2)} total`;
+    }
+    if (els.projectedRevenueLabelMeta) {
+        els.projectedRevenueLabelMeta.textContent = `(${getSelectedPeriodShortLabel()})`;
     }
 
     if (!els.projectedRevenueCard) return;
@@ -603,6 +674,7 @@ function buildMonthSnapshotGroups(rows) {
         const current = grouped.get(key) || {
             consultant_id: row.consultant_id,
             consultant_name: row.consultant_name,
+            notes: row.notes || '',
             client: row.client,
             w2_company: row.w2_company,
             currency: row.currency,
@@ -654,7 +726,10 @@ function renderMonthSnapshot(rows) {
             <tr data-consultant-id="${escapeHtml(row.consultant_id)}" data-currency="${escapeHtml(row.currency)}" style="cursor:pointer;" title="Click to view details">
                 <td>
                     <div class="analytics-person">
-                        <span class="analytics-person__name">${escapeHtml(row.consultant_name)}</span>
+                        <span class="analytics-person__name" style="display:flex;align-items:center;gap:0.35rem;flex-wrap:wrap;">
+                            <span>${escapeHtml(row.consultant_name)}</span>
+                            ${renderNoteTooltip(row.notes)}
+                        </span>
                         <span class="analytics-person__meta">${escapeHtml(rateType)}</span>
                     </div>
                 </td>
@@ -681,6 +756,7 @@ function renderPivot(rows) {
         const key = `${row.consultant_id}|${row.currency}`;
         const current = consultants.get(key) || {
             consultant_name: row.consultant_name,
+            notes: row.notes || '',
             currency: row.currency,
             cells: {}
         };
@@ -725,7 +801,12 @@ function renderPivot(rows) {
         return `
             <tr class="pivot-row--summary" data-detail-id="${detailId}">
                 <td>${chevronSvg}</td>
-                <td>${escapeHtml(consultant.consultant_name)}</td>
+                <td>
+                    <div style="display:flex;align-items:center;gap:0.35rem;flex-wrap:wrap;">
+                        <span>${escapeHtml(consultant.consultant_name)}</span>
+                        ${renderNoteTooltip(consultant.notes)}
+                    </div>
+                </td>
                 <td>${consultant.currency}</td>
                 <td style="font-weight:700;">${totalVal}</td>
             </tr>
@@ -1040,6 +1121,7 @@ function openDrawer(consultantId, currency) {
             <div class="drawer-meta">
                 <div class="drawer-meta__row"><span class="drawer-meta__label">Client</span><span class="drawer-meta__value">${escapeHtml(first.client)}</span></div>
                 <div class="drawer-meta__row"><span class="drawer-meta__label">W2 Company</span><span class="drawer-meta__value">${escapeHtml(first.w2_company)}</span></div>
+                <div class="drawer-meta__row"><span class="drawer-meta__label">Notes</span><span class="drawer-meta__value">${escapeHtml(first.notes || '—')}</span></div>
                 <div class="drawer-meta__row"><span class="drawer-meta__label">Bill Rate</span><span class="drawer-meta__value">${first.bill_rate > 0 ? `${currency} ${first.bill_rate.toFixed(2)}/hr` : 'N/A'}</span></div>
                 <div class="drawer-meta__row"><span class="drawer-meta__label">Hours (period)</span><span class="drawer-meta__value">${totalHours.toFixed(2)}</span></div>
                 <div class="drawer-meta__row"><span class="drawer-meta__label">Revenue (period)</span><span class="drawer-meta__value">${formatMoney(totalRevenue, currency)}</span></div>
@@ -1065,6 +1147,17 @@ function closeDrawer() {
     drawerData = null;
 }
 
+function renderNoteTooltip(notes) {
+    const text = String(notes || '').trim();
+    if (!text) return '';
+    return `
+        <div class="note-tooltip-container" aria-label="Consultant note">
+            <span class="note-tooltip-trigger">📝</span>
+            <div class="note-tooltip">${escapeHtml(text)}</div>
+        </div>
+    `;
+}
+
 function updatePivotMetricButtons() {
     els.hoursMetricBtn?.classList.toggle('is-active', pivotMetric === 'hours');
     els.revenueMetricBtn?.classList.toggle('is-active', pivotMetric === 'revenue');
@@ -1076,7 +1169,7 @@ function updateAllMonthsToggleLabel() {
 }
 
 function updatePeriodLabel() {
-    const el = document.getElementById('periodLabel');
+    const el = els.periodLabelText || els.periodLabel;
     if (!el) return;
     if (selectedMonth === 'all') {
         el.textContent = `${selectedYear}`;
@@ -1084,6 +1177,45 @@ function updatePeriodLabel() {
         const mIdx = Number(selectedMonth) - 1;
         el.textContent = `${MONTHS[mIdx]} ${selectedYear}`;
     }
+    renderPeriodJumpMenu();
+}
+
+function renderPeriodJumpMenu() {
+    if (els.periodLabel) {
+        els.periodLabel.setAttribute('aria-expanded', String(Boolean(els.periodJumpMenu && !els.periodJumpMenu.hidden)));
+    }
+
+    if (els.periodJumpYear) {
+        const years = [];
+        for (let y = defaultYear + 1; y >= defaultYear - 4; y -= 1) years.push(y);
+        els.periodJumpYear.innerHTML = years.map((year) => `<option value="${year}">${year}</option>`).join('');
+        els.periodJumpYear.value = String(selectedYear);
+    }
+
+    if (els.periodJumpAllBtn) {
+        els.periodJumpAllBtn.classList.toggle('is-active', selectedMonth === 'all');
+    }
+
+    if (els.periodJumpMonths) {
+        els.periodJumpMonths.innerHTML = MONTHS.map((label, idx) => {
+            const value = String(idx + 1).padStart(2, '0');
+            const active = selectedMonth === value ? ' is-active' : '';
+            return `<button type="button" class="crm-toolbar__period-month${active}" data-month="${value}">${label}</button>`;
+        }).join('');
+    }
+}
+
+function togglePeriodJumpMenu(forceOpen) {
+    if (!els.periodJumpMenu) return;
+    const shouldOpen = typeof forceOpen === 'boolean' ? forceOpen : els.periodJumpMenu.hidden;
+    els.periodJumpMenu.hidden = !shouldOpen;
+    renderPeriodJumpMenu();
+}
+
+function closePeriodJumpMenu() {
+    if (!els.periodJumpMenu || els.periodJumpMenu.hidden) return;
+    els.periodJumpMenu.hidden = true;
+    renderPeriodJumpMenu();
 }
 
 /* ============================================================
@@ -1091,6 +1223,9 @@ function updatePeriodLabel() {
    ============================================================ */
 function renderActualRevenue() {
     if (!els.actualRevenueCard) return;
+    if (els.actualRevenueLabelMeta) {
+        els.actualRevenueLabelMeta.textContent = `(Paid ${selectedYear})`;
+    }
 
     const paidInvoices = rawInvoices.filter(inv => String(inv.status || '').toLowerCase() === 'paid');
     const byCurrency = {};
@@ -1106,21 +1241,40 @@ function renderActualRevenue() {
     const entries = Object.entries(byCurrency).sort((a, b) => a[0].localeCompare(b[0]));
     if (entries.length === 0) {
         els.actualRevenueCard.textContent = formatMoney(0, 'USD');
-        if (els.actualRevenueSub) els.actualRevenueSub.textContent = `${paidInvoices.length} paid invoices in ${selectedYear}`;
     } else if (entries.length === 1) {
         els.actualRevenueCard.textContent = formatMoney(entries[0][1], entries[0][0]);
-        if (els.actualRevenueSub) els.actualRevenueSub.textContent = `${paidInvoices.length} paid invoices in ${selectedYear}`;
     } else {
         els.actualRevenueCard.innerHTML = `<div class="kpi-card__stack">${entries
             .map(([c, a]) => `<div class="kpi-card__stack-item">${formatMoney(a, c)}</div>`)
             .join('')}</div>`;
-        if (els.actualRevenueSub) els.actualRevenueSub.textContent = `${paidInvoices.length} paid invoices in ${selectedYear}`;
     }
+}
+
+function getSelectedPeriodContextLabel() {
+    if (selectedMonth === 'all') return `All Months ${selectedYear}`;
+    const mIdx = Number(selectedMonth) - 1;
+    return `${MONTHS[mIdx]} ${selectedYear}`;
+}
+
+function getSelectedPeriodShortLabel() {
+    if (selectedMonth === 'all') return `${selectedYear}`;
+    const mIdx = Number(selectedMonth) - 1;
+    return `${MONTHS[mIdx]} ${selectedYear}`;
 }
 
 /* ============================================================
    2. Revenue Trend (Projected vs Collected by Month)
    ============================================================ */
+function getInvoiceMonth(inv) {
+    const ts = String(inv.paid_date || inv.invoice_meta?.dateRaw || '').trim();
+    if (/^\d{4}-\d{2}-\d{2}/.test(ts)) return ts.slice(0, 7);
+    if (inv.created_at) {
+        const d = new Date(inv.created_at);
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    }
+    return '';
+}
+
 function renderRevenueTrend(filteredRows) {
     if (!els.revenueTrendBars) return;
 
@@ -1132,33 +1286,97 @@ function renderRevenueTrend(filteredRows) {
         projectedByMonth[row.month_key] = (projectedByMonth[row.month_key] || 0) + row.projected;
     });
 
-    // Collected from paid invoices
+    // Collected from paid invoices (respecting currency filter)
     const collectedByMonth = {};
-    rawInvoices.filter(inv => String(inv.status || '').toLowerCase() === 'paid').forEach(inv => {
-        const dateStr = String(inv.paid_date || inv.invoice_meta?.dateRaw || inv.created_at || '');
-        const monthKey = dateStr.slice(0, 7); // YYYY-MM
+    rawInvoices.filter(inv => {
+        if (String(inv.status || '').toLowerCase() !== 'paid') return false;
+        const invCurr = String(inv.invoice_meta?.currency || 'USD').toUpperCase();
+        if (selectedCurrency !== 'all' && invCurr !== selectedCurrency) return false;
+        return true;
+    }).forEach(inv => {
+        const monthKey = getInvoiceMonth(inv);
         if (monthKey.startsWith(String(selectedYear))) {
             collectedByMonth[monthKey] = (collectedByMonth[monthKey] || 0) + (inv.totals?.total || 0);
         }
     });
 
     const allValues = [...Object.values(projectedByMonth), ...Object.values(collectedByMonth)];
-    const maxVal = Math.max(...allValues, 1);
+    const maxVal = Math.max(...allValues, 1) * 1.05; // 5% headroom
 
-    els.revenueTrendBars.innerHTML = monthKeys.map((mk, idx) => {
-        const proj = projectedByMonth[mk] || 0;
-        const coll = collectedByMonth[mk] || 0;
-        const projPct = Math.round((proj / maxVal) * 100);
-        const collPct = Math.round((coll / maxVal) * 100);
+    const xStep = 100 / 11;
+    let projPoints = '';
+    let collPoints = '';
 
-        return `<div class="trend-month">
-            <div class="trend-month__bars">
-                <div class="trend-month__bar trend-month__bar--projected" style="height:${projPct}%" title="Projected: ${formatMoney(proj, 'USD')}"></div>
-                <div class="trend-month__bar trend-month__bar--collected" style="height:${collPct}%" title="Collected: ${formatMoney(coll, 'USD')}"></div>
+    monthKeys.forEach((mk, idx) => {
+        const x = idx * xStep;
+        const projY = 100 - (((projectedByMonth[mk] || 0) / maxVal) * 100);
+        const collY = 100 - (((collectedByMonth[mk] || 0) / maxVal) * 100);
+        
+        projPoints += `${x.toFixed(2)},${projY.toFixed(2)} `;
+        collPoints += `${x.toFixed(2)},${collY.toFixed(2)} `;
+    });
+
+    const projArea = `${projPoints} 100,100 0,100`;
+    const collArea = `${collPoints} 100,100 0,100`;
+
+    const currencyStr = selectedCurrency === 'all' ? 'MIXED' : selectedCurrency;
+
+    els.revenueTrendBars.className = 'analytics-trend-chart';
+    els.revenueTrendBars.innerHTML = `
+        <div style="position:relative; width:100%; height:90px;">
+            <svg width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none" style="overflow:visible;">
+                <defs>
+                    <linearGradient id="gradProj" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stop-color="var(--accent)" stop-opacity="0.15" />
+                        <stop offset="100%" stop-color="var(--accent)" stop-opacity="0.0" />
+                    </linearGradient>
+                    <linearGradient id="gradColl" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stop-color="var(--accent)" stop-opacity="0.5" />
+                        <stop offset="100%" stop-color="var(--accent)" stop-opacity="0.05" />
+                    </linearGradient>
+                </defs>
+                
+                <!-- Projected Line & Area -->
+                <polygon points="${projArea}" fill="url(#gradProj)"/>
+                <polyline points="${projPoints}" fill="none" stroke="var(--accent)" stroke-width="1.5" stroke-dasharray="2,2" opacity="0.4"/>
+                
+                <!-- Collected Line & Area -->
+                <polygon points="${collArea}" fill="url(#gradColl)"/>
+                <polyline points="${collPoints}" fill="none" stroke="var(--accent)" stroke-width="2"/>
+                
+                <!-- Data Points (Circles) -->
+                ${monthKeys.map((mk, idx) => {
+                    const x = (idx * xStep).toFixed(2);
+                    const collY = (100 - (((collectedByMonth[mk] || 0) / maxVal) * 100)).toFixed(2);
+                    const projY = (100 - (((projectedByMonth[mk] || 0) / maxVal) * 100)).toFixed(2);
+                    return `
+                        <circle cx="${x}" cy="${projY}" r="1" fill="white" stroke="var(--accent)" opacity="0.4" stroke-width="0.5"/>
+                        <circle cx="${x}" cy="${collY}" r="1.5" fill="white" stroke="var(--accent)" stroke-width="0.8"/>
+                    `;
+                }).join('')}
+            </svg>
+
+            <!-- Invisible overlay bars for tooltips/hover -->
+            <div style="position:absolute; inset:0; display:flex;">
+                ${monthKeys.map((mk, idx) => {
+                    const p = projectedByMonth[mk] || 0;
+                    const c = collectedByMonth[mk] || 0;
+                    const tip = `${MONTHS[idx]} ${selectedYear}\n────────\nCollected: ${formatMoney(c, currencyStr)}\nProjected: ${formatMoney(p, currencyStr)}`;
+                    return `<div 
+                        style="flex:1; height:100%; cursor:crosshair; transition:background 0.2s;"
+                        onmouseover="this.style.background='rgba(0,0,0,0.03)'"
+                        onmouseout="this.style.background='none'"
+                        title="${escapeHtml(tip)}">
+                    </div>`;
+                }).join('')}
             </div>
-            <div class="trend-month__label">${MONTHS[idx]}</div>
-        </div>`;
-    }).join('');
+        </div>
+        
+        <!-- X Axis Labels -->
+        <div style="display:flex; justify-content:space-between; margin-top:0.4rem; font-size:0.58rem; font-weight:600; color:var(--text-tertiary);">
+            ${MONTHS.map(m => `<span style="width:20px; text-align:center;">${m}</span>`).join('')}
+        </div>
+    `;
 }
 
 /* ============================================================
@@ -1167,38 +1385,98 @@ function renderRevenueTrend(filteredRows) {
 function renderInvoiceStatusDist() {
     if (!els.invoiceStatusDist) return;
 
-    const counts = { draft: 0, sent: 0, paid: 0, overdue: 0 };
-    const amounts = { draft: 0, sent: 0, paid: 0, overdue: 0 };
+    const statusOrder = ['paid', 'sent', 'overdue', 'draft'];
+    const rows = Object.fromEntries(statusOrder.map((status) => [status, {
+        count: 0,
+        totalAmount: 0,
+        byCurrency: {}
+    }]));
     const today = new Date();
 
     rawInvoices.forEach(inv => {
         let status = String(inv.status || 'draft').toLowerCase();
-        // Check for overdue
         if (status === 'sent' && inv.invoice_meta?.dueDateRaw) {
             const due = new Date(inv.invoice_meta.dueDateRaw);
             if (due < today) status = 'overdue';
         }
-        if (!counts.hasOwnProperty(status)) status = 'draft';
-        counts[status]++;
-        amounts[status] += (inv.totals?.total || 0);
+        if (!rows[status]) status = 'draft';
+
+        const currency = normalizeCurrency(inv.invoice_meta?.currency || 'USD');
+        const amount = Number(inv.totals?.total || 0);
+
+        rows[status].count += 1;
+        rows[status].totalAmount += amount;
+        rows[status].byCurrency[currency] = (rows[status].byCurrency[currency] || 0) + amount;
     });
 
-    const total = Math.max(Object.values(counts).reduce((s, c) => s + c, 0), 1);
+    const usedCurrencies = Array.from(new Set(
+        statusOrder.flatMap((status) => Object.keys(rows[status].byCurrency))
+    )).sort((a, b) => a.localeCompare(b));
 
-    const statusOrder = ['paid', 'sent', 'overdue', 'draft'];
-    els.invoiceStatusDist.innerHTML = statusOrder.map(status => {
-        const count = counts[status];
-        const pct = Math.round((count / total) * 100);
-        const amt = formatMoney(amounts[status], 'USD');
+    if (statusOrder.every((status) => rows[status].count === 0)) {
+        if (els.invoiceStatusLegend) els.invoiceStatusLegend.innerHTML = '';
+        els.invoiceStatusDist.innerHTML = `
+            <div class="analytics-status-dist__empty">
+                No invoices yet for the current dataset.
+            </div>
+        `;
+        return;
+    }
+
+    if (els.invoiceStatusLegend) {
+        els.invoiceStatusLegend.innerHTML = usedCurrencies.map((currency) => `
+            <span class="analytics-status-dist__header-item">
+                <span class="analytics-status-dist__header-dot" style="background:${getCurrencyColor(currency)}"></span>
+                ${escapeHtml(currency)}
+            </span>
+        `).join('');
+    }
+
+    const maxAmount = Math.max(...statusOrder.map((status) => rows[status].totalAmount), 0);
+    const maxCount = Math.max(...statusOrder.map((status) => rows[status].count), 1);
+    const usesAmountScale = maxAmount > 0;
+
+    const rowsHtml = statusOrder.map(status => {
+        const row = rows[status];
+        const pct = usesAmountScale
+            ? Math.round((row.totalAmount / Math.max(maxAmount, 1)) * 100)
+            : Math.round((row.count / maxCount) * 100);
+        const summaryTitle = buildStatusDistributionTitle(status, row);
+        const currencyEntries = Object.entries(row.byCurrency)
+            .sort((a, b) => a[0].localeCompare(b[0]));
+        const primaryCurrency = usedCurrencies[0] || 'USD';
+        const segments = row.totalAmount > 0
+            ? currencyEntries.map(([currency, amount]) => `
+                <span
+                    class="status-dist-row__segment"
+                    style="width:${(amount / row.totalAmount) * 100}%;background:${getCurrencyColor(currency)}"
+                    title="${escapeHtml(currency)}: ${formatMoney(amount, currency)}"
+                ></span>
+            `).join('')
+            : `<span class="status-dist-row__segment" style="width:100%;background:${getCurrencyColor(primaryCurrency)}"></span>`;
+        const amountSummary = usedCurrencies.length > 0
+            ? usedCurrencies.map((currency) => {
+                const amount = row.byCurrency[currency] || 0;
+                return `
+                    <span class="status-dist-row__summary-item${amount <= 0 ? ' status-dist-row__summary-item--empty' : ''}" title="${formatMoney(amount, currency)}">
+                        <strong class="status-dist-row__summary-value">${amount > 0 ? formatCompactNumber(amount) : '0'}</strong>
+                    </span>
+                `;
+            }).join('')
+            : `<span class="status-dist-row__summary-item status-dist-row__summary-item--empty"><strong class="status-dist-row__summary-value">0</strong></span>`;
 
         return `<div class="status-dist-row">
             <span class="status-dist-row__label">${status}</span>
-            <div class="status-dist-row__bar-wrap">
-                <div class="status-dist-row__bar status-dist-row__bar--${status}" style="width:${pct}%"></div>
+            <div class="status-dist-row__bar-wrap" title="${escapeHtml(summaryTitle)}">
+                <div class="status-dist-row__bar-fill" style="width:${pct}%">
+                    ${segments}
+                </div>
             </div>
-            <span class="status-dist-row__count">${count} (${amt})</span>
+            <div class="status-dist-row__summary">${amountSummary}</div>
         </div>`;
     }).join('');
+
+    els.invoiceStatusDist.innerHTML = rowsHtml;
 }
 
 /* ============================================================
@@ -1507,6 +1785,7 @@ async function applySavedView(view) {
     persistShared();
     setPagePrefs('analytics', { savedViewId: currentSavedViewId, pivotMetric });
     updateAllMonthsToggleLabel();
+    updatePeriodLabel();
     await refreshData();
 }
 
@@ -1543,14 +1822,78 @@ function normalizeStatusFilter(value) {
 }
 
 function formatMoney(amount, currency) {
+    const value = Number(amount) || 0;
+    const code = String(currency || 'USD').toUpperCase();
+    try {
+        let formatted = new Intl.NumberFormat('en-US', {
+            style: 'currency',
+            currency: code
+        }).format(value);
+        if (code === 'USD' && formatted.startsWith('$')) {
+            formatted = `US${formatted}`;
+        }
+        return formatted;
+    } catch (err) {
+        return `${code} ${value.toFixed(2)}`;
+    }
+}
+
+function formatCompactMoney(amount, currency) {
+    const value = Number(amount) || 0;
+    const code = String(currency || 'USD').toUpperCase();
+    try {
+        let formatted = new Intl.NumberFormat('en-US', {
+            style: 'currency',
+            currency: code,
+            notation: 'compact',
+            maximumFractionDigits: value >= 100000 ? 1 : 2
+        }).format(value);
+        if (code === 'USD' && formatted.startsWith('$')) {
+            formatted = `US${formatted}`;
+        }
+        return formatted;
+    } catch (err) {
+        return formatMoney(value, code);
+    }
+}
+
+function formatCompactNumber(amount) {
+    const value = Number(amount) || 0;
     try {
         return new Intl.NumberFormat('en-US', {
-            style: 'currency',
-            currency: currency || 'USD'
-        }).format(Number(amount) || 0);
+            notation: 'compact',
+            maximumFractionDigits: value >= 100000 ? 1 : 2
+        }).format(value);
     } catch (err) {
-        return `${currency || 'USD'} ${(Number(amount) || 0).toFixed(2)}`;
+        return value.toFixed(2);
     }
+}
+
+function getDensityOpacity(value, maxValue, min = 0.12, spread = 0.76) {
+    const amount = Number(value) || 0;
+    if (amount <= 0) return 0;
+    const normalized = Math.max(0, Math.min(1, amount / Math.max(maxValue, 1)));
+    return Math.max(min, Math.min(1, min + (normalized * spread)));
+}
+
+function getCurrencyColor(currency) {
+    const key = String(currency || 'USD').toUpperCase();
+    if (CURRENCY_COLORS[key]) return CURRENCY_COLORS[key];
+    const palette = ['#2563eb', '#14b8a6', '#8b5cf6', '#ea580c', '#dc2626', '#64748b'];
+    const hash = key.split('').reduce((sum, char) => sum + char.charCodeAt(0), 0);
+    return palette[hash % palette.length];
+}
+
+function buildStatusDistributionTitle(status, row) {
+    const invoiceLabel = `${row.count} invoice${row.count === 1 ? '' : 's'}`;
+    const currencySummary = Object.entries(row.byCurrency)
+        .sort((a, b) => a[0].localeCompare(b[0]))
+        .map(([currency, amount]) => `${currency}: ${formatMoney(amount, currency)}`)
+        .join(' • ');
+    const metricLabel = row.totalAmount > 0
+        ? currencySummary
+        : 'No billed amount yet';
+    return `${status.charAt(0).toUpperCase() + status.slice(1)} • ${invoiceLabel} • ${metricLabel}`;
 }
 
 function renderStatusBadge(status) {

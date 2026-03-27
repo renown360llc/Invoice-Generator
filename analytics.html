@@ -53,6 +53,15 @@
             font-weight: 700;
         }
 
+        .kpi-card__label-meta {
+            margin-left: 0.3rem;
+            font-size: 0.68rem;
+            letter-spacing: 0.02em;
+            text-transform: none;
+            color: var(--text-secondary);
+            font-weight: 600;
+        }
+
         .kpi-card__value {
             margin-top: 0.5rem;
             font-size: 1.25rem;
@@ -297,14 +306,26 @@
                     </select>
                 </div>
                 <div class="crm-toolbar__divider"></div>
-                <div class="crm-toolbar__period">
-                    <button type="button" id="periodPrevBtn" class="crm-toolbar__period-btn" aria-label="Previous month">
-                        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path d="m15 19-7-7 7-7"/></svg>
-                    </button>
-                    <span id="periodLabel" class="crm-toolbar__period-label">—</span>
-                    <button type="button" id="periodNextBtn" class="crm-toolbar__period-btn" aria-label="Next month">
-                        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path d="m9 5 7 7-7 7"/></svg>
-                    </button>
+                <div class="crm-toolbar__period-wrap">
+                    <div class="crm-toolbar__period">
+                        <button type="button" id="periodPrevBtn" class="crm-toolbar__period-btn" aria-label="Previous month">
+                            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path d="m15 19-7-7 7-7"/></svg>
+                        </button>
+                        <button type="button" id="periodLabel" class="crm-toolbar__period-label crm-toolbar__period-label--button" aria-label="Open month and year picker" aria-expanded="false">
+                            <span id="periodLabelText">—</span>
+                            <svg class="crm-toolbar__period-caret" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2"><path d="m6 9 6 6 6-6"/></svg>
+                        </button>
+                        <button type="button" id="periodNextBtn" class="crm-toolbar__period-btn" aria-label="Next month">
+                            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path d="m9 5 7 7-7 7"/></svg>
+                        </button>
+                    </div>
+                    <div id="periodJumpMenu" class="crm-toolbar__period-menu" hidden>
+                        <div class="crm-toolbar__period-menu-head">
+                            <select id="periodJumpYear" class="crm-toolbar__period-menu-select" aria-label="Jump to year"></select>
+                            <button type="button" id="periodJumpAllBtn" class="crm-toolbar__period-menu-all">All Months</button>
+                        </div>
+                        <div id="periodJumpMonths" class="crm-toolbar__period-menu-grid"></div>
+                    </div>
                 </div>
                 <div class="crm-toolbar__divider"></div>
                 <div class="crm-toolbar__views">
@@ -325,59 +346,56 @@
                     <span id="savedViewMeta" class="crm-toolbar__views-expand__meta">No saved views</span>
                 </div>
             </div>
-            <div class="crm-stats-strip">
-                <span class="crm-stats-strip__stat"><strong id="analyticsPeriodTitle">Loading...</strong></span>
-                <span class="crm-stats-strip__dot">·</span>
-                <span class="crm-stats-strip__stat"><strong id="analyticsConsultantsStat">0</strong> consultants</span>
-                <span class="crm-stats-strip__dot">·</span>
-                <span class="crm-stats-strip__stat"><strong id="analyticsHoursStat">0.00</strong> hours</span>
-                <span class="crm-stats-strip__dot">·</span>
-                <span class="crm-stats-strip__stat"><strong id="analyticsCurrenciesStat">0</strong> currencies</span>
-                <span id="analyticsMeta" style="display:none;"></span>
-            </div>
-
             <!-- Hidden selects for year/month (used by JS) -->
             <select id="yearFilter" style="display:none;" aria-label="Filter year"></select>
             <select id="snapshotMonthFilter" style="display:none;" aria-label="Snapshot month"></select>
             <button id="allMonthsToggleBtn" style="display:none;" type="button">All Months: OFF</button>
 
             <!-- ═══ Tab Bar ═══ -->
-            <nav class="analytics-tabs" role="tablist">
-                <button class="analytics-tabs__btn is-active" data-tab="overview" role="tab" aria-selected="true">Overview</button>
-                <button class="analytics-tabs__btn" data-tab="detail" role="tab" aria-selected="false">
-                    Detail <span id="detailTabBadge" class="analytics-tabs__badge">0</span>
-                </button>
-                <button class="analytics-tabs__btn" data-tab="pivot" role="tab" aria-selected="false">Pivot</button>
-            </nav>
+            <div class="analytics-tabs-row">
+                <nav class="analytics-tabs" role="tablist">
+                    <button class="analytics-tabs__btn is-active" data-tab="overview" role="tab" aria-selected="true">Overview</button>
+                    <button class="analytics-tabs__btn" data-tab="detail" role="tab" aria-selected="false">
+                        Detail <span id="detailTabBadge" class="analytics-tabs__badge">0</span>
+                    </button>
+                    <button class="analytics-tabs__btn" data-tab="pivot" role="tab" aria-selected="false">Pivot</button>
+                </nav>
+                <div class="crm-stats-strip crm-stats-strip--inline">
+                    <span class="crm-stats-strip__stat"><strong id="analyticsPeriodTitle">Loading...</strong></span>
+                    <span class="crm-stats-strip__dot">·</span>
+                    <span class="crm-stats-strip__stat"><strong id="analyticsConsultantsStat">0</strong> consultants</span>
+                    <span class="crm-stats-strip__dot">·</span>
+                    <span class="crm-stats-strip__stat"><strong id="analyticsHoursStat">0.00</strong> hours</span>
+                    <span class="crm-stats-strip__dot">·</span>
+                    <span class="crm-stats-strip__stat"><strong id="analyticsCurrenciesStat">0</strong> currencies</span>
+                    <span id="analyticsMeta" style="display:none;"></span>
+                </div>
+            </div>
 
             <!-- ═══ PANEL: Overview ═══ -->
             <div class="analytics-panel is-visible" id="panel-overview" role="tabpanel">
                 <section class="kpi-grid" style="grid-template-columns: repeat(5, minmax(0, 1fr));">
                     <article class="kpi-card kpi-card--interactive" data-filter="all" id="kpiTotalHours">
-                        <div class="kpi-card__label">Total Hours</div>
+                        <div class="kpi-card__label">Hours <span id="totalHoursLabelMeta" class="kpi-card__label-meta">(Period)</span></div>
                         <div class="kpi-card__value" id="totalHoursCard">0.00</div>
-                        <div class="kpi-card__sub">For selected year and filters</div>
                         <div class="kpi-card__filter-hint">Click to reset filters</div>
                     </article>
                     <article class="kpi-card kpi-card--interactive" data-filter="revenue" id="kpiRevenue">
-                        <div class="kpi-card__label">Projected Revenue</div>
+                        <div class="kpi-card__label">Projected <span id="projectedRevenueLabelMeta" class="kpi-card__label-meta">(Period)</span></div>
                         <div class="kpi-card__value" id="projectedRevenueCard">$0.00</div>
-                        <div class="kpi-card__sub">Grouped by currency for the selected period</div>
                         <div class="kpi-card__filter-hint">Click to view detail</div>
                     </article>
                     <article class="kpi-card" id="kpiActualRevenue">
-                        <div class="kpi-card__label">Collected Revenue</div>
+                        <div class="kpi-card__label">Collected <span id="actualRevenueLabelMeta" class="kpi-card__label-meta">(YTD)</span></div>
                         <div class="kpi-card__value" id="actualRevenueCard">$0.00</div>
-                        <div class="kpi-card__sub" id="actualRevenueSub">From paid invoices</div>
                     </article>
                     <article class="kpi-card kpi-card--interactive" data-filter="consultants" id="kpiConsultants">
-                        <div class="kpi-card__label">Consultants with Hours</div>
+                        <div class="kpi-card__label">Consultants <span id="consultantsLabelMeta" class="kpi-card__label-meta">(With Hours)</span></div>
                         <div class="kpi-card__value" id="activeConsultantsCard">0</div>
-                        <div class="kpi-card__sub">Distinct consultants in current dataset</div>
                         <div class="kpi-card__filter-hint">Click to view detail</div>
                     </article>
                     <article class="kpi-card kpi-card--interactive" data-filter="pending" id="kpiBilling">
-                        <div class="kpi-card__label">Billing Coverage</div>
+                        <div class="kpi-card__label">Coverage <span id="billingCoverageLabelMeta" class="kpi-card__label-meta">(Invoiced)</span></div>
                         <div class="kpi-card__value" id="billingCoverageCard">0%</div>
                         <div class="kpi-card__sub" id="billingCoverageSub">0.00 invoiced hrs of 0.00 total</div>
                         <div class="kpi-card__filter-hint">Click to show pending only</div>
@@ -399,7 +417,10 @@
                         </div>
                     </div>
                     <div class="analytics-chart-card" id="invoiceStatusCard">
-                        <div class="kpi-card__label">Invoice Status Distribution</div>
+                        <div class="analytics-chart-card__header">
+                            <div class="kpi-card__label">Invoice Status Distribution</div>
+                            <div class="analytics-chart-card__legend" id="invoiceStatusLegend"></div>
+                        </div>
                         <div class="analytics-status-dist" id="invoiceStatusDist">
                             <!-- Rendered by JS -->
                         </div>

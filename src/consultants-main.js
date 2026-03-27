@@ -465,6 +465,7 @@ function handleModalBackdropClick(event) {
 
 function handleGlobalKeydown(event) {
     if (event.key === 'Escape' && isModalOpen()) closeModal();
+    if (event.key === 'Escape') closePeriodJumpMenu();
 }
 
 function validateConsultantForm() {
@@ -721,6 +722,12 @@ function cacheElements() {
     els.yearFilter = document.getElementById('yearFilter');
     els.monthFilter = document.getElementById('monthFilter');
     els.allMonthsToggleBtn = document.getElementById('allMonthsToggleBtn');
+    els.periodLabel = document.getElementById('periodLabel');
+    els.periodLabelText = document.getElementById('periodLabelText');
+    els.periodJumpMenu = document.getElementById('periodJumpMenu');
+    els.periodJumpYear = document.getElementById('periodJumpYear');
+    els.periodJumpMonths = document.getElementById('periodJumpMonths');
+    els.periodJumpAllBtn = document.getElementById('periodJumpAllBtn');
     els.resetFiltersBtn = document.getElementById('resetFiltersBtn');
     els.filterSummary = document.getElementById('consultantsFilterSummary');
     els.savedViewSelect = document.getElementById('savedViewSelect');
@@ -758,6 +765,7 @@ function setupPeriodControls() {
 
     updateAllMonthsToggleLabel();
     updatePeriodLabel();
+    renderPeriodJumpMenu();
     renderSavedViews();
 }
 
@@ -825,6 +833,7 @@ function bindPageEvents() {
     els.yearFilter?.addEventListener('change', async (event) => {
         selectedYear = Number(event.target.value);
         persistSharedFilters();
+        updatePeriodLabel();
         await fetchData();
     });
 
@@ -832,6 +841,7 @@ function bindPageEvents() {
         selectedMonth = els.monthFilter.value;
         persistSharedFilters();
         updateAllMonthsToggleLabel();
+        updatePeriodLabel();
         requestRender();
     });
 
@@ -840,6 +850,43 @@ function bindPageEvents() {
         if (els.monthFilter) els.monthFilter.value = selectedMonth;
         persistSharedFilters();
         updateAllMonthsToggleLabel();
+        updatePeriodLabel();
+        requestRender();
+    });
+
+    els.periodLabel?.addEventListener('click', (event) => {
+        event.stopPropagation();
+        togglePeriodJumpMenu();
+    });
+
+    els.periodJumpYear?.addEventListener('change', async (event) => {
+        selectedYear = Number(event.target.value) || defaultYear;
+        if (els.yearFilter) els.yearFilter.value = String(selectedYear);
+        persistSharedFilters();
+        updateAllMonthsToggleLabel();
+        updatePeriodLabel();
+        await fetchData();
+    });
+
+    els.periodJumpMonths?.addEventListener('click', (event) => {
+        const button = event.target.closest('button[data-month]');
+        if (!(button instanceof HTMLElement)) return;
+        selectedMonth = String(button.dataset.month || defaultMonth);
+        if (els.monthFilter) els.monthFilter.value = selectedMonth;
+        persistSharedFilters();
+        updateAllMonthsToggleLabel();
+        updatePeriodLabel();
+        closePeriodJumpMenu();
+        requestRender();
+    });
+
+    els.periodJumpAllBtn?.addEventListener('click', () => {
+        selectedMonth = 'all';
+        if (els.monthFilter) els.monthFilter.value = selectedMonth;
+        persistSharedFilters();
+        updateAllMonthsToggleLabel();
+        updatePeriodLabel();
+        closePeriodJumpMenu();
         requestRender();
     });
 
@@ -896,6 +943,14 @@ function bindPageEvents() {
         });
 
         await fetchData();
+    });
+
+    document.addEventListener('click', (event) => {
+        const target = event.target;
+        if (!(target instanceof HTMLElement)) return;
+        if (els.periodJumpMenu && !els.periodJumpMenu.hidden && !target.closest('.crm-toolbar__period-wrap')) {
+            closePeriodJumpMenu();
+        }
     });
 
     els.savedViewSelect?.addEventListener('change', async (event) => {
@@ -1140,7 +1195,7 @@ function updateAllMonthsToggleLabel() {
 }
 
 function updatePeriodLabel() {
-    const el = document.getElementById('periodLabel');
+    const el = els.periodLabelText || els.periodLabel;
     if (!el) return;
     if (selectedMonth === 'all') {
         el.textContent = `${selectedYear}`;
@@ -1148,6 +1203,45 @@ function updatePeriodLabel() {
         const mIdx = Number(selectedMonth) - 1;
         el.textContent = `${MONTHS[mIdx]} ${selectedYear}`;
     }
+    renderPeriodJumpMenu();
+}
+
+function renderPeriodJumpMenu() {
+    if (els.periodLabel) {
+        els.periodLabel.setAttribute('aria-expanded', String(Boolean(els.periodJumpMenu && !els.periodJumpMenu.hidden)));
+    }
+
+    if (els.periodJumpYear) {
+        const years = [];
+        for (let y = defaultYear + 1; y >= defaultYear - 4; y -= 1) years.push(y);
+        els.periodJumpYear.innerHTML = years.map((year) => `<option value="${year}">${year}</option>`).join('');
+        els.periodJumpYear.value = String(selectedYear);
+    }
+
+    if (els.periodJumpAllBtn) {
+        els.periodJumpAllBtn.classList.toggle('is-active', selectedMonth === 'all');
+    }
+
+    if (els.periodJumpMonths) {
+        els.periodJumpMonths.innerHTML = MONTHS.map((label, idx) => {
+            const value = String(idx + 1).padStart(2, '0');
+            const active = selectedMonth === value ? ' is-active' : '';
+            return `<button type="button" class="crm-toolbar__period-month${active}" data-month="${value}">${label}</button>`;
+        }).join('');
+    }
+}
+
+function togglePeriodJumpMenu(forceOpen) {
+    if (!els.periodJumpMenu) return;
+    const shouldOpen = typeof forceOpen === 'boolean' ? forceOpen : els.periodJumpMenu.hidden;
+    els.periodJumpMenu.hidden = !shouldOpen;
+    renderPeriodJumpMenu();
+}
+
+function closePeriodJumpMenu() {
+    if (!els.periodJumpMenu || els.periodJumpMenu.hidden) return;
+    els.periodJumpMenu.hidden = true;
+    renderPeriodJumpMenu();
 }
 
 async function init() {

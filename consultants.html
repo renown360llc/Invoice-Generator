@@ -473,14 +473,26 @@
                     </select>
                 </div>
                 <div class="crm-toolbar__divider"></div>
-                <div class="crm-toolbar__period">
-                    <button type="button" id="periodPrevBtn" class="crm-toolbar__period-btn" aria-label="Previous month">
-                        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path d="m15 19-7-7 7-7"/></svg>
-                    </button>
-                    <span id="periodLabel" class="crm-toolbar__period-label">—</span>
-                    <button type="button" id="periodNextBtn" class="crm-toolbar__period-btn" aria-label="Next month">
-                        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path d="m9 5 7 7-7 7"/></svg>
-                    </button>
+                <div class="crm-toolbar__period-wrap">
+                    <div class="crm-toolbar__period">
+                        <button type="button" id="periodPrevBtn" class="crm-toolbar__period-btn" aria-label="Previous month">
+                            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path d="m15 19-7-7 7-7"/></svg>
+                        </button>
+                        <button type="button" id="periodLabel" class="crm-toolbar__period-label crm-toolbar__period-label--button" aria-label="Open month and year picker" aria-expanded="false">
+                            <span id="periodLabelText">—</span>
+                            <svg class="crm-toolbar__period-caret" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2"><path d="m6 9 6 6 6-6"/></svg>
+                        </button>
+                        <button type="button" id="periodNextBtn" class="crm-toolbar__period-btn" aria-label="Next month">
+                            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path d="m9 5 7 7-7 7"/></svg>
+                        </button>
+                    </div>
+                    <div id="periodJumpMenu" class="crm-toolbar__period-menu" hidden>
+                        <div class="crm-toolbar__period-menu-head">
+                            <select id="periodJumpYear" class="crm-toolbar__period-menu-select" aria-label="Jump to year"></select>
+                            <button type="button" id="periodJumpAllBtn" class="crm-toolbar__period-menu-all">All Months</button>
+                        </div>
+                        <div id="periodJumpMonths" class="crm-toolbar__period-menu-grid"></div>
+                    </div>
                 </div>
                 <div class="crm-toolbar__divider"></div>
                 <div class="crm-toolbar__views">

@@ -166,6 +166,7 @@ export async function dbGetTimesheetsForYear(year) {
             consultants (
                 id,
                 name,
+                notes,
                 client,
                 w2_company,
                 bill_rate,
@@ -200,6 +201,7 @@ export async function dbGetTimesheetsForYear(year) {
                     consultants (
                         id,
                         name,
+                        notes,
                         client,
                         w2_company,
                         bill_rate,

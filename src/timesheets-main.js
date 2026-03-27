@@ -67,6 +67,12 @@ function cacheElements() {
     els.yearFilter = document.getElementById('yearFilter');
     els.monthFilter = document.getElementById('monthFilter');
     els.allMonthsToggleBtn = document.getElementById('allMonthsToggleBtn');
+    els.periodLabel = document.getElementById('periodLabel');
+    els.periodLabelText = document.getElementById('periodLabelText');
+    els.periodJumpMenu = document.getElementById('periodJumpMenu');
+    els.periodJumpYear = document.getElementById('periodJumpYear');
+    els.periodJumpMonths = document.getElementById('periodJumpMonths');
+    els.periodJumpAllBtn = document.getElementById('periodJumpAllBtn');
     els.currencyFilter = document.getElementById('currencyFilter');
     els.clientFilter = document.getElementById('clientFilter');
     els.w2Filter = document.getElementById('w2Filter');
@@ -123,12 +129,14 @@ function setupFilters() {
 
     updateAllMonthsToggleLabel();
     updatePeriodLabel();
+    renderPeriodJumpMenu();
 }
 
 function bindEvents() {
     els.yearFilter?.addEventListener('change', async (e) => {
         selectedYear = Number(e.target.value);
         persistShared();
+        updatePeriodLabel();
         await refreshData();
     });
 
@@ -136,6 +144,7 @@ function bindEvents() {
         selectedMonth = e.target.value;
         persistShared();
         updateAllMonthsToggleLabel();
+        updatePeriodLabel();
         requestRender();
     });
 
@@ -144,6 +153,43 @@ function bindEvents() {
         if (els.monthFilter) els.monthFilter.value = selectedMonth;
         persistShared();
         updateAllMonthsToggleLabel();
+        updatePeriodLabel();
+        requestRender();
+    });
+
+    els.periodLabel?.addEventListener('click', (event) => {
+        event.stopPropagation();
+        togglePeriodJumpMenu();
+    });
+
+    els.periodJumpYear?.addEventListener('change', async (event) => {
+        selectedYear = Number(event.target.value) || defaultYear;
+        if (els.yearFilter) els.yearFilter.value = String(selectedYear);
+        persistShared();
+        updateAllMonthsToggleLabel();
+        updatePeriodLabel();
+        await refreshData();
+    });
+
+    els.periodJumpMonths?.addEventListener('click', (event) => {
+        const button = event.target.closest('button[data-month]');
+        if (!(button instanceof HTMLElement)) return;
+        selectedMonth = String(button.dataset.month || defaultMonth);
+        if (els.monthFilter) els.monthFilter.value = selectedMonth;
+        persistShared();
+        updateAllMonthsToggleLabel();
+        updatePeriodLabel();
+        closePeriodJumpMenu();
+        requestRender();
+    });
+
+    els.periodJumpAllBtn?.addEventListener('click', () => {
+        selectedMonth = 'all';
+        if (els.monthFilter) els.monthFilter.value = selectedMonth;
+        persistShared();
+        updateAllMonthsToggleLabel();
+        updatePeriodLabel();
+        closePeriodJumpMenu();
         requestRender();
     });
 
@@ -224,6 +270,7 @@ function bindEvents() {
         if (els.searchInput) els.searchInput.value = searchTerm;
 
         updateAllMonthsToggleLabel();
+        updatePeriodLabel();
         populateFilterOptions();
         requestRender();
     });
@@ -285,6 +332,10 @@ function bindEvents() {
         const target = e.target;
         if (!(target instanceof HTMLElement)) return;
 
+        if (els.periodJumpMenu && !els.periodJumpMenu.hidden && !target.closest('.crm-toolbar__period-wrap')) {
+            closePeriodJumpMenu();
+        }
+
         const deleteBtn = target.closest('.ts-delete-row');
         if (deleteBtn) {
             const id = deleteBtn.getAttribute('data-id');
@@ -345,6 +396,10 @@ function bindEvents() {
             return;
         }
     });
+
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') closePeriodJumpMenu();
+    });
 }
 
 function bindModalEvents() {
@@ -402,6 +457,7 @@ function normalizeRows(rows) {
             id: row.id,
             consultant_id: row.consultant_id,
             consultant_name: consultant.name || 'Unknown',
+            notes: consultant.notes || '',
             client: consultant.client || '-',
             w2_company: consultant.w2_company || '-',
             bill_rate: Number(consultant.bill_rate) || 0,
@@ -511,7 +567,7 @@ function getFilteredRows() {
         .filter(c => selectedW2 === 'all' || normalizeTextFilter(c.w2_company) === selectedW2)
         .filter(c => {
             if (!searchTerm) return true;
-            const hay = `${c.name || ''} ${c.client || ''} ${c.w2_company || ''}`.toLowerCase();
+            const hay = `${c.name || ''} ${c.notes || ''} ${c.client || ''} ${c.w2_company || ''}`.toLowerCase();
             return hay.includes(searchTerm);
         });
 
@@ -549,6 +605,7 @@ function getFilteredRows() {
         return {
             consultant_id: consultant.id,
             consultant_name: consultant.name || 'Unknown',
+            notes: consultant.notes || primary?.notes || '',
             client: consultant.client || '-',
             w2_company: consultant.w2_company || '-',
             bill_rate: Number(consultant.bill_rate) || 0,
@@ -623,7 +680,10 @@ function renderTable() {
         return `
             <tr style="${rowStyle}">
                 <td>
-                    <div style="font-weight:600;">${escapeHtml(row.consultant_name)}</div>
+                    <div style="font-weight:600;display:flex;align-items:center;gap:0.35rem;flex-wrap:wrap;">
+                        <span>${escapeHtml(row.consultant_name)}</span>
+                        ${renderNoteTooltip(row.notes)}
+                    </div>
                     <div style="font-size:12px;color:var(--text-tertiary);">${row.currency} ${(row.bill_rate || 0).toFixed(2)}/hr</div>
                 </td>
                 <td>${escapeHtml(row.client)}</td>
@@ -828,7 +888,7 @@ function updateAllMonthsToggleLabel() {
 }
 
 function updatePeriodLabel() {
-    const el = document.getElementById('periodLabel');
+    const el = els.periodLabelText || els.periodLabel;
     if (!el) return;
     if (selectedMonth === 'all') {
         el.textContent = `${selectedYear}`;
@@ -836,6 +896,45 @@ function updatePeriodLabel() {
         const mIdx = Number(selectedMonth) - 1;
         el.textContent = `${MONTHS[mIdx]} ${selectedYear}`;
     }
+    renderPeriodJumpMenu();
+}
+
+function renderPeriodJumpMenu() {
+    if (els.periodLabel) {
+        els.periodLabel.setAttribute('aria-expanded', String(Boolean(els.periodJumpMenu && !els.periodJumpMenu.hidden)));
+    }
+
+    if (els.periodJumpYear) {
+        const years = [];
+        for (let y = defaultYear + 1; y >= defaultYear - 4; y -= 1) years.push(y);
+        els.periodJumpYear.innerHTML = years.map((year) => `<option value="${year}">${year}</option>`).join('');
+        els.periodJumpYear.value = String(selectedYear);
+    }
+
+    if (els.periodJumpAllBtn) {
+        els.periodJumpAllBtn.classList.toggle('is-active', selectedMonth === 'all');
+    }
+
+    if (els.periodJumpMonths) {
+        els.periodJumpMonths.innerHTML = MONTHS.map((label, idx) => {
+            const value = String(idx + 1).padStart(2, '0');
+            const active = selectedMonth === value ? ' is-active' : '';
+            return `<button type="button" class="crm-toolbar__period-month${active}" data-month="${value}">${label}</button>`;
+        }).join('');
+    }
+}
+
+function togglePeriodJumpMenu(forceOpen) {
+    if (!els.periodJumpMenu) return;
+    const shouldOpen = typeof forceOpen === 'boolean' ? forceOpen : els.periodJumpMenu.hidden;
+    els.periodJumpMenu.hidden = !shouldOpen;
+    renderPeriodJumpMenu();
+}
+
+function closePeriodJumpMenu() {
+    if (!els.periodJumpMenu || els.periodJumpMenu.hidden) return;
+    els.periodJumpMenu.hidden = true;
+    renderPeriodJumpMenu();
 }
 
 function collectLabelMap(values = []) {
@@ -921,6 +1020,7 @@ async function applySavedView(view) {
 
     persistShared();
     updateAllMonthsToggleLabel();
+    updatePeriodLabel();
     await refreshData();
 }
 
@@ -967,4 +1067,15 @@ function escapeHtml(value) {
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#039;');
+}
+
+function renderNoteTooltip(notes) {
+    const text = String(notes || '').trim();
+    if (!text) return '';
+    return `
+        <div class="note-tooltip-container" aria-label="Consultant note">
+            <span class="note-tooltip-trigger">📝</span>
+            <div class="note-tooltip">${escapeHtml(text)}</div>
+        </div>
+    `;
 }
