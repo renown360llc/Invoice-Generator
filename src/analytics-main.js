@@ -1234,6 +1234,11 @@ function renderActualRevenue() {
         const dist = getInvoiceDistribution(inv);
         
         for (const [monthKey, amount] of Object.entries(dist)) {
+            // DEBUG: Log paid invoices mapping to Feb 2026
+            if (monthKey === '2026-02') {
+                console.log(`[DEBUG] Found Paid Invoice mapping to Feb 2026: Inv# ${inv.invoice_number || 'NONE'} | Total: ${amount} | Timestamp fallback: ${inv.paid_date || inv.created_at}`);
+            }
+
             if (!monthKey.startsWith(String(selectedYear))) continue;
             if (selectedMonth !== 'all') {
                 const mk = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}`;
@@ -1288,8 +1293,51 @@ function getInvoiceDistribution(inv) {
     const num = String(inv.invoice_number).trim();
     const matchingRows = rawRows.filter(r => String(r.invoice_number || '').trim() === num && r.month_key);
     
+    // Fallback: If no timesheets match, attempt to extract service periods from invoice items
     if (matchingRows.length === 0) {
-        if (fallbackMonth) dist[fallbackMonth] = invTotal;
+        let itemsParseSuccess = false;
+        if (Array.isArray(inv.items) && inv.items.length > 0) {
+            let totalItemAmt = 0;
+            const itemDist = {};
+            
+            const invYear = fallbackMonth ? parseInt(fallbackMonth.slice(0, 4), 10) : new Date().getFullYear();
+            const invMonth = fallbackMonth ? parseInt(fallbackMonth.slice(5, 7), 10) : new Date().getMonth() + 1;
+            
+            const monthNames = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
+            
+            for (const item of inv.items) {
+                const amt = Number(item.amount) || (Number(item.qty) * Number(item.rate)) || 0;
+                let mk = fallbackMonth;
+                const p = String(item.period || '').toLowerCase();
+                
+                const isoMatch = p.match(/(\d{4})-(\d{2})-\d{2}/);
+                const wordMatch = p.match(/\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\b/);
+                
+                if (isoMatch) {
+                    mk = `${isoMatch[1]}-${isoMatch[2]}`;
+                } else if (wordMatch) {
+                    const mIdx = monthNames.indexOf(wordMatch[1]);
+                    let targetYear = invYear;
+                    // If invoice created early in year (Jan-Mar) but refers to late months (Oct-Dec), assume previous year
+                    if (invMonth <= 3 && mIdx >= 9) targetYear = invYear - 1;
+                    mk = `${targetYear}-${String(mIdx + 1).padStart(2, '0')}`;
+                }
+                
+                itemDist[mk] = (itemDist[mk] || 0) + amt;
+                totalItemAmt += amt;
+            }
+            
+            if (totalItemAmt > 0) {
+                for (const [mk, amt] of Object.entries(itemDist)) {
+                    dist[mk] = (dist[mk] || 0) + (invTotal * (amt / totalItemAmt));
+                }
+                itemsParseSuccess = true;
+            }
+        }
+        
+        if (!itemsParseSuccess && fallbackMonth) {
+            dist[fallbackMonth] = invTotal;
+        }
         return dist;
     }
 
