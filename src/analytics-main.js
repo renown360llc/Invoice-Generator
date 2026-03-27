@@ -1231,14 +1231,16 @@ function renderActualRevenue() {
     const byCurrency = {};
     paidInvoices.forEach(inv => {
         const curr = String(inv.invoice_meta?.currency || 'USD').toUpperCase();
-        const monthKey = getInvoiceMonth(inv);
-        if (!monthKey.startsWith(String(selectedYear))) return;
-        if (selectedMonth !== 'all') {
-            const mk = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}`;
-            if (monthKey !== mk) return;
+        const dist = getInvoiceDistribution(inv);
+        
+        for (const [monthKey, amount] of Object.entries(dist)) {
+            if (!monthKey.startsWith(String(selectedYear))) continue;
+            if (selectedMonth !== 'all') {
+                const mk = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}`;
+                if (monthKey !== mk) continue;
+            }
+            byCurrency[curr] = (byCurrency[curr] || 0) + amount;
         }
-
-        byCurrency[curr] = (byCurrency[curr] || 0) + (inv.totals?.total || 0);
     });
 
     const entries = Object.entries(byCurrency).sort((a, b) => a[0].localeCompare(b[0]));
@@ -1265,29 +1267,44 @@ function getSelectedPeriodShortLabel() {
     return `${MONTHS[mIdx]} ${selectedYear}`;
 }
 
-/* ============================================================
-   2. Revenue Trend (Projected vs Collected by Month)
-   ============================================================ */
-function getInvoiceMonth(inv) {
-    // 1. Service-period attribution: find the invoice in timesheets
-    if (inv && inv.invoice_number) {
-        const num = String(inv.invoice_number).trim();
-        const matches = rawRows.filter(r => String(r.invoice_number || '').trim() === num && r.month_key);
-        if (matches.length > 0) {
-            // If an invoice covers multiple months, attribute it to the latest month of service
-            const months = [...new Set(matches.map(r => r.month_key))].sort();
-            return months[months.length - 1];
-        }
+function getInvoiceDistribution(inv) {
+    const dist = {};
+    const ts = String(inv.paid_date || inv.invoice_meta?.dateRaw || inv.created_at || '').trim();
+    let fallbackMonth = '';
+    if (/^\d{4}-\d{2}-\d{2}/.test(ts)) {
+        fallbackMonth = ts.slice(0, 7);
+    } else if (inv.created_at) {
+        const d = new Date(inv.created_at);
+        fallbackMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
     }
 
-    // 2. Fallback to invoice dates if no timesheet entry is found
-    const ts = String(inv.paid_date || inv.invoice_meta?.dateRaw || '').trim();
-    if (/^\d{4}-\d{2}-\d{2}/.test(ts)) return ts.slice(0, 7);
-    if (inv.created_at) {
-        const d = new Date(inv.created_at);
-        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    const invTotal = inv.totals?.total || 0;
+
+    if (!inv || !inv.invoice_number) {
+        if (fallbackMonth) dist[fallbackMonth] = invTotal;
+        return dist;
     }
-    return '';
+
+    const num = String(inv.invoice_number).trim();
+    const matchingRows = rawRows.filter(r => String(r.invoice_number || '').trim() === num && r.month_key);
+    
+    if (matchingRows.length === 0) {
+        if (fallbackMonth) dist[fallbackMonth] = invTotal;
+        return dist;
+    }
+
+    const totalProjected = matchingRows.reduce((sum, r) => sum + (r.projected || 0), 0);
+
+    matchingRows.forEach(r => {
+        const share = totalProjected > 0 ? (r.projected || 0) / totalProjected : (1 / matchingRows.length);
+        dist[r.month_key] = (dist[r.month_key] || 0) + (invTotal * share);
+    });
+
+    return dist;
+}
+
+function getInvoiceMonths(inv) {
+    return Object.keys(getInvoiceDistribution(inv));
 }
 
 function renderRevenueTrend(filteredRows) {
@@ -1309,9 +1326,11 @@ function renderRevenueTrend(filteredRows) {
         if (selectedCurrency !== 'all' && invCurr !== selectedCurrency) return false;
         return true;
     }).forEach(inv => {
-        const monthKey = getInvoiceMonth(inv);
-        if (monthKey.startsWith(String(selectedYear))) {
-            collectedByMonth[monthKey] = (collectedByMonth[monthKey] || 0) + (inv.totals?.total || 0);
+        const dist = getInvoiceDistribution(inv);
+        for (const [monthKey, amount] of Object.entries(dist)) {
+            if (monthKey.startsWith(String(selectedYear))) {
+                collectedByMonth[monthKey] = (collectedByMonth[monthKey] || 0) + amount;
+            }
         }
     });
 
@@ -1435,11 +1454,14 @@ function renderInvoiceStatusDist() {
 
     // Filter invoices by selected month
     const filteredInvoices = rawInvoices.filter(inv => {
-        const monthKey = getInvoiceMonth(inv);
-        if (!monthKey.startsWith(String(selectedYear))) return false;
+        const months = getInvoiceMonths(inv);
+        
+        // At least one month must match year
+        if (!months.some(mk => mk.startsWith(String(selectedYear)))) return false;
+        
         if (selectedMonth !== 'all') {
             const mk = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}`;
-            if (monthKey !== mk) return false;
+            if (!months.includes(mk)) return false;
         }
         return true;
     });
@@ -1451,11 +1473,26 @@ function renderInvoiceStatusDist() {
             if (due < today) status = 'overdue';
         }
         if (!counts.hasOwnProperty(status)) status = 'draft';
+        
         const curr = normalizeCurrency(inv.invoice_meta?.currency || 'USD');
-        const amount = inv.totals?.total || 0;
+        const dist = getInvoiceDistribution(inv);
+        
+        // Calculate the slice of the invoice that belongs to the current filter
+        let validAmount = 0;
+        const months = Object.keys(dist);
+        if (selectedMonth !== 'all') {
+            const mk = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}`;
+            validAmount = dist[mk] || 0;
+        } else {
+            for (const [mk, amt] of Object.entries(dist)) {
+                if (mk.startsWith(String(selectedYear))) validAmount += amt;
+            }
+        }
+        
+        // Count as 1 invoice in this view, but amount is strictly proportional
         counts[status]++;
-        amounts[status] += amount;
-        amountsByCurrency[status][curr] = (amountsByCurrency[status][curr] || 0) + amount;
+        amounts[status] += validAmount;
+        amountsByCurrency[status][curr] = (amountsByCurrency[status][curr] || 0) + validAmount;
     });
 
     const totalCount = Object.values(counts).reduce((s, c) => s + c, 0);
