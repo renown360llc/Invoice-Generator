@@ -284,7 +284,7 @@ function bindEvents() {
             return;
         }
 
-        if (action === 'mark-paid') {
+        if (action === 'mark-paid' || action === 'edit-paid-date') {
             openPaidModal(invoice);
             return;
         }
@@ -740,6 +740,9 @@ function renderSecondaryStatusMenuAction(invoice, effectiveStatus) {
 
     return `
         <div class="dropdown-divider"></div>
+        <div class="dropdown-label">Payment</div>
+        <button class="dropdown-item" data-action="edit-paid-date" data-id="${invoice.id}">Edit payment date</button>
+        <div class="dropdown-divider"></div>
         <div class="dropdown-label">Status</div>
         <button class="dropdown-item" data-action="reopen" data-id="${invoice.id}">Set status to sent</button>
     `;
@@ -851,7 +854,11 @@ function closeDeleteModal() {
 function openPaidModal(invoice) {
     state.invoiceToPay = invoice;
     if (els.paidDateInput) {
-        els.paidDateInput.value = new Date().toISOString().slice(0, 10);
+        if (invoice.paid_date) {
+            els.paidDateInput.value = invoice.paid_date;
+        } else {
+            els.paidDateInput.value = new Date().toISOString().slice(0, 10);
+        }
     }
     if (els.paidModal) {
         els.paidModal.style.display = 'flex';
