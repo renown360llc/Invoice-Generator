@@ -602,7 +602,7 @@ function renderItemsBreakdown(invoice, currency) {
 
     const rows = items.map(item => {
         const rateDisplay = formatAmountValue(item.rate);
-        const amountDisplay = item.amountDisplay || formatAmountValue(item.amount);
+        const amountDisplay = formatAmountValue(item.amount);
         let metaHtml = '';
         if (item.consultant) metaHtml += `<span><strong>Consultant:</strong> ${escapeHtml(item.consultant)}</span>`;
         if (item.period) metaHtml += `<span><strong>Period:</strong> ${escapeHtml(item.period)}</span>`;
