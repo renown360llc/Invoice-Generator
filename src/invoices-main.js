@@ -99,6 +99,7 @@ function cacheElements() {
     els.filtersMeta = document.getElementById('filtersMeta');
 
     els.refreshBtn = document.getElementById('refreshBtn');
+    els.exportCsvBtn = document.getElementById('exportCsvBtn');
 
     els.tableBody = document.getElementById('invoicesBody');
     els.pagination = document.getElementById('pagination');
@@ -214,6 +215,10 @@ function bindEvents() {
         } finally {
             els.refreshBtn.disabled = false;
         }
+    });
+
+    els.exportCsvBtn?.addEventListener('click', () => {
+        exportFilteredInvoicesToCSV();
     });
 
     els.tableBody?.addEventListener('click', async (event) => {
@@ -1231,6 +1236,76 @@ function setupBroadcastSync() {
         await loadInvoices();
         showToast('Invoice list updated', 'success');
     };
+}
+
+function exportFilteredInvoicesToCSV() {
+    if (state.filteredInvoices.length === 0) {
+        showToast('No invoices to export', 'info');
+        return;
+    }
+
+    const rows = [];
+    rows.push(['Invoice Number', 'Amount', 'Currency', 'Payment Received', 'Status', 'Client']);
+
+    const totalsByCurrency = new Map();
+
+    state.filteredInvoices.forEach(invoice => {
+        const invNum = String(invoice.invoice_number || '—').replace(/"/g, '""');
+        const amount = Number(getInvoiceAmount(invoice) || 0);
+        const currency = String(getInvoiceCurrency(invoice) || 'USD');
+        const status = getEffectiveStatus(invoice);
+        const clientName = String(invoice.client_info?.name || '—').replace(/"/g, '""');
+        const rawDate = invoice.paid_date || '';
+        
+        let paymentReceived = '';
+        if (status === 'paid' && rawDate) {
+            paymentReceived = formatDate(rawDate);
+        }
+
+        rows.push([
+            `"${invNum}"`,
+            amount.toFixed(2),
+            `"${currency}"`,
+            `"${paymentReceived}"`,
+            `"${status}"`,
+            `"${clientName}"`
+        ]);
+
+        if (!totalsByCurrency.has(currency)) {
+            totalsByCurrency.set(currency, 0);
+        }
+        totalsByCurrency.set(currency, totalsByCurrency.get(currency) + amount);
+    });
+
+    rows.push([]);
+    rows.push(['TOTALS', '', '', '', '', '']);
+    
+    Array.from(totalsByCurrency.entries()).sort((a, b) => a[0].localeCompare(b[0])).forEach(([currency, total]) => {
+        rows.push([
+            `"${currency} Total"`,
+            total.toFixed(2),
+            `"${currency}"`,
+            '',
+            '',
+            ''
+        ]);
+    });
+
+    const csvContent = rows.map(r => r.join(',')).join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    
+    const link = document.createElement('a');
+    link.href = url;
+    const dateStr = new Date().toISOString().slice(0, 10);
+    link.download = `invoices_report_${dateStr}.csv`;
+    
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    
+    showToast('Report generated successfully', 'success');
 }
 
 function loadFilters() {
