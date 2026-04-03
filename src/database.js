@@ -295,15 +295,14 @@ export async function getNextInvoiceNumber() {
     const user = await getCurrentUser()
     if (!user) throw new Error('Not authenticated')
 
+    // Fetch all invoice numbers and their metadata to isolate true sequential ones
     const { data: invoices, error } = await supabase
         .from('invoices')
-        .select('invoice_number')
+        .select('invoice_number, invoice_meta')
         .eq('user_id', user.id)
-        .order('created_at', { ascending: false })
-        .limit(1)
 
     if (error) {
-        console.error('Error fetching last invoice:', error)
+        console.error('Error fetching invoices for sequence generator:', error)
         return 'INV-0001'
     }
 
@@ -311,14 +310,24 @@ export async function getNextInvoiceNumber() {
         return 'INV-0001'
     }
 
-    const lastNumber = invoices[0].invoice_number
-    const match = lastNumber.match(/INV-(\d+)/)
+    let maxSequential = 0;
 
-    if (match && match[1]) {
-        const currentNum = parseInt(match[1], 10)
-        const nextNum = currentNum + 1
-        return `INV-${String(nextNum).padStart(4, '0')}`
+    for (const inv of invoices) {
+        // Skip explicitly marked custom/manual invoices to protect the sequence
+        if (inv.invoice_meta && inv.invoice_meta.is_custom_number === true) {
+            continue;
+        }
+
+        // Strict parsing for INV-XXXX
+        const match = String(inv.invoice_number || '').match(/^INV-(\d+)$/i);
+        if (match && match[1]) {
+            const currentNum = parseInt(match[1], 10);
+            if (currentNum > maxSequential) {
+                maxSequential = currentNum;
+            }
+        }
     }
 
-    return 'INV-0001'
+    const nextNum = maxSequential + 1;
+    return `INV-${String(nextNum).padStart(4, '0')}`;
 }

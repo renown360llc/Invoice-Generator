@@ -29,7 +29,6 @@ import {
 import { generatePDF } from './modules/pdf.js';
 import { showToast, debounce } from './modules/utils.js';
 
-// Global State
 const state = {
     user: null,
     logo: null,
@@ -38,7 +37,9 @@ const state = {
     currentTemplateName: null,
     isLocked: false,       // true when invoice is paid/sent — form is read-only
     isDirty: false,        // true when there are unsaved changes
-    currentStatus: null    // track the live invoice status
+    currentStatus: null,   // track the live invoice status
+    suggestedInvoiceNumber: '',
+    isCustomInvoiceNumber: false
 };
 
 // ── Invoice Lock & Dirty Helpers ────────────────────────────────────────────
@@ -442,12 +443,15 @@ function setDefaultDates() {
 }
 
 async function initializeInvoiceNumber() {
+    state.isCustomInvoiceNumber = false;
     try {
         const next = await getNextInvoiceNumber();
         document.getElementById('invoiceNumber').value = next;
+        state.suggestedInvoiceNumber = next;
     } catch (e) {
         console.error(e);
         document.getElementById('invoiceNumber').value = 'INV-0001';
+        state.suggestedInvoiceNumber = 'INV-0001';
     }
 }
 
@@ -466,25 +470,37 @@ async function handleSave() {
         const data = gatherFormData();
         if (state.logo) data.business_info.logo = state.logo;
 
-        // ── Race condition fix ──────────────────────────────────────────────
-        // If this is a NEW invoice (no existing number or still showing a
-        // pre-fetched placeholder), refresh the next number right before saving
-        // so concurrent sessions can't claim the same number.
+        // ── Race condition fix & Custom Invoice Logic ────────────────────────
         const invNumEl = document.getElementById('invoiceNumber');
         const currentNum = String(invNumEl?.value || '').trim();
         const isNewInvoice = !state.currentInvoiceId;
 
         if (isNewInvoice) {
-            try {
-                const freshNum = await getNextInvoiceNumber();
-                data.invoice_number = freshNum;
-                if (invNumEl) invNumEl.value = freshNum;
-            } catch (numErr) {
-                console.warn('Could not refresh invoice number, using displayed value:', numErr);
+            if (currentNum !== state.suggestedInvoiceNumber) {
+                // User manual override detected! Disable race condition safeguard
+                state.isCustomInvoiceNumber = true;
                 data.invoice_number = currentNum;
+                console.log('Custom invoice identifier detected:', currentNum);
+            } else {
+                // Standard sequential invoice - fetch fresh to prevent collisions
+                try {
+                    const freshNum = await getNextInvoiceNumber();
+                    data.invoice_number = freshNum;
+                    if (invNumEl) invNumEl.value = freshNum;
+                } catch (numErr) {
+                    console.warn('Could not refresh invoice number, using displayed value:', numErr);
+                    data.invoice_number = currentNum;
+                }
             }
+        } else {
+            // Updating existing, invoice number remains unchanged
+            data.invoice_number = currentNum;
         }
-        // ── End race fix ────────────────────────────────────────────────────
+
+        // Attach the immutable tracking flag
+        data.invoice_meta = data.invoice_meta || {};
+        data.invoice_meta.is_custom_number = state.isCustomInvoiceNumber;
+        // ── End Logic ────────────────────────────────────────────────────────
 
         const saved = await dbSaveInvoice(data);
 
@@ -535,6 +551,7 @@ async function handleLoadInvoice(invoiceNumber) {
         // Store invoice ID and status for lock/unlock logic
         state.currentInvoiceId = data.id;
         state.currentStatus = data.status || 'draft';
+        state.isCustomInvoiceNumber = data.invoice_meta?.is_custom_number === true;
 
         // Lock the invoice number field — immutable after first save
         const invNumEl = document.getElementById('invoiceNumber');
