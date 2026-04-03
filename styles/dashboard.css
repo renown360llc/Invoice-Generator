@@ -3649,3 +3649,87 @@ canvas#revenueChart {
         grid-template-columns: repeat(2, 1fr);
     }
 }
+
+/* ── Inline Items Breakdown Dropdown ────────────────────────────── */
+.invoice-row--clickable {
+    cursor: pointer;
+    transition: background-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.invoice-row--clickable:hover {
+    background-color: var(--row-hover);
+}
+
+.invoice-row--expanded {
+    background-color: #f1f5f9 !important;
+}
+
+.items-panel-container {
+    padding: 1.25rem 2rem;
+    background: #f8fafc;
+    border-top: 1px solid var(--border-color);
+    border-bottom: 2px solid #cbd5e1;
+}
+
+.items-breakdown-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: #ffffff;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    border: 1px solid var(--border-color);
+}
+
+.items-breakdown-table th {
+    background: #f1f5f9;
+    padding: 0.75rem 1rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    letter-spacing: 0.05em;
+    text-align: left;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.items-breakdown-table th.text-right {
+    text-align: right;
+}
+
+.items-breakdown-table td {
+    padding: 0.875rem 1rem;
+    font-size: 0.875rem;
+    color: var(--text-primary);
+    border-bottom: 1px solid #f1f5f9;
+    vertical-align: top;
+}
+
+.items-breakdown-table td.text-right {
+    text-align: right;
+}
+
+.items-breakdown-table tr:last-child td {
+    border-bottom: none;
+}
+
+.items-breakdown-item-name {
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 0.25rem;
+}
+
+.items-breakdown-item-meta {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    line-height: 1.4;
+}
+
+.items-breakdown-item-meta span {
+    display: inline-block;
+    margin-right: 0.75rem;
+}
+
+.invoice-row--expanded .invoice-row-chevron {
+    transform: rotate(90deg);
+}

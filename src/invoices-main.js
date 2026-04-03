@@ -220,6 +220,23 @@ function bindEvents() {
         const target = event.target;
         if (!(target instanceof HTMLElement)) return;
 
+        // Catch non-button row clicks for inline expansion
+        const isButton = target.closest('[data-action]') || target.closest('.dropdown-menu');
+        if (!isButton) {
+            const row = target.closest('tr[data-invoice-id]');
+            if (row) {
+                const invoiceId = row.dataset.invoiceId;
+                const panel = document.getElementById(`items-panel-${invoiceId}`);
+                if (panel) {
+                    const isExpanded = panel.style.display !== 'none';
+                    panel.style.display = isExpanded ? 'none' : 'table-row';
+                    row.classList.toggle('invoice-row--expanded', !isExpanded);
+                }
+                closeAllRowMenus();
+                return;
+            }
+        }
+
         const button = target.closest('[data-action]');
         if (!(button instanceof HTMLButtonElement)) return;
 
@@ -572,6 +589,51 @@ function sortInvoices(list, sortBy) {
     });
 }
 
+function renderItemsBreakdown(invoice, currency) {
+    const items = Array.isArray(invoice.items) ? invoice.items : [];
+    if (items.length === 0) {
+        return `<div style="text-align:center; padding: 1.5rem; color: #94a3b8; font-size: 0.875rem;">No line items found.</div>`;
+    }
+
+    const rows = items.map(item => {
+        const rateDisplay = formatAmountValue(item.rate);
+        const amountDisplay = item.amountDisplay || formatAmountValue(item.amount);
+        let metaHtml = '';
+        if (item.consultant) metaHtml += `<span><strong>Consultant:</strong> ${escapeHtml(item.consultant)}</span>`;
+        if (item.period) metaHtml += `<span><strong>Period:</strong> ${escapeHtml(item.period)}</span>`;
+
+        return `
+            <tr>
+                <td>
+                    <div class="items-breakdown-item-name">${escapeHtml(item.desc || 'Item')}</div>
+                    ${metaHtml ? `<div class="items-breakdown-item-meta">${metaHtml}</div>` : ''}
+                </td>
+                <td class="text-right">${item.qty || 1}</td>
+                <td class="text-right">${currency || '$'} ${rateDisplay}</td>
+                <td class="text-right"><strong>${currency || '$'} ${amountDisplay}</strong></td>
+            </tr>
+        `;
+    }).join('');
+
+    return `
+        <div class="items-panel-container">
+            <table class="items-breakdown-table">
+                <thead>
+                    <tr>
+                        <th>Description</th>
+                        <th class="text-right">Qty</th>
+                        <th class="text-right">Rate</th>
+                        <th class="text-right">Amount</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${rows}
+                </tbody>
+            </table>
+        </div>
+    `;
+}
+
 function renderTable() {
     if (!els.tableBody) return;
 
@@ -593,8 +655,15 @@ function renderTable() {
         const clientMeta = escapeHtml(getInvoiceClientMeta(invoice));
 
         return `
-            <tr data-invoice-id="${invoice.id}">
-                <td class="invoice-cell--number"><strong>${escapeHtml(invoice.invoice_number || '—')}</strong></td>
+            <tr class="invoice-row--clickable" data-invoice-id="${invoice.id}">
+                <td class="invoice-cell--number">
+                    <div style="display:flex; align-items:center; gap:0.5rem;">
+                        <svg class="invoice-row-chevron" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="14" height="14" style="color: #cbd5e1; transition: transform 0.2s ease; flex-shrink:0;">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7" />
+                        </svg>
+                        <strong>${escapeHtml(invoice.invoice_number || '—')}</strong>
+                    </div>
+                </td>
                 <td class="invoice-cell--client" title="${clientName}">
                     <div class="invoice-client">
                         <span class="invoice-client__name">${clientName}</span>
@@ -634,6 +703,11 @@ function renderTable() {
                             <button class="dropdown-item dropdown-item--danger" data-action="delete" data-id="${invoice.id}">Delete invoice</button>
                         </div>
                     </div>
+                </td>
+            </tr>
+            <tr id="items-panel-${invoice.id}" style="display:none;" class="items-breakdown-row">
+                <td colspan="9" style="padding:0;">
+                    ${renderItemsBreakdown(invoice, currency)}
                 </td>
             </tr>
             <tr id="ts-panel-${invoice.id}" style="display:none;">
