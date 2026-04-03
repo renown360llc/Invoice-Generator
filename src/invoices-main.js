@@ -1131,7 +1131,8 @@ function formatAmountValue(amount) {
 
 function formatDate(dateString) {
     if (!dateString) return '—';
-    const parsed = Date.parse(String(dateString));
+    const cleanStr = String(dateString).length === 10 ? `${dateString}T12:00:00` : String(dateString);
+    const parsed = Date.parse(cleanStr);
     if (Number.isNaN(parsed)) return '—';
 
     return new Date(parsed).toLocaleDateString('en-US', {

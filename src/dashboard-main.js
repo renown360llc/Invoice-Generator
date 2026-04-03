@@ -231,7 +231,11 @@ function showToast(message, type = 'info') {
 
 // Format date
 function formatDate(dateString) {
-    return new Date(dateString).toLocaleDateString('en-US', {
+    if (!dateString) return '—';
+    const cleanStr = String(dateString).length === 10 ? `${dateString}T12:00:00` : String(dateString);
+    const parsed = Date.parse(cleanStr);
+    if (Number.isNaN(parsed)) return '—';
+    return new Date(parsed).toLocaleDateString('en-US', {
         month: 'short',
         day: 'numeric',
         year: 'numeric'

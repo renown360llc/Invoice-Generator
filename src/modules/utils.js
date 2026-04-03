@@ -81,8 +81,10 @@ export function formatCurrency(amount, currencyCode = 'USD') {
 
 export function formatDate(dateString) {
     if (!dateString) return '';
-    const date = new Date(dateString + 'T12:00:00');
-    return date.toLocaleDateString('en-US', {
+    const cleanStr = (String(dateString).length === 10) ? `${dateString}T12:00:00` : String(dateString);
+    const parsed = Date.parse(cleanStr);
+    if (Number.isNaN(parsed)) return '—';
+    return new Date(parsed).toLocaleDateString('en-US', {
         month: 'short',
         day: 'numeric',
         year: 'numeric'
