@@ -218,7 +218,7 @@ function bindEvents() {
 
     els.tableBody?.addEventListener('click', async (event) => {
         const target = event.target;
-        if (!(target instanceof HTMLElement)) return;
+        if (!(target instanceof Element)) return;
 
         // Catch non-button row clicks for inline expansion
         const isButton = target.closest('[data-action]') || target.closest('.dropdown-menu');
