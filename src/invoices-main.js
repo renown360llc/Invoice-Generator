@@ -1028,11 +1028,8 @@ function getInvoiceFromName(invoice) {
 }
 
 function getInvoiceClientMeta(invoice) {
-    const consultantSummary = getInvoiceConsultantSummary(invoice);
     const periodSummary = getInvoicePeriodSummary(invoice);
-    const parts = [consultantSummary, periodSummary].filter(Boolean);
-
-    return parts.join(' • ') || 'No linked consultant';
+    return periodSummary || 'No billing period';
 }
 
 function renderPaymentSummary(invoice, effectiveStatus) {
