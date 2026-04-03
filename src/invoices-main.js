@@ -393,8 +393,9 @@ function bindEvents() {
         try {
             await updateInvoiceStatus(state.invoiceToPay.id, 'paid', paidDate);
             await markTimesheetsInvoiced(state.invoiceToPay);
+            const invoiceNumber = state.invoiceToPay.invoice_number;
             closePaidModal();
-            showToast(`Invoice ${state.invoiceToPay.invoice_number} marked as paid`, 'success');
+            showToast(`Invoice ${invoiceNumber} marked as paid`, 'success');
             await loadInvoices();
         } catch (err) {
             console.error(err);
