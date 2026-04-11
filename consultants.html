@@ -13,6 +13,7 @@
     <link rel="stylesheet" href="styles/variables.css">
     <link rel="stylesheet" href="styles/sidebar.css?v=1">
     <link rel="stylesheet" href="styles/dashboard.css?v=11">
+    <link rel="stylesheet" href="styles/mobile.css?v=7">
 
     <style>
         body {
@@ -448,8 +449,8 @@
                 </div>
             </div>
 
-            <!-- Compact CRM Toolbar -->
-            <div class="crm-toolbar">
+            <!-- Compact CRM Toolbar — desktop only on mobile -->
+            <div class="crm-toolbar" id="crmToolbar">
                 <div class="crm-toolbar__search">
                     <svg class="crm-toolbar__search-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
                     <input type="text" id="searchInput" placeholder="Search consultants...">
@@ -512,9 +513,95 @@
                     <span id="savedViewMeta" class="crm-toolbar__views-expand__meta">No saved views</span>
                 </div>
             </div>
+
+            <!-- ═══ MOBILE FILTER BAR (replaces crm-toolbar on small screens) ═══ -->
+            <div class="mobile-filter-bar" id="mobileFilterBar">
+                <!-- Row 1: Search + Filter button -->
+                <div class="mobile-filter-bar__row">
+                    <div class="mobile-filter-bar__search">
+                        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" width="16" height="16"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                        <input type="text" placeholder="Search consultants..." id="mobileSearchMirror" autocomplete="off">
+                    </div>
+                    <button class="mobile-filter-bar__filter-btn" id="mobileFilterBtn" aria-expanded="false">
+                        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" width="16" height="16"><path stroke-linecap="round" stroke-linejoin="round" d="M3 4h18M7 10h10M11 16h2"/></svg>
+                        Filters
+                        <span class="mobile-filter-bar__badge" id="mobileFilterBadge" hidden>0</span>
+                    </button>
+                </div>
+                <!-- Row 2: Active filter chips (hidden when none active) -->
+                <div class="mobile-filter-bar__chips" id="mobileFilterChips"></div>
+            </div>
+
+            <!-- ═══ MOBILE FILTER BOTTOM SHEET ═══ -->
+            <div class="mfs-backdrop" id="mfsBackdrop" aria-hidden="true"></div>
+            <div class="mfs-sheet" id="mfsSheet" role="dialog" aria-modal="true" aria-label="Filters">
+                <div class="mfs-sheet__handle"></div>
+                <div class="mfs-sheet__header">
+                    <span class="mfs-sheet__title">Filters</span>
+                    <button class="mfs-sheet__close" id="mfsClose" aria-label="Close filters">
+                        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" width="20" height="20"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                    </button>
+                </div>
+                <div class="mfs-sheet__body">
+                    <div class="mfs-group">
+                        <label class="mfs-group__label">Status</label>
+                        <div class="mfs-chips" id="mfsStatusChips">
+                            <button class="mfs-chip is-active" data-filter="status" data-value="all">All</button>
+                            <button class="mfs-chip" data-filter="status" data-value="active">Active</button>
+                            <button class="mfs-chip" data-filter="status" data-value="pending">Pending</button>
+                            <button class="mfs-chip" data-filter="status" data-value="inactive">Inactive</button>
+                        </div>
+                    </div>
+                    <div class="mfs-group">
+                        <label class="mfs-group__label">Client</label>
+                        <select class="mfs-select" id="mfsClientFilter">
+                            <option value="all">All Clients</option>
+                        </select>
+                    </div>
+                    <div class="mfs-group">
+                        <label class="mfs-group__label">W2 Company</label>
+                        <select class="mfs-select" id="mfsW2Filter">
+                            <option value="all">All W2 Companies</option>
+                        </select>
+                    </div>
+                    <div class="mfs-group">
+                        <label class="mfs-group__label">Currency</label>
+                        <select class="mfs-select" id="mfsCurrencyFilter">
+                            <option value="all">All Currencies</option>
+                        </select>
+                    </div>
+                    <div class="mfs-group">
+                        <label class="mfs-group__label">Period</label>
+                        <div class="mfs-period-selects">
+                            <select class="mfs-select" id="mfsYearSelect"></select>
+                            <select class="mfs-select" id="mfsMonthSelect">
+                                <option value="all">All Months</option>
+                                <option value="01">January</option>
+                                <option value="02">February</option>
+                                <option value="03">March</option>
+                                <option value="04">April</option>
+                                <option value="05">May</option>
+                                <option value="06">June</option>
+                                <option value="07">July</option>
+                                <option value="08">August</option>
+                                <option value="09">September</option>
+                                <option value="10">October</option>
+                                <option value="11">November</option>
+                                <option value="12">December</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="mfs-sheet__footer">
+                    <button class="mfs-btn-clear" id="mfsClearBtn">Clear All</button>
+                    <button class="mfs-btn-apply" id="mfsApplyBtn">Show Results</button>
+                </div>
+            </div>
+
             <div id="consultantsFilterSummary" class="crm-stats-strip"></div>
 
             <!-- Hidden selects for year/month (used by JS) -->
+
             <select id="yearFilter" style="display:none;" aria-label="Filter year"></select>
             <select id="monthFilter" style="display:none;" aria-label="Filter month"></select>
             <button id="allMonthsToggleBtn" style="display:none;" type="button">All Months: OFF</button>
@@ -551,6 +638,8 @@
                         </tbody>
                     </table>
                 </div>
+                <!-- Mobile card view (rendered by JS, shown only on small screens) -->
+                <div id="consultantCards" class="consultant-cards" aria-label="Consultants list"></div>
             </div>
         </div>
     </main>
@@ -715,6 +804,234 @@
 
     <!-- Core Scripts -->
     <script type="module" src="src/consultants-main.js"></script>
+
+    <!-- Mobile: auto-annotate table rows with data-label for card-style display -->
+    <script>
+        (function () {
+            const table = document.getElementById('consultantsTable');
+            if (!table) return;
+
+            function annotateRows() {
+                const headers = Array.from(table.querySelectorAll('thead th')).map(th => {
+                    // Strip sort button text and icon, just get clean label
+                    const btn = th.querySelector('.sort-button');
+                    if (btn) {
+                        const icon = btn.querySelector('.sort-icon');
+                        if (icon) icon.remove();
+                        return (btn.textContent || '').trim();
+                    }
+                    return (th.textContent || '').trim();
+                });
+                const tbody = document.getElementById('consultantsBody');
+                if (!tbody) return;
+                Array.from(tbody.rows).forEach(row => {
+                    Array.from(row.cells).forEach((cell, i) => {
+                        if (cell.tagName === 'TD' && headers[i]) {
+                            cell.setAttribute('data-label', headers[i]);
+                        }
+                    });
+                });
+            }
+
+            annotateRows();
+            const tbody = document.getElementById('consultantsBody');
+            if (tbody) {
+                const observer = new MutationObserver(annotateRows);
+                observer.observe(tbody, { childList: true, subtree: false });
+            }
+        })();
+    </script>
+
+    <!-- Mobile Filter Bottom Sheet Controller -->
+    <script>
+    (function () {
+        const MOBILE_BP = 760;
+        if (window.innerWidth > MOBILE_BP) return;
+
+        // ── DOM refs ──────────────────────────────────────────────
+        const sheet     = document.getElementById('mfsSheet');
+        const backdrop  = document.getElementById('mfsBackdrop');
+        const filterBtn = document.getElementById('mobileFilterBtn');
+        const badge     = document.getElementById('mobileFilterBadge');
+        const chipsRow  = document.getElementById('mobileFilterChips');
+        const mobileSearch = document.getElementById('mobileSearchMirror');
+
+        // Desktop hidden inputs
+        const desktopSearch  = document.getElementById('searchInput');
+        const desktopStatus  = document.getElementById('statusFilter');
+        const desktopClient  = document.getElementById('clientFilter');
+        const desktopW2      = document.getElementById('w2Filter');
+        const desktopCurr    = document.getElementById('currencyFilter');
+        const desktopYear    = document.getElementById('yearFilter');
+        const desktopMonth   = document.getElementById('monthFilter');
+
+        // Sheet elements
+        const mfsClose  = document.getElementById('mfsClose');
+        const mfsClear  = document.getElementById('mfsClearBtn');
+        const mfsApply  = document.getElementById('mfsApplyBtn');
+        const mfsClient = document.getElementById('mfsClientFilter');
+        const mfsW2     = document.getElementById('mfsW2Filter');
+        const mfsCurr   = document.getElementById('mfsCurrencyFilter');
+        const mfsYearSel  = document.getElementById('mfsYearSelect');
+        const mfsMonthSel = document.getElementById('mfsMonthSelect');
+
+        // ── Populate year select ───────────────────────────────────
+        function populateYears() {
+            if (!mfsYearSel) return;
+            const cur = new Date().getFullYear();
+            mfsYearSel.innerHTML = '';
+            for (let y = cur + 1; y >= cur - 5; y--) {
+                const opt = document.createElement('option');
+                opt.value = y; opt.textContent = y;
+                mfsYearSel.appendChild(opt);
+            }
+            mfsYearSel.value = cur;
+        }
+        populateYears();
+
+        // ── Open / Close ───────────────────────────────────────────
+        function openSheet() {
+            // Sync period selects from desktop state
+            if (mfsYearSel && desktopYear?.value) mfsYearSel.value = desktopYear.value;
+            if (mfsMonthSel && desktopMonth?.value) mfsMonthSel.value = desktopMonth.value;
+            if (mfsClient && desktopClient) copySelectOptions(desktopClient, mfsClient);
+            if (mfsW2 && desktopW2)         copySelectOptions(desktopW2, mfsW2);
+            if (mfsCurr && desktopCurr)     copySelectOptions(desktopCurr, mfsCurr);
+            const val = desktopStatus?.value || 'all';
+            document.querySelectorAll('[data-filter="status"]').forEach(b =>
+                b.classList.toggle('is-active', b.dataset.value === val)
+            );
+            sheet.classList.add('is-open');
+            backdrop.classList.add('is-open');
+            filterBtn?.setAttribute('aria-expanded', 'true');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeSheet() {
+            sheet.classList.remove('is-open');
+            backdrop.classList.remove('is-open');
+            filterBtn?.setAttribute('aria-expanded', 'false');
+            document.body.style.overflow = '';
+        }
+
+        function copySelectOptions(src, dest) {
+            dest.innerHTML = src.innerHTML;
+            dest.value = src.value;
+        }
+
+        // ── Apply ─────────────────────────────────────────────────
+        function applyFilters() {
+            const activeChip = document.querySelector('[data-filter="status"].is-active');
+            if (activeChip && desktopStatus) {
+                desktopStatus.value = activeChip.dataset.value;
+                desktopStatus.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+            [['mfsClientFilter','clientFilter'],['mfsW2Filter','w2Filter'],['mfsCurrencyFilter','currencyFilter']]
+              .forEach(([mId, dId]) => {
+                const m = document.getElementById(mId), d = document.getElementById(dId);
+                if (m && d) { d.value = m.value; d.dispatchEvent(new Event('change', { bubbles: true })); }
+            });
+            if (desktopYear && mfsYearSel) {
+                desktopYear.value = mfsYearSel.value;
+                desktopYear.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+            if (desktopMonth && mfsMonthSel) {
+                desktopMonth.value = mfsMonthSel.value;
+                desktopMonth.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+            updateChips();
+            closeSheet();
+        }
+
+        // ── Active chips strip ────────────────────────────────────
+        function updateChips() {
+            if (!chipsRow) return;
+            const chips = [];
+
+            const statusVal = desktopStatus?.value;
+            if (statusVal && statusVal !== 'all') {
+                chips.push({ key: 'status', label: { active:'Active', inactive:'Inactive', pending:'Pending' }[statusVal] || statusVal });
+            }
+            if (desktopClient?.value && desktopClient.value !== 'all') {
+                chips.push({ key: 'client', label: desktopClient.options[desktopClient.selectedIndex]?.text });
+            }
+            if (desktopW2?.value && desktopW2.value !== 'all') {
+                chips.push({ key: 'w2', label: desktopW2.options[desktopW2.selectedIndex]?.text });
+            }
+            if (desktopCurr?.value && desktopCurr.value !== 'all') {
+                chips.push({ key: 'currency', label: desktopCurr.value });
+            }
+
+            chipsRow.innerHTML = chips.map(c => `
+                <button class="mfb-chip" data-chip-key="${c.key}">
+                    ${c.label} <span class="mfb-chip__remove">✕</span>
+                </button>`).join('');
+
+            const count = chips.length;
+            if (badge) { badge.textContent = count; badge.hidden = count === 0; }
+            filterBtn?.classList.toggle('has-filters', count > 0);
+        }
+
+        // ── Clear all ──────────────────────────────────────────────
+        function clearAll() {
+            document.querySelectorAll('[data-filter="status"]').forEach(btn =>
+                btn.classList.toggle('is-active', btn.dataset.value === 'all')
+            );
+            if (mfsClient) mfsClient.value = 'all';
+            if (mfsW2)     mfsW2.value     = 'all';
+            if (mfsCurr)   mfsCurr.value   = 'all';
+            if (mfsYearSel) mfsYearSel.value = new Date().getFullYear();
+            if (mfsMonthSel) mfsMonthSel.value = String(new Date().getMonth() + 1).padStart(2, '0');
+        }
+
+        // ── Event wiring ──────────────────────────────────────────
+        filterBtn?.addEventListener('click', openSheet);
+        mfsClose?.addEventListener('click', closeSheet);
+        backdrop?.addEventListener('click', closeSheet);
+        mfsApply?.addEventListener('click', applyFilters);
+        mfsClear?.addEventListener('click', clearAll);
+
+        // Status chips
+        document.querySelectorAll('[data-filter="status"]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('[data-filter="status"]').forEach(b => b.classList.remove('is-active'));
+                btn.classList.add('is-active');
+            });
+        });
+
+        // Mobile search → desktop
+        if (mobileSearch && desktopSearch) {
+            mobileSearch.addEventListener('input', () => {
+                desktopSearch.value = mobileSearch.value;
+                desktopSearch.dispatchEvent(new Event('input', { bubbles: true }));
+            });
+        }
+
+        // Chip removal (instant apply)
+        chipsRow?.addEventListener('click', e => {
+            const chip = e.target.closest('.mfb-chip');
+            if (!chip) return;
+            const map = { status: desktopStatus, client: desktopClient, w2: desktopW2, currency: desktopCurr };
+            const el = map[chip.dataset.chipKey];
+            if (el) { el.value = 'all'; el.dispatchEvent(new Event('change', { bubbles: true })); }
+            updateChips();
+        });
+
+        // Mirror select options when JS populates them after data load
+        const syncDropdowns = () => {
+            if (mfsClient && desktopClient) copySelectOptions(desktopClient, mfsClient);
+            if (mfsW2 && desktopW2)         copySelectOptions(desktopW2, mfsW2);
+            if (mfsCurr && desktopCurr)     copySelectOptions(desktopCurr, mfsCurr);
+        };
+        const selectObserver = new MutationObserver(syncDropdowns);
+        if (desktopClient) selectObserver.observe(desktopClient, { childList: true });
+        if (desktopW2)     selectObserver.observe(desktopW2,     { childList: true });
+        if (desktopCurr)   selectObserver.observe(desktopCurr,   { childList: true });
+
+        setTimeout(updateChips, 600);
+    })();
+    </script>
+
 </body>
 
 </html>

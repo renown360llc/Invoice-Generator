@@ -18,6 +18,7 @@
     <link rel="stylesheet" href="styles/sidebar.css?v=1">
     <link rel="stylesheet" href="styles/dashboard.css?v=10">
     <link rel="stylesheet" href="styles/app.css?v=10">
+    <link rel="stylesheet" href="styles/mobile.css?v=2">
 
     <style>
         body {
@@ -36,7 +37,19 @@
     <!-- Navigation Header -->
     <!-- Navigation injected by layout.js -->
 
-    <div class="app">
+    <!-- Mobile Tab Switcher (hidden on desktop via mobile.css) -->
+    <div class="mobile-tab-bar" id="mobileTabBar" role="tablist" aria-label="Switch between form and preview">
+        <button class="mobile-tab-bar__btn is-active" id="mobileTabForm" role="tab" aria-selected="true" aria-controls="editorPanel">
+            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+            Edit Form
+        </button>
+        <button class="mobile-tab-bar__btn" id="mobileTabPreview" role="tab" aria-selected="false" aria-controls="previewPanel">
+            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+            Preview
+        </button>
+    </div>
+
+    <div class="app" id="appShell" data-mobile-tab="form">
         <!-- Editor Panel -->
         <aside class="editor">
             <header class="editor__header">
@@ -422,6 +435,30 @@
         loadLayout('app');
     </script>
     <script type="module" src="src/app-main.js"></script>
+
+    <!-- Mobile tab switcher logic (no-op on desktop) -->
+    <script>
+        (function () {
+            const appShell = document.getElementById('appShell');
+            const tabForm = document.getElementById('mobileTabForm');
+            const tabPreview = document.getElementById('mobileTabPreview');
+            if (!appShell || !tabForm || !tabPreview) return;
+
+            function switchTab(tab) {
+                const isForm = tab === 'form';
+                appShell.dataset.mobileTab = tab;
+                tabForm.classList.toggle('is-active', isForm);
+                tabPreview.classList.toggle('is-active', !isForm);
+                tabForm.setAttribute('aria-selected', String(isForm));
+                tabPreview.setAttribute('aria-selected', String(!isForm));
+                // Scroll to top of content area when switching
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            }
+
+            tabForm.addEventListener('click', () => switchTab('form'));
+            tabPreview.addEventListener('click', () => switchTab('preview'));
+        })();
+    </script>
 
 </body>
 

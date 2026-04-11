@@ -102,6 +102,7 @@ function cacheElements() {
     els.exportCsvBtn = document.getElementById('exportCsvBtn');
 
     els.tableBody = document.getElementById('invoicesBody');
+    els.invoiceCards = document.getElementById('invoiceCards'); // Mobile accordion container
     els.pagination = document.getElementById('pagination');
 
     els.deleteModal = document.getElementById('deleteModal');
@@ -221,7 +222,7 @@ function bindEvents() {
         exportFilteredInvoicesToCSV();
     });
 
-    els.tableBody?.addEventListener('click', async (event) => {
+    const handleInvoiceActions = async (event) => {
         const target = event.target;
         if (!(target instanceof Element)) return;
 
@@ -242,8 +243,26 @@ function bindEvents() {
             }
         }
 
+        const toggleBtn = target.closest('[data-card-toggle]');
+        if (toggleBtn) {
+            const isExpanded = toggleBtn.getAttribute('aria-expanded') === 'true';
+            const body = toggleBtn.nextElementSibling;
+            
+            // Close all
+            document.querySelectorAll('[data-card-toggle]').forEach(b => {
+                b.setAttribute('aria-expanded', 'false');
+                if (b.nextElementSibling) b.nextElementSibling.hidden = true;
+            });
+            
+            if (!isExpanded) {
+                toggleBtn.setAttribute('aria-expanded', 'true');
+                if (body) body.hidden = false;
+            }
+            return;
+        }
+
         const button = target.closest('[data-action]');
-        if (!(button instanceof HTMLButtonElement)) return;
+        if (!(button instanceof HTMLButtonElement || button.tagName === 'BUTTON')) return;
 
         const action = button.dataset.action;
         const invoiceId = button.dataset.id;
@@ -353,7 +372,9 @@ function bindEvents() {
             }
             return;
         }
-    });
+    };
+
+    document.addEventListener('click', handleInvoiceActions);
 
     els.pagination?.addEventListener('click', (event) => {
         const target = event.target;
@@ -724,6 +745,64 @@ function renderTable() {
             </tr>
         `;
     }).join('');
+
+    // ── Mobile card view (accordion) ──
+    if (els.invoiceCards) {
+        els.invoiceCards.innerHTML = pageInvoices.map((invoice) => {
+            const invoiceDate = formatDate(getInvoiceDateRaw(invoice) || invoice.created_at);
+            const status = getEffectiveStatus(invoice);
+            const currency = getInvoiceCurrency(invoice);
+            const amount = formatAmountValue(getInvoiceAmount(invoice));
+            const clientName = escapeHtml(invoice.client_info?.name || 'N/A');
+            const fromName = escapeHtml(getInvoiceFromName(invoice));
+
+            // Setup primary and secondary actions
+            const primaryAction = renderPrimaryAction(invoice, status).replace('class="action-btn invoice-primary-action"', 'class="btn btn--primary btn--sm" style="flex:1"');
+            const secondaryActionsHTML = [];
+            secondaryActionsHTML.push(`<button class="btn btn--outline btn--sm" data-action="edit" data-id="${invoice.id}" style="flex:1">Edit</button>`);
+            if (status !== 'paid') {
+                secondaryActionsHTML.push(`<button class="btn btn--outline btn--sm" data-action="mark-paid" data-id="${invoice.id}" style="flex:1">✓ Paid</button>`);
+            }
+            secondaryActionsHTML.push(`<button class="btn btn--ghost btn--sm" data-action="delete" data-id="${invoice.id}" style="color:#ef4444; width:100%">Delete</button>`);
+
+            return `
+            <div class="m-card">
+                <button class="m-card__header" aria-expanded="false" data-card-toggle="${invoice.id}">
+                    <div class="m-card__title-row">
+                        <span class="m-card__title">${escapeHtml(invoice.invoice_number || '—')}</span>
+                        ${renderStatusChip(status)}
+                    </div>
+                    <div class="m-card__subtitle">
+                        <span>${amount} ${currency}</span>
+                        <span>•</span>
+                        <span>${clientName}</span>
+                    </div>
+                    <svg class="m-card__chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" width="18" height="18">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/>
+                    </svg>
+                </button>
+                <div class="m-card__details" hidden>
+                    <div class="m-card__detail-row">
+                        <span class="m-card__detail-label">Date</span>
+                        <span class="m-card__detail-value">${invoiceDate}</span>
+                    </div>
+                    <div class="m-card__detail-row">
+                        <span class="m-card__detail-label">From</span>
+                        <span class="m-card__detail-value">${fromName}</span>
+                    </div>
+                    <div class="m-card__detail-row">
+                        <span class="m-card__detail-label">Payment</span>
+                        <span class="m-card__detail-value">${renderPaymentSummary(invoice, status)}</span>
+                    </div>
+                    
+                    <div class="m-card__actions" style="margin-top:0.75rem; display:flex; flex-wrap:wrap; gap:0.5rem;">
+                        ${primaryAction.replace('action-btn--primary', 'btn btn--primary btn--sm').replace('invoice-primary-action', '')}
+                        ${secondaryActionsHTML.join('')}
+                    </div>
+                </div>
+            </div>`;
+        }).join('');
+    }
 }
 
 function renderPrimaryAction(invoice, effectiveStatus) {

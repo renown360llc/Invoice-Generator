@@ -91,6 +91,7 @@ function cacheElements() {
     els.hoursStat = document.getElementById('timesheetHoursStat');
     els.invoicedStat = document.getElementById('timesheetInvoicedStat');
     els.tbody = document.getElementById('timesheetBody');
+    els.cardContainer = document.getElementById('timesheetCards'); // Mobile cards
 
     els.modal = document.getElementById('tsModal');
     els.modalTitle = document.getElementById('tsModalTitle');
@@ -393,6 +394,25 @@ function bindEvents() {
                 invoice: ts.invoice_number || '',
                 locked: isInvoiced // passed to openModal to show a warning
             });
+            return;
+        }
+
+        const toggleBtn = target.closest('[data-card-toggle]');
+        if (toggleBtn) {
+            const isExpanded = toggleBtn.getAttribute('aria-expanded') === 'true';
+            const body = toggleBtn.nextElementSibling;
+            
+            // Close all first for accordion behavior
+            document.querySelectorAll('[data-card-toggle]').forEach(b => {
+                b.setAttribute('aria-expanded', 'false');
+                if (b.nextElementSibling) b.nextElementSibling.hidden = true;
+            });
+            
+            // Toggle clicked
+            if (!isExpanded) {
+                toggleBtn.setAttribute('aria-expanded', 'true');
+                if (body) body.hidden = false;
+            }
             return;
         }
     });
@@ -698,6 +718,66 @@ function renderTable() {
             </tr>
         `;
     }).join('');
+
+    // ── Mobile card view (accordion) ──
+    if (els.cardContainer) {
+        els.cardContainer.innerHTML = rows.map((row) => {
+            const hasEntries = row.times.length > 0;
+            const isInvoiced = row.status === 'invoiced';
+
+            let actions;
+            if (!hasEntries) {
+                actions = `<button class="btn btn--primary btn--sm ts-add-row" data-consultant="${row.consultant_id}" data-start="${row.period_start}" data-end="${row.period_end}" style="width:100%;">Add Timesheet</button>`;
+            } else if (isInvoiced) {
+                actions = `<button class="btn btn--ghost btn--sm ts-edit-row ts-edit-invoiced" data-id="${row.primary.id}" data-consultant="${row.consultant_id}" style="width:100%; color:#6b7280; background:#f3f4f6;">🔒 View Invoiced Entry</button>`;
+            } else {
+                actions = `
+                    <button class="btn btn--outline btn--sm ts-edit-row" data-id="${row.primary.id}" data-consultant="${row.consultant_id}" style="flex:1;">Edit</button>
+                    <button class="btn btn--ghost btn--sm ts-delete-row" data-id="${row.primary.id}" style="color:#ef4444;">Delete</button>
+                `;
+            }
+
+            return `
+            <div class="m-card">
+                <button class="m-card__header" aria-expanded="false" data-card-toggle="${row.consultant_id}">
+                    <div class="m-card__title-row">
+                        <span class="m-card__title">
+                            ${escapeHtml(row.consultant_name)}
+                            ${row.notes ? `<span class="m-card__note" title="${escapeHtml(row.notes)}">📝</span>` : ''}
+                        </span>
+                        ${renderStatusBadge(row.status)}
+                    </div>
+                    <div class="m-card__subtitle">
+                        <span>${row.hours.toFixed(2)} hrs</span>
+                        <span>•</span>
+                        <span>${escapeHtml(row.client)}</span>
+                        <span>•</span>
+                        <span>${row.currency} ${(row.bill_rate || 0).toFixed(2)}/hr</span>
+                    </div>
+                    <svg class="m-card__chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" width="18" height="18">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/>
+                    </svg>
+                </button>
+                <div class="m-card__details" hidden>
+                    <div class="m-card__detail-row">
+                        <span class="m-card__detail-label">Period</span>
+                        <span class="m-card__detail-value">${row.period_start || '—'} to ${row.period_end || '—'}</span>
+                    </div>
+                    <div class="m-card__detail-row">
+                        <span class="m-card__detail-label">W2 Co.</span>
+                        <span class="m-card__detail-value">${escapeHtml(row.w2_company)}</span>
+                    </div>
+                    <div class="m-card__detail-row">
+                        <span class="m-card__detail-label">Invoice #</span>
+                        <span class="m-card__detail-value">${escapeHtml(row.invoice_number)}</span>
+                    </div>
+                    <div class="m-card__actions" style="margin-top:0.75rem; display:flex; gap:0.5rem;">
+                        ${actions}
+                    </div>
+                </div>
+            </div>`;
+        }).join('');
+    }
 }
 
 function renderStatusBadge(status) {

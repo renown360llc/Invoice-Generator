@@ -299,6 +299,75 @@ function renderTable() {
         `;
     }).join('');
 
+    // ── Mobile card view (accordion) ──
+    if (els.cardContainer) {
+        els.cardContainer.innerHTML = filtered.map((consultant) => {
+            const active = isConsultantActive(consultant);
+            const isPending = consultant.status === 'pending';
+            let statusClass = 'status-inactive';
+            let statusText = 'Inactive';
+
+            if (active) { statusClass = 'status-active'; statusText = 'Active'; }
+            else if (isPending) { statusClass = 'status-pending'; statusText = 'Pending'; }
+
+            const hasTimesheet = coverageSet.has(String(consultant.id));
+            const rateSummary = getRateSummary(consultant);
+            const coverageClass = hasTimesheet ? 'status-active' : 'status-missing';
+            const coverageText = hasTimesheet ? '✓ Has Timesheet' : '⚠ No Timesheet';
+
+            return `
+            <div class="consultant-card" data-id="${consultant.id}">
+                <button class="consultant-card__toggle" aria-expanded="false" data-card-toggle="${consultant.id}">
+                    <div class="consultant-card__toggle-left">
+                        <span class="consultant-card__name">
+                            ${escapeHtml(consultant.name || '—')}
+                            ${consultant.notes ? `<span class="consultant-card__note" title="${escapeHtml(consultant.notes)}">📝</span>` : ''}
+                        </span>
+                        <span class="status-badge ${statusClass}">${statusText}</span>
+                    </div>
+                    <svg class="consultant-card__chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" width="18" height="18">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/>
+                    </svg>
+                </button>
+                <div class="consultant-card__body" hidden>
+                    <div class="consultant-card__row">
+                        <span class="consultant-card__label">Client</span>
+                        <span class="consultant-card__value">${escapeHtml(consultant.client || '—')}</span>
+                    </div>
+                    <div class="consultant-card__row">
+                        <span class="consultant-card__label">W2 Co.</span>
+                        <span class="consultant-card__value">${escapeHtml(consultant.w2_company || '—')}</span>
+                    </div>
+                    <div class="consultant-card__row">
+                        <span class="consultant-card__label">${escapeHtml(rateSummary.label)}</span>
+                        <span class="consultant-card__value consultant-card__value--bold">${escapeHtml(rateSummary.value)}</span>
+                    </div>
+                    <div class="consultant-card__row">
+                        <span class="consultant-card__label">Currency</span>
+                        <span class="consultant-card__value">${escapeHtml(consultant.currency || 'USD')}</span>
+                    </div>
+                    <div class="consultant-card__row">
+                        <span class="consultant-card__label">Start</span>
+                        <span class="consultant-card__value">${escapeHtml(consultant.start_date || '—')}</span>
+                    </div>
+                    ${consultant.end_date ? `<div class="consultant-card__row">
+                        <span class="consultant-card__label">End</span>
+                        <span class="consultant-card__value">${escapeHtml(consultant.end_date)}</span>
+                    </div>` : ''}
+                    <div class="consultant-card__row">
+                        <span class="consultant-card__label">Coverage</span>
+                        <span class="status-badge ${coverageClass}" style="font-size:0.7rem;padding:2px 8px;">${coverageText}</span>
+                    </div>
+                    <div class="consultant-card__actions">
+                        <button class="btn btn--outline btn--sm edit-btn" data-id="${consultant.id}">✏️ Edit</button>
+                        ${!hasTimesheet ? `<a class="btn btn--outline btn--sm" href="timesheets.html" style="text-align:center;">+ Timesheet</a>` : ''}
+                        <button class="btn btn--ghost btn--sm delete-btn" data-id="${consultant.id}" style="color:#be123c;min-width:44px;">🗑</button>
+                    </div>
+                </div>
+            </div>`;
+        }).join('');
+    }
+
 }
 
 /**
@@ -307,6 +376,19 @@ function renderTable() {
 document.addEventListener('click', (event) => {
     const target = event.target;
     if (!target) return;
+
+    // Card accordion toggle (mobile)
+    const cardToggle = target.closest('[data-card-toggle]');
+    if (cardToggle) {
+        const card = cardToggle.closest('.consultant-card');
+        const body = card?.querySelector('.consultant-card__body');
+        if (!body) return;
+        const isOpen = !body.hidden;
+        body.hidden = isOpen;
+        cardToggle.setAttribute('aria-expanded', String(!isOpen));
+        cardToggle.classList.toggle('is-open', !isOpen);
+        return;
+    }
 
     // Edit button
     const editBtn = target.closest('.edit-btn');
@@ -738,6 +820,7 @@ function cacheElements() {
     els.savedViewMeta = document.getElementById('savedViewMeta');
 
     els.tbody = document.getElementById('consultantsBody');
+    els.cardContainer = document.getElementById('consultantCards');
 
     els.errorName = document.getElementById('nameError');
     els.errorStartDate = document.getElementById('startDateError');

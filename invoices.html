@@ -16,6 +16,7 @@
     <link rel="stylesheet" href="styles/variables.css">
     <link rel="stylesheet" href="styles/sidebar.css?v=1">
     <link rel="stylesheet" href="styles/dashboard.css?v=11">
+    <link rel="stylesheet" href="styles/mobile.css?v=2">
 
     <style>
         body {
@@ -343,10 +344,12 @@
                 </div>
                 <div class="invoice-header__actions">
                     <button id="refreshBtn" class="btn btn--outline" title="Refresh List">
-                        🔄 Refresh
+                        <svg class="btn-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                        <span class="btn-text">Refresh</span>
                     </button>
                     <button id="exportCsvBtn" class="btn btn--outline" title="Export Report to CSV">
-                        📥 Export CSV
+                        <svg class="btn-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                        <span class="btn-text">Export CSV</span>
                     </button>
                     <a href="app.html" class="btn btn--primary">
                         <svg class="btn-icon" fill="currentColor" viewBox="0 0 20 20">
@@ -354,13 +357,31 @@
                                 d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z"
                                 clip-rule="evenodd" />
                         </svg>
-                        New Invoice
+                        <span class="btn-text">New Invoice</span>
                     </a>
                 </div>
             </div>
 
             <!-- Search & Filters -->
             <div class="section">
+                <!-- Mobile Filter UI (Always visible at top on mobile) -->
+                <div class="mobile-filter-bar" id="mobileFilterBar">
+                    <div class="mobile-filter-bar__row">
+                        <div class="mobile-filter-bar__search">
+                            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" width="18" height="18"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                            <input type="text" id="mobileSearchMirror" placeholder="Search invoices...">
+                        </div>
+                        <button type="button" class="mobile-filter-bar__filter-btn" id="mobileFilterBtn" aria-label="Filters" aria-expanded="false">
+                            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M3 6h18M6 12h12m-9 6h6"/></svg>
+                            <span>Filters</span>
+                            <span class="mobile-filter-bar__badge" id="mobileFilterBadge" hidden>0</span>
+                        </button>
+                    </div>
+                    <div class="mobile-filter-bar__chips" id="mobileFilterChips">
+                        <!-- Chips dynamically inserted here via JS -->
+                    </div>
+                </div>
+
                 <div class="invoices-filters-grid">
                     <select id="statusFilter" class="sort-select" aria-label="Filter by status">
                         <option value="all">All Status</option>
@@ -404,6 +425,9 @@
                     </button>
                 </div>
                 <p id="filtersMeta" class="filters-meta">0 filters applied</p>
+
+                <!-- Mobile Parallel Render Container -->
+                <div id="invoiceCards" class="m-cards"></div>
 
                 <!-- Invoices Table -->
                 <div class="table-container">
@@ -488,6 +512,240 @@
         loadLayout('invoices');
     </script>
     <script type="module" src="src/invoices-main.js"></script>
+
+    <!-- Mobile Filter Bottom Sheet -->
+    <div class="mfs-backdrop" id="mfsBackdrop"></div>
+    <div class="mfs-sheet" id="mfsSheet">
+        <div class="mfs-sheet__drag-handle"></div>
+        <div class="mfs-sheet__header">
+            <h3 class="mfs-sheet__title">Filters & Sort</h3>
+            <button type="button" class="mfs-sheet__close" id="mfsClose" aria-label="Close filters">✕</button>
+        </div>
+        <div class="mfs-sheet__body">
+            <div class="mfs-filters">
+                <div class="mfs-group">
+                    <label class="mfs-group__label">Status</label>
+                    <div class="mfs-chip-group">
+                        <button class="mfs-chip" data-filter="status" data-value="all">All</button>
+                        <button class="mfs-chip" data-filter="status" data-value="draft">Draft</button>
+                        <button class="mfs-chip" data-filter="status" data-value="sent">Sent</button>
+                        <button class="mfs-chip" data-filter="status" data-value="paid">Paid</button>
+                        <button class="mfs-chip" data-filter="status" data-value="overdue">Overdue</button>
+                    </div>
+                </div>
+                <div class="mfs-group">
+                    <label class="mfs-group__label">Consultant</label>
+                    <select class="mfs-select" id="mfsConsultantFilter">
+                        <option value="all">All Consultants</option>
+                    </select>
+                </div>
+                <div class="mfs-group">
+                    <label class="mfs-group__label">Due Date</label>
+                    <select class="mfs-select" id="mfsDueFilter">
+                        <option value="all">All Due Dates</option>
+                        <option value="overdue">Overdue</option>
+                        <option value="next-7">Due in 7 Days</option>
+                        <option value="next-30">Due in 30 Days</option>
+                        <option value="no-due">No Due Date</option>
+                    </select>
+                </div>
+                <div class="mfs-group">
+                    <label class="mfs-group__label">Amount</label>
+                    <select class="mfs-select" id="mfsAmountFilter">
+                        <option value="all">All Amounts</option>
+                        <option value="under-1000">Under 1,000</option>
+                        <option value="1000-5000">1,000 to 5,000</option>
+                        <option value="5000-10000">5,000 to 10,000</option>
+                        <option value="over-10000">Over 10,000</option>
+                    </select>
+                </div>
+                <div class="mfs-group">
+                    <label class="mfs-group__label">Currency</label>
+                    <select class="mfs-select" id="mfsCurrencyFilter">
+                        <option value="all">All Currencies</option>
+                    </select>
+                </div>
+                <div class="mfs-group">
+                    <label class="mfs-group__label">Sort By</label>
+                    <select class="mfs-select" id="mfsSortSelect">
+                        <option value="date-desc">Newest First</option>
+                        <option value="date-asc">Oldest First</option>
+                        <option value="amount-desc">Highest Amount</option>
+                        <option value="amount-asc">Lowest Amount</option>
+                        <option value="client-asc">Client A-Z</option>
+                        <option value="invoice-asc">Invoice # A-Z</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+        <div class="mfs-sheet__footer">
+            <button type="button" class="btn btn--outline" id="mfsClearBtn">Clear All</button>
+            <button type="button" class="btn btn--primary" id="mfsApplyBtn">Show Results</button>
+        </div>
+    </div>
+
+    <!-- Mobile Filter Bottom Sheet Controller -->
+    <script>
+    (function () {
+        const MOBILE_BP = 760;
+        if (window.innerWidth > MOBILE_BP) return;
+
+        const sheet     = document.getElementById('mfsSheet');
+        const backdrop  = document.getElementById('mfsBackdrop');
+        const filterBtn = document.getElementById('mobileFilterBtn');
+        const badge     = document.getElementById('mobileFilterBadge');
+        const chipsRow  = document.getElementById('mobileFilterChips');
+        const mobileSearch = document.getElementById('mobileSearchMirror');
+
+        // Desktop
+        const desktopSearch  = document.getElementById('searchInput');
+        const desktopStatus  = document.getElementById('statusFilter');
+        const desktopConsul  = document.getElementById('consultantFilter');
+        const desktopDue     = document.getElementById('dueFilter');
+        const desktopAmt     = document.getElementById('amountFilter');
+        const desktopCurr    = document.getElementById('currencyFilter');
+        const desktopSort    = document.getElementById('sortSelect');
+
+        // Sheet elements
+        const mfsClose  = document.getElementById('mfsClose');
+        const mfsClear  = document.getElementById('mfsClearBtn');
+        const mfsApply  = document.getElementById('mfsApplyBtn');
+        const mfsConsul = document.getElementById('mfsConsultantFilter');
+        const mfsDue    = document.getElementById('mfsDueFilter');
+        const mfsAmt    = document.getElementById('mfsAmountFilter');
+        const mfsCurr   = document.getElementById('mfsCurrencyFilter');
+        const mfsSort   = document.getElementById('mfsSortSelect');
+
+        function openSheet() {
+            if (mfsConsul && desktopConsul) copySelectOptions(desktopConsul, mfsConsul);
+            if (mfsCurr && desktopCurr)     copySelectOptions(desktopCurr, mfsCurr);
+            if (mfsDue && desktopDue)       mfsDue.value = desktopDue.value;
+            if (mfsAmt && desktopAmt)       mfsAmt.value = desktopAmt.value;
+            if (mfsSort && desktopSort)     mfsSort.value = desktopSort.value;
+            
+            const val = desktopStatus?.value || 'all';
+            document.querySelectorAll('[data-filter="status"]').forEach(b =>
+                b.classList.toggle('is-active', b.dataset.value === val)
+            );
+            
+            sheet.classList.add('is-open');
+            backdrop.classList.add('is-open');
+            filterBtn?.setAttribute('aria-expanded', 'true');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeSheet() {
+            sheet.classList.remove('is-open');
+            backdrop.classList.remove('is-open');
+            filterBtn?.setAttribute('aria-expanded', 'false');
+            document.body.style.overflow = '';
+        }
+
+        function copySelectOptions(src, dest) {
+            dest.innerHTML = src.innerHTML;
+            dest.value = src.value;
+        }
+
+        function applyFilters() {
+            const activeChip = document.querySelector('[data-filter="status"].is-active');
+            if (activeChip && desktopStatus) {
+                desktopStatus.value = activeChip.dataset.value;
+                desktopStatus.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+            [['mfsConsultantFilter','consultantFilter'],['mfsDueFilter','dueFilter'],
+             ['mfsAmountFilter','amountFilter'],['mfsCurrencyFilter','currencyFilter'],
+             ['mfsSortSelect','sortSelect']]
+              .forEach(([mId, dId]) => {
+                const m = document.getElementById(mId), d = document.getElementById(dId);
+                if (m && d) { d.value = m.value; d.dispatchEvent(new Event('change', { bubbles: true })); }
+            });
+            updateChips();
+            closeSheet();
+        }
+
+        function updateChips() {
+            if (!chipsRow) return;
+            const chips = [];
+
+            const statusVal = desktopStatus?.value;
+            if (statusVal && statusVal !== 'all') {
+                const labels = { draft:'Draft', sent:'Sent', paid:'Paid', overdue:'Overdue' };
+                chips.push({ key: 'status', label: labels[statusVal] || statusVal });
+            }
+            if (desktopConsul?.value && desktopConsul.value !== 'all') {
+                chips.push({ key: 'consultant', label: desktopConsul.options[desktopConsul.selectedIndex]?.text });
+            }
+            if (desktopDue?.value && desktopDue.value !== 'all') {
+                chips.push({ key: 'due', label: desktopDue.options[desktopDue.selectedIndex]?.text });
+            }
+            if (desktopAmt?.value && desktopAmt.value !== 'all') {
+                chips.push({ key: 'amount', label: desktopAmt.options[desktopAmt.selectedIndex]?.text });
+            }
+            if (desktopCurr?.value && desktopCurr.value !== 'all') {
+                chips.push({ key: 'currency', label: desktopCurr.value });
+            }
+
+            chipsRow.innerHTML = chips.map(c => `
+                <button class="mobile-filter-bar__chip" data-chip-key="${c.key}">
+                    ${c.label} <span class="mobile-filter-bar__chip-remove">✕</span>
+                </button>`).join('');
+
+            const count = chips.length;
+            if (badge) { badge.textContent = count; badge.hidden = count === 0; }
+            filterBtn?.classList.toggle('has-filters', count > 0);
+        }
+
+        function clearAll() {
+            document.querySelectorAll('[data-filter="status"]').forEach(btn =>
+                btn.classList.toggle('is-active', btn.dataset.value === 'all')
+            );
+            if (mfsConsul) mfsConsul.value = 'all';
+            if (mfsDue)    mfsDue.value    = 'all';
+            if (mfsAmt)    mfsAmt.value    = 'all';
+            if (mfsCurr)   mfsCurr.value   = 'all';
+            if (mfsSort)   mfsSort.value   = 'date-desc';
+        }
+
+        filterBtn?.addEventListener('click', openSheet);
+        mfsClose?.addEventListener('click', closeSheet);
+        backdrop?.addEventListener('click', closeSheet);
+        mfsApply?.addEventListener('click', applyFilters);
+        mfsClear?.addEventListener('click', clearAll);
+
+        document.querySelectorAll('[data-filter="status"]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('[data-filter="status"]').forEach(b => b.classList.remove('is-active'));
+                btn.classList.add('is-active');
+            });
+        });
+
+        if (mobileSearch && desktopSearch) {
+            mobileSearch.addEventListener('input', () => {
+                desktopSearch.value = mobileSearch.value;
+                desktopSearch.dispatchEvent(new Event('input', { bubbles: true }));
+            });
+        }
+
+        chipsRow?.addEventListener('click', e => {
+            const chip = e.target.closest('.mobile-filter-bar__chip');
+            if (!chip) return;
+            const map = { status: desktopStatus, consultant: desktopConsul, due: desktopDue, amount: desktopAmt, currency: desktopCurr };
+            const el = map[chip.dataset.chipKey];
+            if (el) { el.value = 'all'; el.dispatchEvent(new Event('change', { bubbles: true })); }
+            updateChips();
+        });
+
+        const syncDropdowns = () => {
+            if (mfsConsul && desktopConsul) copySelectOptions(desktopConsul, mfsConsul);
+            if (mfsCurr && desktopCurr)     copySelectOptions(desktopCurr, mfsCurr);
+        };
+        const selectObserver = new MutationObserver(syncDropdowns);
+        if (desktopConsul) selectObserver.observe(desktopConsul, { childList: true });
+        if (desktopCurr)   selectObserver.observe(desktopCurr,   { childList: true });
+
+        setInterval(updateChips, 600);
+    })();
+    </script>
 </body>
 
 </html>

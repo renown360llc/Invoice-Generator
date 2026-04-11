@@ -1,0 +1,2838 @@
+/* ============================================================================
+   InsightFlow — Complete Mobile Overhaul
+   ==========================================================================
+   This is NOT a patch file. This is a full mobile-first redesign that
+   restructures every component for 320px–768px screens.
+   Desktop styles (≥992px) are completely untouched.
+   ============================================================================ */
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   0. FOUNDATION — Root overrides, base typography, safe areas
+───────────────────────────────────────────────────────────────────────────── */
+@media (max-width: 991px) {
+    :root {
+        --sidebar-width: 0px; /* sidebar is hidden on mobile */
+    }
+
+    html {
+        -webkit-text-size-adjust: 100%;
+        text-size-adjust: 100%;
+        scroll-behavior: smooth;
+        overflow-x: hidden;
+    }
+
+    body {
+        font-size: 16px; /* minimum 16px for mobile readability */
+        -webkit-font-smoothing: antialiased;
+        overflow-x: hidden;
+    }
+
+    /* Kill all horizontal overflow at every level */
+    .app-shell,
+    .app-shell__content,
+    .dashboard,
+    .dashboard__container,
+    .invoices-page__container,
+    .consultants-page__container {
+        max-width: 100vw;
+        overflow-x: hidden;
+    }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   1. SIDEBAR & APP SHELL — Drawer navigation
+   Already a slide-out drawer at <991px via sidebar.css. Polish it.
+───────────────────────────────────────────────────────────────────────────── */
+@media (max-width: 991px) {
+    /* Bigger, easier-to-tap hamburger menu */
+    .sidebar-toggle {
+        display: flex;
+        width: 48px;
+        height: 48px;
+        top: 0.5rem;
+        left: 0.5rem;
+        border-radius: 12px;
+        font-size: 1.375rem;
+        box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+        z-index: 250;
+    }
+
+    /* Full content area, no margin */
+    .app-shell__content {
+        margin-left: 0;
+    }
+
+    /* Sidebar itself — smooth slide, full mobile drawer feel */
+    .sidebar {
+        width: min(280px, 85vw);
+        box-shadow: 6px 0 32px rgba(0,0,0,0.15);
+    }
+
+    .sidebar.is-open {
+        transform: translateX(0);
+    }
+
+    /* Sidebar links — bigger touch targets (≥48px tall) */
+    .sidebar__link {
+        padding: 0.75rem 1rem;
+        font-size: 0.9375rem;
+        min-height: 48px;
+        border-radius: 10px;
+        margin-bottom: 4px;
+    }
+
+    .sidebar__section-label {
+        padding: 1rem 1rem 0.5rem;
+        font-size: 0.7rem;
+    }
+
+    /* Overlay darkening */
+    .sidebar-overlay {
+        background: rgba(0, 0, 0, 0.4);
+        backdrop-filter: blur(4px);
+    }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   2. TOP HEADER BAR — Restructured for mobile
+───────────────────────────────────────────────────────────────────────────── */
+@media (max-width: 991px) {
+    .top-header {
+        padding: 0.5rem 0.75rem 0.5rem 4rem; /* Safely clear the 48px hamburger */
+        height: auto;
+        min-height: 56px;
+        gap: 0.5rem;
+        flex-wrap: nowrap; /* Force single row */
+        align-items: center;
+    }
+
+    .top-header__page-title {
+        display: none; /* Hide redundant title to save space for search */
+    }
+
+    .top-header__search {
+        flex: 1 1 auto;
+        min-width: 120px; /* Compressible but usable search bar */
+        order: 1;
+        margin: 0;
+    }
+
+    .top-header__search-input {
+        height: 40px;
+        font-size: 16px; /* Prevents iOS auto-zoom on focus */
+        padding-left: 2.25rem;
+        border-radius: 9999px; /* Pill shape for optimal mobile design */
+    }
+
+    .top-header__actions {
+        display: flex;
+        gap: 0.5rem;
+        order: 2;
+        flex-shrink: 0; /* Prevent icons from getting squished */
+    }
+
+    .top-header__user-info {
+        display: none; /* Hide verbose role text on mobile */
+    }
+
+    .top-header__icon-btn {
+        width: 40px;
+        height: 40px;
+        min-width: 40px;
+        min-height: 40px;
+    }
+    
+    .top-header__user .top-header__avatar {
+        width: 40px;
+        height: 40px;
+        min-width: 40px;
+    }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   3. DASHBOARD LAYOUT — Core container
+───────────────────────────────────────────────────────────────────────────── */
+@media (max-width: 991px) {
+    .dashboard {
+        padding: 1rem;
+    }
+
+    .dashboard__container {
+        max-width: 100%;
+    }
+
+    .dashboard__header {
+        margin-bottom: 1.25rem;
+    }
+
+    .dashboard__title {
+        font-size: 1.5rem;
+        line-height: 1.2;
+    }
+
+    .dashboard__subtitle {
+        font-size: 0.875rem;
+        margin-top: 0.35rem;
+        line-height: 1.5;
+    }
+}
+
+@media (max-width: 480px) {
+    .dashboard {
+        padding: 0.875rem 0.75rem;
+    }
+
+    .dashboard__title {
+        font-size: 1.375rem;
+    }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   4. DASHBOARD HERO — Full mobile restructure
+   headline → subtext → CTA each on own line, stacked vertically
+───────────────────────────────────────────────────────────────────────────── */
+@media (max-width: 991px) {
+    .dash-hero {
+        flex-direction: column;
+        align-items: stretch;
+        padding: 1.5rem 1.25rem;
+        gap: 1rem;
+        border-radius: 16px;
+    }
+
+    .dash-hero__left {
+        text-align: left;
+    }
+
+    .dash-hero__title {
+        font-size: 1.5rem;
+        letter-spacing: -0.02em;
+    }
+
+    .dash-hero__subtitle {
+        font-size: 0.875rem;
+        margin-top: 0.25rem;
+    }
+
+    .dash-hero__actions {
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+
+    .dash-hero__actions .btn {
+        min-height: 44px;
+        padding: 0.5rem 1rem;
+        font-size: 0.875rem;
+    }
+
+    .last-updated {
+        flex-basis: 100%;
+        margin-top: 0.25rem;
+        font-size: 0.75rem;
+    }
+}
+
+@media (max-width: 640px) {
+    .dash-hero {
+        padding: 1.25rem 1rem;
+        margin-bottom: 1rem;
+    }
+
+    .dash-hero__title {
+        font-size: 1.3rem;
+    }
+
+    /* Remove decorative gradient blobs — performance + visual cleanliness */
+    .dash-hero::before,
+    .dash-hero::after {
+        display: none;
+    }
+
+    /* Stack actions as 2-wide grid */
+    .dash-hero__actions {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.5rem;
+    }
+
+    .dash-hero__actions .btn {
+        justify-content: center;
+        width: 100%;
+    }
+
+    .last-updated {
+        grid-column: 1 / -1;
+        text-align: center;
+    }
+
+    /* Hide less important buttons to declutter */
+    .dash-hero__actions .btn--ghost {
+        display: none;
+    }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   5. STATS GRID — Completely restructured for mobile
+───────────────────────────────────────────────────────────────────────────── */
+@media (max-width: 991px) {
+    .stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 0.625rem;
+    }
+}
+
+@media (max-width: 640px) {
+    .stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 0.5rem;
+    }
+
+    /* Enterprise stat cards — vertical layout ensures numbers and text are fully visible in the 2-column grid */
+    .stat-card {
+        padding: 1rem 0.875rem;
+        border-radius: 14px;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        justify-content: center;
+        gap: 0.375rem;
+    }
+
+    .stat-card:hover {
+        transform: none; /* remove desktop hover float on mobile */
+    }
+
+    .stat-card__icon-wrap {
+        width: 32px;
+        height: 32px;
+        border-radius: 8px;
+        flex-shrink: 0;
+        margin-top: 0;
+        margin-bottom: 0.25rem;
+    }
+
+    .stat-card__icon-wrap svg {
+        width: 16px;
+        height: 16px;
+    }
+
+    .stat-card__label {
+        font-size: 0.6875rem;
+        margin-top: 0;
+        line-height: 1.2;
+    }
+
+    .stat-card__value {
+        font-size: 1.3rem; /* Increase number visibility */
+        line-height: 1.1;
+        white-space: normal;
+        word-break: break-word; /* Prevents overflow */
+    }
+
+    .stat-card__change {
+        font-size: 0.72rem;
+        line-height: 1.25;
+        margin-top: 0.125rem;
+        width: 100%;
+        display: flex;
+        flex-wrap: wrap; /* Let long subtitles wrap naturally */
+    }
+}
+
+@media (max-width: 380px) {
+    .stats-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .stat-card {
+        flex-direction: row; /* Safe to be horizontal when there's only 1 column taking 100% width! */
+        gap: 0.75rem;
+        align-items: center;
+    }
+    
+    .stat-card__icon-wrap {
+        margin-bottom: 0;
+    }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   6. SECTION CARDS — Global section styling for mobile
+───────────────────────────────────────────────────────────────────────────── */
+@media (max-width: 991px) {
+    .section {
+        padding: 1.25rem 1rem;
+        margin-bottom: 1rem;
+        border-radius: 16px;
+    }
+
+    .section__header {
+        margin-bottom: 1rem;
+        padding-bottom: 0.875rem;
+    }
+
+    .section__header--with-controls {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0.75rem;
+    }
+
+    .section__header--with-controls .link {
+        align-self: flex-start;
+    }
+
+    .section__title {
+        font-size: 1rem;
+    }
+
+    .section__subtitle {
+        font-size: 0.8125rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .section {
+        padding: 1rem 0.875rem;
+        border-radius: 14px;
+    }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   7. DASH-DUO — Side-by-side → stacked columns
+───────────────────────────────────────────────────────────────────────────── */
+@media (max-width: 991px) {
+    .dash-duo {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+    }
+
+    .chart-container {
+        height: 240px;
+    }
+}
+
+@media (max-width: 480px) {
+    .chart-container {
+        height: 200px;
+    }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   8. WORKFLOW CARDS, CLOSE BANNER — Mobile restructure
+───────────────────────────────────────────────────────────────────────────── */
+@media (max-width: 991px) {
+    .workflow-grid {
+        grid-template-columns: 1fr;
+        gap: 0.75rem;
+    }
+
+    .workflow-card {
+        padding: 1rem;
+        border-radius: 14px;
+    }
+
+    .workflow-card__value {
+        font-size: 1.5rem;
+    }
+
+    .close-banner {
+        grid-template-columns: 1fr;
+        padding: 1rem;
+        gap: 1rem;
+    }
+
+    .close-banner__title {
+        font-size: 1.05rem;
+    }
+
+    .close-banner__actions {
+        flex-direction: column;
+    }
+
+    .close-banner__actions .btn {
+        width: 100%;
+        min-height: 44px;
+        justify-content: center;
+    }
+
+    .close-banner__step {
+        padding: 0.75rem;
+    }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   9. ACTIVITY / COLLECTION / EXCEPTION ITEMS — Card-based on mobile
+───────────────────────────────────────────────────────────────────────────── */
+@media (max-width: 640px) {
+    .activity-item,
+    .collection-item,
+    .exception-item {
+        grid-template-columns: 1fr;
+        gap: 0.5rem;
+        padding: 1rem;
+        border-radius: 14px;
+    }
+
+    .activity-item__badge,
+    .collection-item__badge,
+    .exception-item__badge {
+        width: fit-content;
+        min-width: auto;
+    }
+
+    .activity-item__time {
+        font-size: 0.75rem;
+    }
+
+    .collection-item__actions,
+    .exception-item__actions {
+        justify-content: flex-start;
+    }
+
+    .collection-item__actions .btn,
+    .exception-item__actions .btn {
+        min-height: 44px;
+        flex: 1;
+    }
+}
+
+/* ── Activity timeline (compact) */
+@media (max-width: 640px) {
+    .activity-timeline__item {
+        padding: 0.75rem 0;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+    }
+
+    .activity-timeline__title {
+        white-space: normal;
+        font-size: 0.875rem;
+    }
+
+    .activity-timeline__time {
+        flex-basis: 100%;
+        padding-left: calc(8px + 0.5rem); /* align under content, past dot */
+    }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   10. CRM TOOLBAR — Complete mobile restructure (Analytics, Timesheets, Consultants)
+───────────────────────────────────────────────────────────────────────────── */
+@media (max-width: 991px) {
+    .crm-toolbar {
+        flex-direction: column;
+        align-items: stretch;
+        padding: 0.875rem;
+        gap: 0.625rem;
+        border-radius: 14px;
+    }
+
+    .crm-toolbar__search {
+        flex: 1 1 100%;
+        min-width: 0;
+    }
+
+    .crm-toolbar__search input {
+        height: 44px;
+        font-size: 16px; /* prevent iOS zoom */
+        border-radius: 10px;
+        padding-left: 2.5rem;
+    }
+
+    .crm-toolbar__divider {
+        display: none;
+    }
+
+    .crm-toolbar__filters {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.5rem;
+        width: 100%;
+    }
+
+    .crm-toolbar__pill {
+        width: 100%;
+        min-height: 44px;
+        font-size: 0.875rem;
+        border-radius: 10px;
+    }
+
+    .crm-toolbar__period-wrap {
+        width: 100%;
+    }
+
+    .crm-toolbar__period {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .crm-toolbar__period-btn {
+        width: 44px;
+        height: 44px;
+    }
+
+    .crm-toolbar__period-label {
+        flex: 1;
+        min-height: 44px;
+        justify-content: center;
+    }
+
+    .crm-toolbar__views {
+        width: 100%;
+    }
+
+    .crm-toolbar__views select {
+        width: 100%;
+        min-height: 44px;
+        font-size: 0.875rem;
+    }
+
+    .crm-toolbar__spacer {
+        display: none;
+    }
+
+    /* Action buttons row */
+    .crm-toolbar__clear,
+    .crm-toolbar__action {
+        min-height: 44px;
+        font-size: 0.875rem;
+        width: 100%;
+        justify-content: center;
+        text-align: center;
+        border-radius: 10px;
+    }
+
+    /* Saved views expand row */
+    .crm-toolbar__views-expand {
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+
+    .crm-toolbar__views-expand input {
+        flex: 1 1 100%;
+        min-height: 44px;
+        font-size: 16px;
+    }
+
+    .crm-toolbar__views-expand .btn {
+        min-height: 44px;
+        flex: 1;
+    }
+
+    /* Period jump menu */
+    .crm-toolbar__period-menu {
+        width: 100%;
+        left: 0;
+        right: 0;
+    }
+
+    .crm-toolbar__period-menu-grid {
+        grid-template-columns: repeat(4, 1fr);
+    }
+
+    .crm-toolbar__period-month {
+        min-height: 44px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+}
+
+/* Stats strip — wrap for mobile */
+@media (max-width: 991px) {
+    .crm-stats-strip {
+        flex-wrap: wrap;
+        gap: 0.4rem 0.75rem;
+        padding: 0.75rem 0;
+    }
+
+    .crm-stats-strip__dot {
+        display: none;
+    }
+
+    .crm-stats-strip--inline {
+        justify-content: flex-start;
+        text-align: left;
+        white-space: normal;
+        margin-left: 0;
+    }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   11. TABLES → CARD CONVERSION
+   Every data table becomes a stacked card layout on mobile.
+   The `data-label` attribute on each <td> powers the label display.
+───────────────────────────────────────────────────────────────────────────── */
+@media (max-width: 760px) {
+    /* Reset the table container */
+    .table-container {
+        border: none;
+        border-radius: 0;
+        background: transparent;
+        overflow-x: visible;
+    }
+
+    /* Hide table headers — labels shown via data-label */
+    .table thead,
+    .invoice-table thead,
+    #consultantsTable thead {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip: rect(0,0,0,0);
+        white-space: nowrap;
+    }
+
+    /* Table becomes a block container */
+    .table tbody,
+    .table tr,
+    .invoice-table tbody,
+    .invoice-table tr,
+    #consultantsTable tbody,
+    #consultantsTable tr {
+        display: block;
+        width: 100%;
+    }
+
+    /* Each row becomes a card */
+    .table tbody tr,
+    .invoice-table tbody tr,
+    #consultantsTable tbody tr {
+        background: white;
+        border-radius: 14px;
+        border: 1px solid var(--surface-glass-border);
+        margin-bottom: 0.75rem;
+        box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+        overflow: hidden;
+    }
+
+    /* Each cell becomes a key-value row */
+    .table td,
+    .invoice-table td,
+    #consultantsTable td {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.75rem 1rem;
+        border-bottom: 1px solid var(--surface-border-subtle);
+        font-size: 0.875rem;
+        white-space: normal;
+        min-width: 0;
+        min-height: 44px; /* touch target */
+        text-align: right;
+    }
+
+    .table td:last-child,
+    .invoice-table td:last-child,
+    #consultantsTable td:last-child {
+        border-bottom: none;
+    }
+
+    /* Data label pseudo-element — left side of each "row" */
+    .table td::before,
+    .invoice-table td::before,
+    #consultantsTable td::before {
+        content: attr(data-label);
+        font-size: 0.75rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--text-tertiary);
+        white-space: nowrap;
+        margin-right: 1rem;
+        flex-shrink: 0;
+        text-align: left;
+    }
+
+    /* First cell of each card — acts as card header */
+    .table tbody tr td:first-child,
+    .invoice-table tbody tr td:first-child,
+    #consultantsTable tbody tr td:first-child {
+        background: linear-gradient(180deg, #f8fafc 0%, #ffffff 100%);
+        font-weight: 700;
+        font-size: 0.9375rem;
+        padding: 0.875rem 1rem;
+        border-bottom: 1px solid var(--surface-glass-border);
+    }
+
+    /* Invoice-specific: hide less important columns */
+    .invoice-table td.invoice-cell--from,
+    .invoice-table td.invoice-cell--currency {
+        display: none;
+    }
+
+    /* Actions row styling */
+    .invoice-table td.invoice-cell--actions,
+    #consultantsTable td:last-child {
+        background: #fafbfc;
+        justify-content: flex-end;
+        padding: 0.625rem 1rem;
+        min-height: 48px;
+    }
+
+    .invoice-table td.invoice-cell--actions::before,
+    #consultantsTable td:last-child::before {
+        display: none;
+    }
+
+    /* Amount cell */
+    .invoice-table td.invoice-cell--amount {
+        font-weight: 800;
+        color: var(--text-primary);
+    }
+
+    /* Empty state — keep it block */
+    .table td.table__empty,
+    .invoice-table td.table__empty,
+    #consultantsTable td.table__empty {
+        display: block;
+        text-align: center;
+        padding: 3rem 1rem;
+        background: white;
+        border-radius: 14px;
+        border: 1px solid var(--surface-glass-border);
+    }
+
+    .table td.table__empty::before,
+    .invoice-table td.table__empty::before,
+    #consultantsTable td.table__empty::before {
+        display: none;
+    }
+
+    /* Expansion rows (invoice items breakdown) — keep inside card */
+    .invoice-table tr.invoice-expand-row,
+    .invoice-table tr.invoice-row--expanded + tr {
+        margin-top: -0.75rem;
+        border-top: none;
+        border-radius: 0 0 14px 14px;
+    }
+
+    /* Items breakdown table inside expansion — keep scrollable */
+    .items-panel-container {
+        padding: 1rem;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .items-breakdown-table {
+        min-width: 500px; /* allow horizontal scroll */
+    }
+
+    /* Timesheets table body */
+    #timesheetBody {
+        display: block;
+    }
+
+    #timesheetBody tr {
+        display: block;
+        background: white;
+        border-radius: 14px;
+        border: 1px solid var(--surface-glass-border);
+        margin-bottom: 0.75rem;
+        box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+        overflow: hidden;
+    }
+
+    #timesheetBody td {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.75rem 1rem;
+        border-bottom: 1px solid var(--surface-border-subtle);
+        font-size: 0.875rem;
+        min-height: 44px;
+        white-space: normal;
+    }
+
+    #timesheetBody td:last-child {
+        border-bottom: none;
+    }
+
+    #timesheetBody td::before {
+        content: attr(data-label);
+        font-size: 0.75rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--text-tertiary);
+        white-space: nowrap;
+        margin-right: 1rem;
+        flex-shrink: 0;
+    }
+
+    #timesheetBody tr td:first-child {
+        background: linear-gradient(180deg, #f8fafc 0%, #ffffff 100%);
+        font-weight: 700;
+        font-size: 0.9375rem;
+        border-bottom: 1px solid var(--surface-glass-border);
+    }
+
+    /* Timesheets — also reset the section for card flow */
+    .dashboard > .dashboard__container > .section .table-container {
+        border: none;
+        border-radius: 0;
+        background: transparent;
+    }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   12. INVOICE EDITOR (app.html) — Tab switcher + preview scaling
+───────────────────────────────────────────────────────────────────────────── */
+
+/* Tab bar hidden by default on desktop */
+.mobile-tab-bar {
+    display: none;
+}
+
+@media (max-width: 1100px) {
+    /* Show mobile tab bar */
+    .mobile-tab-bar {
+        display: flex;
+        position: sticky;
+        top: 0;
+        z-index: 50;
+        background: white;
+        border-bottom: 2px solid var(--surface-glass-border);
+        box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+    }
+
+    .mobile-tab-bar__btn {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        padding: 0.875rem 1rem;
+        min-height: 52px;
+        border: none;
+        background: transparent;
+        font-size: 0.9375rem;
+        font-weight: 600;
+        font-family: var(--font-sans);
+        color: var(--text-secondary);
+        cursor: pointer;
+        transition: all 0.2s;
+        border-bottom: 3px solid transparent;
+        margin-bottom: -2px;
+    }
+
+    .mobile-tab-bar__btn.is-active {
+        color: var(--primary);
+        border-bottom-color: var(--primary);
+        background: var(--primary-light);
+    }
+
+    .mobile-tab-bar__btn:active {
+        background: rgba(0,0,0,0.03);
+    }
+
+    .mobile-tab-bar__btn svg {
+        width: 18px;
+        height: 18px;
+    }
+
+    /* Tab switching: form visible by default */
+    .app[data-mobile-tab="preview"] .editor {
+        display: none;
+    }
+
+    .app[data-mobile-tab="preview"] .preview {
+        display: flex;
+    }
+
+    .app[data-mobile-tab="form"] .preview,
+    .app:not([data-mobile-tab]) .preview {
+        display: none;
+    }
+
+    .app[data-mobile-tab="form"] .editor,
+    .app:not([data-mobile-tab]) .editor {
+        display: flex;
+    }
+
+    /* App container — allow stacking */
+    .app {
+        overflow: visible;
+        height: auto;
+        min-height: calc(100vh - 52px);
+    }
+
+    /* Editor — full width */
+    .editor {
+        width: 100%;
+        height: auto;
+        min-height: 50vh;
+        border-right: none;
+        box-shadow: none;
+    }
+
+    /* Preview — full width, scaled paper */
+    .preview {
+        min-height: 50vh;
+        width: 100%;
+    }
+
+    .preview__container {
+        padding: 1rem;
+        justify-content: center;
+    }
+
+    /* Scale invoice paper to fit mobile viewport */
+    .invoice-paper {
+        width: 100%;
+        max-width: 100%;
+        min-height: auto;
+        padding: 32px 24px;
+        font-size: 11px;
+        border-radius: 8px;
+        box-shadow: 0 2px 16px rgba(0,0,0,0.08);
+    }
+}
+
+@media (max-width: 640px) {
+    /* Editor sections */
+    .editor__header {
+        padding: 1rem;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0.75rem;
+    }
+
+    .editor__title {
+        font-size: 1.125rem;
+    }
+
+    .editor__actions {
+        display: flex;
+        gap: 0.5rem;
+    }
+
+    .editor__actions .btn {
+        flex: 1;
+        min-height: 44px;
+        justify-content: center;
+    }
+
+    .editor-statusbar {
+        padding: 0.625rem 1rem;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0.5rem;
+    }
+
+    .template-bar {
+        padding: 0.625rem 1rem;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+
+    .template-bar__select {
+        flex: 1 1 100%;
+        min-height: 44px;
+        font-size: 16px;
+    }
+
+    .editor__form {
+        padding: 1rem;
+    }
+
+    /* Form sections — tighter for mobile */
+    .form-section {
+        padding: 1rem;
+        margin-bottom: 0.875rem;
+        border-radius: 12px;
+    }
+
+    .form-section__title {
+        font-size: 0.9375rem;
+    }
+
+    /* Form rows — always single column on mobile */
+    .form-row.form-row--2,
+    .form-row.form-row--3 {
+        grid-template-columns: 1fr;
+    }
+
+    /* Inputs — full width, proper height */
+    .form-field__input,
+    .form-field__select,
+    .form-field__textarea {
+        min-height: 44px;
+        font-size: 16px; /* prevent iOS zoom */
+        border-radius: 10px;
+    }
+
+    .form-field__label {
+        font-size: 0.875rem;
+    }
+
+    /* Summary inputs */
+    .summary-inputs {
+        grid-template-columns: 1fr;
+    }
+
+    /* Input group */
+    .input-group {
+        flex-direction: row;
+    }
+
+    /* Invoice paper — even more compact */
+    .invoice-paper {
+        padding: 20px 16px;
+        font-size: 10px;
+    }
+
+    /* Paper header stacks */
+    .paper-header {
+        flex-direction: column;
+        gap: 1rem;
+        margin-bottom: 24px;
+    }
+
+    .paper-invoice-block {
+        text-align: left;
+    }
+
+    .paper-invoice-title {
+        font-size: 22px;
+        letter-spacing: 2px;
+    }
+
+    .paper-meta-table {
+        text-align: left;
+    }
+
+    .paper-addresses {
+        padding: 16px 0;
+    }
+
+    .paper-item-metrics {
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    .paper-footer {
+        flex-direction: column;
+        gap: 20px;
+    }
+
+    .paper-totals-section {
+        width: 100%;
+    }
+
+    /* Preview header */
+    .preview__header {
+        padding: 0.75rem 1rem;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0.75rem;
+    }
+
+    .preview__actions {
+        display: flex;
+        gap: 0.5rem;
+    }
+
+    .preview__actions .btn {
+        flex: 1;
+        min-height: 44px;
+        justify-content: center;
+    }
+
+    /* Hide print button on mobile (no printer available) */
+    .preview__actions .btn--icon {
+        display: none;
+    }
+
+    /* Item cards */
+    .item-card__metrics {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   13. INVOICES PAGE — Header, filters
+───────────────────────────────────────────────────────────────────────────── */
+@media (max-width: 760px) {
+    .invoices-page {
+        padding-inline: 0.875rem;
+    }
+
+    .invoice-header {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0.75rem;
+    }
+
+    .invoice-header__actions {
+        display: flex;
+        gap: 0.5rem;
+        width: 100%; /* Ensure it spans the parent */
+    }
+
+    .invoice-header__actions .btn,
+    .invoice-header__actions a {
+        min-height: 44px;
+        margin: 0;
+        justify-content: center;
+        text-align: center;
+        padding-left: 0;
+        padding-right: 0;
+    }
+
+    /* Convert secondary buttons into compact icons on mobile */
+    .invoice-header__actions .btn--outline {
+        width: 44px;
+        flex: 0 0 44px;
+        padding: 0;
+    }
+
+    .invoice-header__actions .btn--outline .btn-text {
+        display: none; /* Hide text, show only SVG */
+    }
+
+    .invoice-header__actions .btn--outline .btn-icon {
+        margin: 0; /* Center icon perfectly */
+    }
+
+    /* Primary button expands */
+    .invoice-header__actions .btn--primary {
+        flex: 1 1 auto;
+    }
+
+    /* Hide desktop filters on mobile now that we use the mfs-sheet */
+    .invoices-filters-grid,
+    .filters-meta {
+        display: none !important;
+    }
+}
+
+@media (max-width: 420px) {
+    .invoices-page {
+        padding-inline: 0.625rem;
+    }
+
+    .invoices-filters-grid {
+        grid-template-columns: 1fr;
+    }
+
+    #searchInput {
+        grid-column: auto;
+    }
+    
+    /* We no longer restack the buttons here because flex does it elegantly */
+
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   14. ANALYTICS PAGE — Full mobile restructure
+───────────────────────────────────────────────────────────────────────────── */
+@media (max-width: 991px) {
+    /* Tab bar + stats strip */
+    .analytics-tabs-row {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0.75rem;
+    }
+
+    .analytics-tabs {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        white-space: nowrap;
+        scrollbar-width: none;
+    }
+
+    .analytics-tabs::-webkit-scrollbar {
+        display: none;
+    }
+
+    .analytics-tabs__btn {
+        padding: 0.75rem 1.125rem;
+        min-height: 44px;
+        font-size: 0.875rem;
+    }
+
+    .crm-stats-strip--inline {
+        justify-content: flex-start;
+        text-align: left;
+        margin-left: 0;
+        white-space: normal;
+    }
+
+    /* Chart cards — single column */
+    .analytics-charts-row {
+        grid-template-columns: 1fr;
+        gap: 0.875rem;
+    }
+
+    .analytics-chart-card {
+        padding: 1rem;
+        border-radius: 14px;
+    }
+
+    .analytics-chart-card__header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.5rem;
+    }
+
+    /* KPI grid */
+    .kpi-grid {
+        grid-template-columns: repeat(2, 1fr) !important;
+        gap: 0.625rem;
+    }
+
+    .kpi-card {
+        padding: 0.875rem;
+    }
+
+    .kpi-card__value {
+        font-size: 1.1rem;
+    }
+
+    .kpi-card__filter-hint {
+        display: none; /* hover hint — irrelevant on touch */
+    }
+
+    /* Insights grid — single column */
+    .insights-grid {
+        grid-template-columns: 1fr !important;
+        gap: 0.75rem;
+    }
+
+    .insight-card {
+        padding: 1rem;
+        border-radius: 14px;
+    }
+
+    /* Aging buckets — 2 columns */
+    .analytics-aging-buckets {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 0.5rem;
+    }
+
+    .aging-bucket {
+        padding: 0.75rem 0.5rem;
+    }
+
+    /* Pivot table — keep scrollable */
+    .pivot-wrap {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        border-radius: 14px;
+    }
+
+    /* Detail drawer — full width bottom sheet on mobile */
+    .detail-drawer {
+        width: 100% !important;
+        max-width: 100% !important;
+        top: auto;
+        bottom: 0;
+        height: auto;
+        max-height: 85vh;
+        border-radius: 20px 20px 0 0;
+        transform: translateY(100%);
+    }
+
+    .detail-drawer.is-open {
+        transform: translateY(0);
+    }
+
+    .detail-drawer__header {
+        padding: 1rem 1.25rem;
+    }
+
+    .detail-drawer__body {
+        padding: 1rem 1.25rem;
+    }
+
+    .detail-drawer__footer {
+        padding: 1rem 1.25rem;
+        padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+    }
+
+    .detail-drawer__footer .btn {
+        min-height: 44px;
+        flex: 1;
+    }
+
+    .detail-drawer__close {
+        width: 36px;
+        height: 36px;
+        min-width: 44px;
+        min-height: 44px;
+    }
+}
+
+@media (max-width: 480px) {
+    .kpi-grid {
+        grid-template-columns: 1fr !important;
+    }
+
+    .analytics-aging-buckets {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   15. CONSULTANTS PAGE — Mobile refinements
+───────────────────────────────────────────────────────────────────────────── */
+@media (max-width: 760px) {
+    .consultants-page {
+        padding-inline: 0.875rem;
+    }
+
+    .consultants-header {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0.75rem;
+    }
+
+    .consultants-header__actions {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .consultants-header__actions .btn {
+        width: 100%;
+        min-height: 44px;
+        justify-content: center;
+    }
+
+    /* Modal — full screen on mobile */
+    .modal {
+        padding: 0;
+        align-items: flex-end; /* bottom sheet */
+    }
+
+    .modal-content {
+        max-height: 95vh;
+        border-radius: 20px 20px 0 0;
+        width: 100% !important;
+    }
+
+    .modal-header {
+        padding: 1.25rem 1.25rem 1rem;
+    }
+
+    .modal-title {
+        font-size: 1.25rem;
+    }
+
+    .modal-body {
+        padding: 1rem 1.25rem 1.25rem;
+        max-height: calc(95vh - 120px);
+    }
+
+    .form-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .form-field__input,
+    .form-field__select {
+        min-height: 44px;
+        font-size: 16px;
+    }
+
+    .modal-actions {
+        flex-direction: column-reverse;
+        padding: 1rem 1.25rem;
+        padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+    }
+
+    .modal-actions .btn {
+        width: 100%;
+        min-height: 48px;
+    }
+
+    .modal-close {
+        width: 40px;
+        height: 40px;
+        min-width: 44px;
+        min-height: 44px;
+    }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   16. TIMESHEETS PAGE — Specific tweaks
+───────────────────────────────────────────────────────────────────────────── */
+@media (max-width: 760px) {
+    /* Inline controls in timesheets rows */
+    .ts-inline-controls {
+        flex-direction: column;
+        gap: 0.375rem;
+    }
+
+    .ts-inline-controls input,
+    .ts-inline-controls select {
+        width: 100%;
+        min-height: 44px;
+        font-size: 16px;
+    }
+
+    /* Timesheet section container — remove section padding for cards  */
+    .dashboard .section .table-container {
+        border: none;
+        background: transparent;
+    }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   17. ALL BUTTONS — Touch-optimized (≥44px)
+───────────────────────────────────────────────────────────────────────────── */
+@media (max-width: 991px) {
+    .btn {
+        min-height: 44px;
+        padding: 0.625rem 1.125rem;
+        font-size: 0.875rem;
+        border-radius: 10px;
+        gap: 0.5rem;
+    }
+
+    .btn--sm {
+        min-height: 40px;
+        padding: 0.5rem 0.875rem;
+        font-size: 0.8125rem;
+    }
+
+    .btn--icon {
+        width: 44px;
+        height: 44px;
+    }
+
+    /* Action pills — bigger touch targets */
+    .action-pill {
+        min-height: 36px;
+        padding: 0.4rem 0.75rem;
+        font-size: 0.75rem;
+        border-radius: 8px;
+    }
+
+    /* Action buttons in tables */
+    .action-btn {
+        min-height: 36px;
+        min-width: 36px;
+        padding: 0.4rem 0.625rem;
+        border-radius: 8px;
+    }
+
+    /* Links — ensure accessible touch target */
+    .link {
+        min-height: 44px;
+        display: inline-flex;
+        align-items: center;
+    }
+
+    /* Segmented control — touch friendly */
+    .segmented__btn {
+        min-height: 40px;
+        padding: 0.5rem 1rem;
+        font-size: 0.8125rem;
+    }
+
+    /* Dropdown menu items */
+    .dropdown-item,
+    .user-menu__item {
+        min-height: 44px;
+        padding: 0.75rem 1rem;
+    }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   18. ALL FORM INPUTS — Full width, iOS-safe sizing
+───────────────────────────────────────────────────────────────────────────── */
+@media (max-width: 991px) {
+    /* All text inputs, selects, textareas — proper mobile sizing */
+    input[type="text"],
+    input[type="email"],
+    input[type="tel"],
+    input[type="number"],
+    input[type="date"],
+    input[type="search"],
+    input[type="password"],
+    select,
+    textarea {
+        font-size: 16px; /* prevents iOS auto-zoom on focus */
+    }
+
+    .search-input,
+    .sort-select {
+        min-height: 44px;
+        font-size: 16px;
+        border-radius: 10px;
+    }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   19. MODALS — Bottom sheet pattern on mobile
+───────────────────────────────────────────────────────────────────────────── */
+@media (max-width: 640px) {
+    /* Generic modal fixups for inline-styled modals (app.html, invoices.html, dashboard.html) */
+    [id$="Modal"][style*="position:fixed"] > div,
+    [id$="Modal"][style*="position: fixed"] > div,
+    [id$="modal"][style*="position:fixed"] > div,
+    [id$="modal"][style*="position: fixed"] > div {
+        max-height: 90vh;
+        overflow-y: auto;
+        width: calc(100% - 1.5rem) !important;
+        max-width: calc(100% - 1.5rem) !important;
+        margin: auto;
+        border-radius: 16px;
+    }
+
+    /* Timesheet generator modal — fix grid */
+    #timesheetModal [style*="grid-template-columns: 1fr 1fr"] {
+        grid-template-columns: 1fr !important;
+    }
+
+    /* All modal buttons on mobile — full width */
+    #newInvoiceModal div[style*="display:flex"] button,
+    #unlockInvoiceModal div[style*="display:flex"] button {
+        width: 100%;
+    }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   20. TOAST — Full-width bottom bar on mobile
+───────────────────────────────────────────────────────────────────────────── */
+@media (max-width: 640px) {
+    .toast {
+        left: 0.75rem !important;
+        right: 0.75rem !important;
+        bottom: calc(env(safe-area-inset-bottom, 0px) + 0.75rem) !important;
+        width: auto !important;
+        border-radius: 12px;
+        padding: 0.875rem 1rem;
+        font-size: 0.875rem;
+    }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   21. SEGMENTED CONTROLS — Mobile
+───────────────────────────────────────────────────────────────────────────── */
+@media (max-width: 640px) {
+    .segmented {
+        width: 100%;
+        display: flex;
+    }
+
+    .segmented__btn {
+        flex: 1;
+        text-align: center;
+        justify-content: center;
+    }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   22. WORKSPACE SHELL & CONTROLS (Dashboard workspace sections)
+───────────────────────────────────────────────────────────────────────────── */
+@media (max-width: 991px) {
+    .workspace-shell__top {
+        grid-template-columns: 1fr;
+        gap: 0.75rem;
+    }
+
+    .workspace-toolbar {
+        grid-template-columns: 1fr;
+        gap: 0.5rem;
+    }
+
+    .workspace-toolbar__search {
+        grid-column: auto;
+    }
+
+    .workspace-period-controls {
+        grid-template-columns: 1fr;
+        gap: 0.5rem;
+    }
+
+    .saved-view-bar,
+    .saved-view-bar--inline {
+        grid-template-columns: 1fr;
+        gap: 0.5rem;
+    }
+
+    .workspace-summary-bar {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0.75rem;
+    }
+
+    .period-summary__top {
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+
+    .period-summary__stats {
+        width: 100%;
+        grid-template-columns: 1fr;
+    }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   23. PAGINATION — Centered, wrapped
+───────────────────────────────────────────────────────────────────────────── */
+@media (max-width: 640px) {
+    #pagination {
+        flex-wrap: wrap !important;
+        gap: 0.375rem !important;
+        justify-content: center !important;
+        margin-top: 1rem !important;
+    }
+
+    #pagination .btn,
+    #pagination button {
+        min-width: 40px;
+        min-height: 40px;
+        padding: 0.5rem 0.75rem;
+        font-size: 0.875rem;
+    }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   24. NOTE TOOLTIPS — Touch-friendly
+───────────────────────────────────────────────────────────────────────────── */
+@media (max-width: 991px) {
+    /* Tooltips don't work well on touch — reposition to below */
+    .note-tooltip {
+        top: calc(100% + 8px);
+        left: 50%;
+        transform: translateX(-50%);
+        width: min(260px, 80vw);
+    }
+
+    .note-tooltip::after {
+        top: -12px;
+        right: auto;
+        left: 50%;
+        transform: translateX(-50%);
+        border-color: transparent transparent #fde047 transparent;
+    }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   25. ANALYTICS TABLES — Keep scrollable (not card-converted)
+───────────────────────────────────────────────────────────────────────────── */
+@media (max-width: 760px) {
+    /* Analytics detail & pivot tables — keep as scrollable tables */
+    #panel-detail .table-container,
+    #panel-pivot .table-container,
+    .pivot-wrap {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        border: 1px solid var(--surface-glass-border);
+        border-radius: 14px;
+        background: white;
+    }
+
+    /* Undo generic table card conversion for analytics tables */
+    #panel-detail .table thead,
+    #panel-pivot .table thead {
+        position: static;
+        width: auto;
+        height: auto;
+        overflow: visible;
+        clip: auto;
+        white-space: normal;
+    }
+
+    #panel-detail .table tbody tr,
+    #panel-pivot .table tbody tr {
+        display: table-row;
+        border: none;
+        border-radius: 0;
+        margin-bottom: 0;
+        box-shadow: none;
+    }
+
+    #panel-detail .table td,
+    #panel-pivot .table td {
+        display: table-cell;
+        text-align: left;
+        min-height: auto;
+    }
+
+    #panel-detail .table td::before,
+    #panel-pivot .table td::before {
+        display: none;
+    }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   26. TEMPLATES PAGE — Grid + edit panel
+───────────────────────────────────────────────────────────────────────────── */
+@media (max-width: 640px) {
+    .templates-grid {
+        grid-template-columns: 1fr;
+        gap: 0.75rem;
+    }
+
+    .template-card {
+        border-radius: 14px;
+    }
+
+    .template-card:hover {
+        transform: none;
+    }
+
+    .template-card__body {
+        padding: 1rem 1rem 0.75rem;
+    }
+
+    .template-card__actions {
+        padding: 0.75rem 1rem 1rem;
+        gap: 0.5rem;
+    }
+
+    .template-card__actions .btn {
+        min-height: 44px;
+        flex: 1;
+        justify-content: center;
+    }
+
+    /* Edit panel — full screen on mobile */
+    .edit-panel {
+        width: 100%;
+        max-width: 100vw;
+        border-radius: 0;
+    }
+
+    .edit-panel__header {
+        padding: 1rem 1.25rem;
+    }
+
+    .edit-panel__close {
+        min-width: 44px;
+        min-height: 44px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .edit-panel__body {
+        padding: 1.25rem;
+    }
+
+    .edit-panel__body .form-row--2,
+    .edit-panel__body .form-row--3 {
+        grid-template-columns: 1fr;
+    }
+
+    .edit-panel__body .form-field__input,
+    .edit-panel__body .form-field__select,
+    .edit-panel__body .form-field__textarea {
+        min-height: 44px;
+        font-size: 16px;
+    }
+
+    .edit-panel__footer {
+        padding: 1rem 1.25rem;
+        padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+        flex-direction: column-reverse;
+    }
+
+    .edit-panel__footer .btn {
+        width: 100%;
+        min-height: 48px;
+        justify-content: center;
+    }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   27. PROFILE PAGE — Sidebar + content
+───────────────────────────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+    .profile-container {
+        flex-direction: column;
+        padding: 0 0.875rem;
+        gap: 1rem;
+        margin: 1rem auto;
+    }
+
+    .profile-sidebar {
+        width: 100%;
+        position: static;
+        border-radius: 14px;
+    }
+
+    .profile-nav__link {
+        min-height: 48px;
+        padding: 0.75rem 1.25rem;
+        font-size: 0.9375rem;
+        gap: 0.75rem;
+    }
+
+    .profile-header {
+        padding: 1.25rem;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.5rem;
+    }
+
+    .profile-header__title {
+        font-size: 1.125rem;
+    }
+
+    .profile-body {
+        padding: 1.25rem;
+    }
+
+    .form-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .form-group--full {
+        grid-column: auto;
+    }
+
+    .form-input {
+        min-height: 44px;
+        font-size: 16px;
+        border-radius: 10px;
+    }
+
+    .form-actions {
+        flex-direction: column-reverse;
+    }
+
+    .form-actions .btn {
+        width: 100%;
+        min-height: 48px;
+        justify-content: center;
+    }
+
+    /* Avatar section */
+    .avatar-section {
+        flex-direction: column;
+        text-align: center;
+        align-items: center;
+    }
+
+    .avatar-preview {
+        width: 80px;
+        height: 80px;
+    }
+
+    .avatar-actions {
+        align-items: center;
+    }
+
+    .btn-group {
+        justify-content: center;
+    }
+
+    /* Security items */
+    .security-item__header {
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+
+    .security-item__header .btn {
+        width: 100%;
+        min-height: 44px;
+        justify-content: center;
+    }
+
+    .legal-content {
+        max-height: none;
+        font-size: 0.875rem;
+    }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   28. PRINT — Hide mobile elements
+───────────────────────────────────────────────────────────────────────────── */
+@media print {
+    .mobile-tab-bar,
+    .sidebar-toggle {
+        display: none !important;
+    }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   29. DROPDOWN MENUS — Bottom sheet on mobile
+───────────────────────────────────────────────────────────────────────────── */
+@media (max-width: 640px) {
+    .dropdown-menu,
+    .invoice-row-menu {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        top: auto;
+        transform: none;
+        border-radius: 16px 16px 0 0;
+        max-height: 60vh;
+        overflow-y: auto;
+        z-index: 1000;
+        box-shadow: 0 -4px 32px rgba(0,0,0,0.15);
+        padding-bottom: env(safe-area-inset-bottom, 0px);
+    }
+
+    .dropdown-item {
+        min-height: 48px;
+        padding: 0.875rem 1.25rem;
+        font-size: 0.9375rem;
+    }
+
+    .user-menu {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        top: auto;
+        border-radius: 16px 16px 0 0;
+        min-width: 100%;
+    }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   30. STATUS CHIPS & BADGES
+───────────────────────────────────────────────────────────────────────────── */
+@media (max-width: 640px) {
+    .status-chip,
+    .status-badge {
+        padding: 0.3rem 0.625rem;
+        font-size: 0.75rem;
+    }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   31. REMOVE HOVER-ONLY INTERACTIONS on touch devices
+───────────────────────────────────────────────────────────────────────────── */
+@media (hover: none) and (pointer: coarse) {
+    .stat-card:hover,
+    .btn--primary:hover,
+    .action-pill:hover,
+    .workflow-card:hover,
+    .insight-card--clickable:hover,
+    .template-card:hover {
+        transform: none;
+    }
+
+    .item-card__remove {
+        opacity: 1;
+    }
+
+    .kpi-card__filter-hint {
+        display: none;
+    }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   32. INLINE-STYLE OVERRIDES — Override inline styles from HTML pages
+   These need !important because they fight with inline `style=` attributes.
+───────────────────────────────────────────────────────────────────────────── */
+@media (max-width: 760px) {
+    /* Invoice cell min-widths from invoices.html inline <style> */
+    .invoice-cell--client,
+    .invoice-cell--from,
+    .invoice-cell--payment,
+    .invoice-col--client,
+    .invoice-col--from,
+    .invoice-col--payment {
+        min-width: 0 !important;
+    }
+
+    /* Invoice cell whitespace from inline styles */
+    .invoice-cell--number,
+    .invoice-cell--date,
+    .invoice-cell--status,
+    .invoice-cell--currency,
+    .invoice-cell--amount,
+    .invoice-cell--actions {
+        white-space: normal !important;
+    }
+
+    /* Linked timesheets panel — inline 6-column grid → stacked */
+    [id^="ts-panel-"] > td > div {
+        overflow-x: auto !important;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    [id^="ts-panel-"] > td > div > div[style*="grid-template-columns"] {
+        grid-template-columns: 1fr 1fr !important;
+        gap: 0.375rem 0.75rem !important;
+        font-size: 0.8125rem !important;
+    }
+
+    /* Expansion/breakdown rows — reset card styles for nested rows */
+    tr[id^="items-panel-"],
+    tr[id^="ts-panel-"] {
+        display: block !important;
+        margin-top: -0.75rem;
+        border-top: none !important;
+        border-radius: 0 0 14px 14px !important;
+        overflow: hidden;
+    }
+
+    tr[id^="items-panel-"] > td,
+    tr[id^="ts-panel-"] > td {
+        display: block !important;
+        padding: 0 !important;
+        border-bottom: none !important;
+        text-align: left !important;
+    }
+
+    tr[id^="items-panel-"] > td::before,
+    tr[id^="ts-panel-"] > td::before {
+        display: none !important;
+    }
+
+    /* Invoice client display — allow wrapping on mobile cards */
+    .invoice-client__name,
+    .invoice-client__meta {
+        white-space: normal !important;
+        overflow: visible !important;
+        text-overflow: unset !important;
+    }
+
+    /* Action buttons in cards — bigger touch targets */
+    .action-btn {
+        min-height: 36px !important;
+        min-width: 36px !important;
+        padding: 0.4rem 0.75rem !important;
+        border-radius: 8px !important;
+    }
+
+    .invoice-primary-action {
+        min-width: auto !important;
+    }
+
+    .action-btn--menu {
+        min-width: 36px !important;
+    }
+
+    /* Actions row inside card — center-align */
+    .actions-row {
+        justify-content: flex-end !important;
+        flex-wrap: wrap !important;
+        gap: 0.5rem !important;
+    }
+
+    /* Inline-styled modals — ensure they don't overflow */
+    div[style*="position:fixed"][style*="inset:0"],
+    div[style*="position: fixed"][style*="inset: 0"] {
+        padding: 1rem !important;
+    }
+
+    div[style*="position:fixed"][style*="inset:0"] > div[style*="max-width"],
+    div[style*="position: fixed"][style*="inset: 0"] > div[style*="max-width"] {
+        max-width: calc(100% - 1rem) !important;
+        max-height: 90vh !important;
+        overflow-y: auto !important;
+        border-radius: 16px !important;
+    }
+
+    /* Inline-styled flex rows in modals — stack vertically */
+    div[style*="position:fixed"] div[style*="display:flex"][style*="gap:1rem"],
+    div[style*="position: fixed"] div[style*="display: flex"][style*="gap: 1rem"] {
+        flex-direction: column !important;
+    }
+
+    div[style*="position:fixed"] div[style*="display:flex"][style*="gap:1rem"] button,
+    div[style*="position: fixed"] div[style*="display: flex"][style*="gap: 1rem"] button {
+        width: 100% !important;
+        min-height: 44px !important;
+    }
+
+    /* #searchInput — override grid-column span from inline styles */
+    #searchInput {
+        grid-column: auto !important;
+    }
+
+    /* Note tooltip — reposition for mobile taps */
+    .note-tooltip {
+        top: calc(100% + 8px) !important;
+        left: 50% !important;
+        transform: translateX(-50%) !important;
+        width: min(260px, 80vw) !important;
+    }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   33. SAFE AREA — iOS bottom bar / notch handling
+───────────────────────────────────────────────────────────────────────────── */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+    @media (max-width: 991px) {
+        body {
+            padding-bottom: env(safe-area-inset-bottom);
+        }
+
+        .mobile-tab-bar {
+            padding-bottom: env(safe-area-inset-bottom);
+        }
+    }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   34. CONSULTANT CARDS — Accordion mobile card component
+   Desktop (>760px): shows table, hides cards
+   Mobile (≤760px):  hides table, shows collapsible cards
+───────────────────────────────────────────────────────────────────────────── */
+
+/* Always hidden on desktop */
+.consultant-cards {
+    display: none;
+}
+
+@media (max-width: 760px) {
+    /* ── Show cards, hide table ── */
+    #consultantsTable,
+    #desktopTimesheetTable,
+    .invoice-table {
+        display: none !important;
+    }
+
+    .table-container {
+        border: none !important;
+        background: transparent !important;
+        padding: 0 !important;
+        box-shadow: none !important;
+    }
+
+    .consultant-cards {
+        display: flex;
+        flex-direction: column;
+        gap: 0.625rem;
+        padding: 0;
+    }
+
+    /* ── Card wrapper ── */
+    .consultant-card {
+        background: white;
+        border-radius: 14px;
+        border: 1px solid var(--surface-glass-border, #e5e7eb);
+        box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+        overflow: hidden;
+        transition: box-shadow 0.2s;
+    }
+
+    .consultant-card:has(.consultant-card__body:not([hidden])) {
+        box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+    }
+
+    /* ── Toggle button — the entire clickable header ── */
+    .consultant-card__toggle {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        width: 100%;
+        padding: 0.875rem 1rem;
+        background: none;
+        border: none;
+        cursor: pointer;
+        gap: 0.75rem;
+        min-height: 60px;
+        text-align: left;
+        -webkit-tap-highlight-color: transparent;
+        transition: background 0.15s;
+    }
+
+    .consultant-card__toggle:active {
+        background: #f8fafc;
+    }
+
+    .consultant-card__toggle.is-open {
+        border-bottom: 1px solid #f1f5f9;
+        background: linear-gradient(135deg, #f8fafc 0%, #ffffff 100%);
+    }
+
+    /* ── Left side of toggle: name + status badge ── */
+    .consultant-card__toggle-left {
+        display: flex;
+        align-items: center;
+        gap: 0.625rem;
+        min-width: 0;
+        flex: 1;
+    }
+
+    .consultant-card__name {
+        font-size: 0.9375rem;
+        font-weight: 700;
+        color: var(--text-primary, #111827);
+        display: flex;
+        align-items: center;
+        gap: 0.375rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .consultant-card__note {
+        font-size: 0.875rem;
+        flex-shrink: 0;
+    }
+
+    /* ── Chevron — rotates when open ── */
+    .consultant-card__chevron {
+        color: #9ca3af;
+        flex-shrink: 0;
+        transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .consultant-card__toggle.is-open .consultant-card__chevron {
+        transform: rotate(180deg);
+        color: var(--primary, #ff6b4a);
+    }
+
+    /* ── Body — hidden by default, shown when expanded ── */
+    .consultant-card__body {
+        border-top: 1px solid #f1f5f9;
+        animation: cardBodyOpen 0.2s ease-out;
+    }
+
+    @keyframes cardBodyOpen {
+        from { opacity: 0; transform: translateY(-4px); }
+        to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ── Key/value rows ── */
+    .consultant-card__row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0.625rem 1rem;
+        border-bottom: 1px solid #f8fafc;
+        min-height: 44px;
+        gap: 1rem;
+    }
+
+    .consultant-card__row:last-of-type {
+        border-bottom: none;
+    }
+
+    .consultant-card__label {
+        font-size: 0.7rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--text-tertiary, #9ca3af);
+        flex-shrink: 0;
+        min-width: 66px;
+    }
+
+    .consultant-card__value {
+        font-size: 0.875rem;
+        color: var(--text-secondary, #374151);
+        text-align: right;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .consultant-card__value--bold {
+        font-weight: 700;
+        color: var(--text-primary, #111827);
+        font-size: 0.9375rem;
+    }
+
+    /* ── Actions footer inside expanded body ── */
+    .consultant-card__actions {
+        display: flex;
+        gap: 0.5rem;
+        padding: 0.75rem 1rem;
+        border-top: 1px solid #f1f5f9;
+        background: #fafbfc;
+        align-items: center;
+    }
+
+    .consultant-card__actions .btn {
+        min-height: 44px;
+        flex: 1;
+        justify-content: center;
+        text-align: center;
+        border-radius: 10px;
+        font-size: 0.875rem;
+    }
+
+    .consultant-card__actions .delete-btn {
+        flex: 0 0 44px;
+        width: 44px;
+        padding: 0;
+        justify-content: center;
+    }
+
+    /* ── Empty state ── */
+    .consultant-card--empty {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 3rem 1rem;
+        min-height: 200px;
+        text-align: center;
+    }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   35. MOBILE FILTER BAR + BOTTOM SHEET
+   Replaces crm-toolbar on mobile with a compact search+filter bar
+   and a full bottom sheet panel for all filter options.
+───────────────────────────────────────────────────────────────────────────── */
+
+/* Hide mobile filter bar on desktop */
+.mobile-filter-bar { display: none; }
+.mfs-backdrop     { display: none; }
+.mfs-sheet        { display: none; }
+
+@media (max-width: 760px) {
+
+    /* ── Hide desktop toolbar, show mobile bar ── */
+    .crm-toolbar {
+        display: none !important;
+    }
+
+    .mobile-filter-bar {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+        margin-bottom: 0.75rem;
+    }
+
+    /* ── Search + Filter button row ── */
+    .mobile-filter-bar__row {
+        display: flex;
+        gap: 0.5rem;
+        align-items: center;
+    }
+
+    .mobile-filter-bar__search {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        flex: 1;
+        background: white;
+        border: 1.5px solid #e5e7eb;
+        border-radius: 12px;
+        padding: 0 0.875rem;
+        height: 44px;
+        transition: border-color 0.15s;
+    }
+
+    .mobile-filter-bar__search:focus-within {
+        border-color: var(--primary, #ff6b4a);
+        box-shadow: 0 0 0 3px rgba(255,107,74,0.12);
+    }
+
+    .mobile-filter-bar__search svg {
+        color: #9ca3af;
+        flex-shrink: 0;
+    }
+
+    .mobile-filter-bar__search input {
+        flex: 1;
+        border: none;
+        outline: none;
+        font-size: 0.9375rem;
+        font-family: var(--font-sans, sans-serif);
+        color: var(--text-primary, #111827);
+        background: transparent;
+        min-width: 0;
+    }
+
+    .mobile-filter-bar__search input::placeholder {
+        color: #9ca3af;
+    }
+
+    /* ── Filter pill button ── */
+    .mobile-filter-bar__filter-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.375rem;
+        height: 44px;
+        padding: 0 1rem;
+        background: white;
+        border: 1.5px solid #e5e7eb;
+        border-radius: 12px;
+        font-size: 0.875rem;
+        font-weight: 600;
+        color: var(--text-secondary, #374151);
+        cursor: pointer;
+        white-space: nowrap;
+        flex-shrink: 0;
+        transition: border-color 0.15s, background 0.15s;
+        -webkit-tap-highlight-color: transparent;
+    }
+
+    .mobile-filter-bar__filter-btn:active {
+        background: #f8fafc;
+    }
+
+    .mobile-filter-bar__filter-btn.has-filters {
+        border-color: var(--primary, #ff6b4a);
+        color: var(--primary, #ff6b4a);
+        background: rgba(255,107,74,0.06);
+    }
+
+    /* Active filter count badge */
+    .mobile-filter-bar__badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 18px;
+        height: 18px;
+        padding: 0 4px;
+        border-radius: 99px;
+        background: var(--primary, #ff6b4a);
+        color: white;
+        font-size: 0.6875rem;
+        font-weight: 700;
+        line-height: 1;
+    }
+
+    /* ── Active filter chips strip ── */
+    .mobile-filter-bar__chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.375rem;
+    }
+
+    .mobile-filter-bar__chips:empty {
+        display: none;
+    }
+
+    .mfb-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
+        padding: 0.25rem 0.625rem;
+        background: rgba(255,107,74,0.08);
+        border: 1px solid rgba(255,107,74,0.25);
+        border-radius: 99px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: var(--primary, #ff6b4a);
+        cursor: pointer;
+        -webkit-tap-highlight-color: transparent;
+    }
+
+    .mfb-chip__remove {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+        background: rgba(255,107,74,0.2);
+        font-size: 0.625rem;
+        line-height: 1;
+    }
+
+    /* ── Backdrop ── */
+    .mfs-backdrop {
+        display: block;
+        position: fixed;
+        inset: 0;
+        background: rgba(15, 23, 42, 0.45);
+        backdrop-filter: blur(2px);
+        z-index: 998;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.3s;
+    }
+
+    .mfs-backdrop.is-open {
+        opacity: 1;
+        pointer-events: auto;
+    }
+
+    /* ── Bottom sheet panel ── */
+    .mfs-sheet {
+        display: flex;
+        flex-direction: column;
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        z-index: 999;
+        background: white;
+        border-radius: 24px 24px 0 0;
+        box-shadow: 0 -8px 40px rgba(0,0,0,0.15);
+        max-height: 88vh;
+        transform: translateY(100%);
+        transition: transform 0.35s cubic-bezier(0.32, 0.72, 0, 1);
+        padding-bottom: env(safe-area-inset-bottom, 0px);
+    }
+
+    .mfs-sheet.is-open {
+        transform: translateY(0);
+    }
+
+    /* Drag handle */
+    .mfs-sheet__handle {
+        width: 40px;
+        height: 4px;
+        border-radius: 2px;
+        background: #d1d5db;
+        margin: 12px auto 0;
+        flex-shrink: 0;
+    }
+
+    /* Sheet header */
+    .mfs-sheet__header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 1rem 1.25rem 0.75rem;
+        border-bottom: 1px solid #f1f5f9;
+        flex-shrink: 0;
+    }
+
+    .mfs-sheet__title {
+        font-size: 1.0625rem;
+        font-weight: 700;
+        color: var(--text-primary, #111827);
+        letter-spacing: -0.01em;
+    }
+
+    .mfs-sheet__close {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        border: none;
+        background: #f3f4f6;
+        color: #6b7280;
+        cursor: pointer;
+        -webkit-tap-highlight-color: transparent;
+        transition: background 0.15s;
+    }
+
+    .mfs-sheet__close:active {
+        background: #e5e7eb;
+    }
+
+    /* Sheet body — scrollable */
+    .mfs-sheet__body {
+        flex: 1;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+        padding: 1.25rem;
+        display: flex;
+        flex-direction: column;
+        gap: 1.5rem;
+    }
+
+    /* Filter group */
+    .mfs-group {
+        display: flex;
+        flex-direction: column;
+        gap: 0.625rem;
+    }
+
+    .mfs-group__label {
+        font-size: 0.6875rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: #9ca3af;
+    }
+
+    /* Chip-style options (for status) */
+    .mfs-chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+
+    .mfs-chip {
+        padding: 0.5rem 1rem;
+        border-radius: 99px;
+        border: 1.5px solid #e5e7eb;
+        background: white;
+        font-size: 0.875rem;
+        font-weight: 600;
+        color: var(--text-secondary, #374151);
+        cursor: pointer;
+        transition: all 0.15s;
+        -webkit-tap-highlight-color: transparent;
+        min-height: 40px;
+    }
+
+    .mfs-chip.is-active {
+        border-color: var(--primary, #ff6b4a);
+        background: rgba(255,107,74,0.08);
+        color: var(--primary, #ff6b4a);
+    }
+
+    .mfs-chip:active {
+        transform: scale(0.96);
+    }
+
+    /* Select dropdowns inside sheet */
+    .mfs-select {
+        width: 100%;
+        height: 48px;
+        padding: 0 1rem;
+        border: 1.5px solid #e5e7eb;
+        border-radius: 12px;
+        font-size: 0.9375rem;
+        font-family: var(--font-sans, sans-serif);
+        color: var(--text-primary, #111827);
+        background: white;
+        appearance: none;
+        background-image: url("data:image/svg+xml,%3Csvg fill='none' viewBox='0 0 24 24' stroke='%239ca3af' stroke-width='2' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: right 0.875rem center;
+        background-size: 18px;
+        cursor: pointer;
+        transition: border-color 0.15s;
+    }
+
+    .mfs-select:focus {
+        outline: none;
+        border-color: var(--primary, #ff6b4a);
+        box-shadow: 0 0 0 3px rgba(255,107,74,0.12);
+    }
+
+    /* ── Period: compact two-select row ── */
+    .mfs-period-selects {
+        display: grid;
+        grid-template-columns: 1fr 1.6fr;
+        gap: 0.5rem;
+    }
+
+    /* ── Footer: Clear + Apply ── */
+    .mfs-sheet__footer {
+        display: flex;
+        gap: 0.75rem;
+        padding: 1rem 1.25rem;
+        border-top: 1px solid #f1f5f9;
+        flex-shrink: 0;
+        background: white;
+    }
+
+    .mfs-btn-clear {
+        flex: 0 0 auto;
+        padding: 0 1.25rem;
+        height: 52px;
+        border-radius: 14px;
+        border: 1.5px solid #e5e7eb;
+        background: white;
+        font-size: 0.9375rem;
+        font-weight: 600;
+        color: var(--text-secondary, #374151);
+        cursor: pointer;
+        -webkit-tap-highlight-color: transparent;
+        transition: all 0.15s;
+    }
+
+    .mfs-btn-clear:active {
+        background: #f3f4f6;
+    }
+
+    .mfs-btn-apply {
+        flex: 1;
+        height: 52px;
+        border-radius: 14px;
+        border: none;
+        background: var(--primary, #ff6b4a);
+        color: white;
+        font-size: 0.9375rem;
+        font-weight: 700;
+        cursor: pointer;
+        -webkit-tap-highlight-color: transparent;
+        transition: opacity 0.15s, transform 0.15s;
+        box-shadow: 0 4px 12px rgba(255,107,74,0.3);
+    }
+
+    .mfs-btn-apply:active {
+        opacity: 0.88;
+        transform: scale(0.98);
+    }
+}
+
+
+
+
+/* M-CARD (Timesheets & Invoices Accordion) */
+.m-cards {
+    display: none;
+}
+@media (max-width: 760px) {
+    .m-cards {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+        padding-top: 0.5rem;
+    }
+}
+.m-card {
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+}
+.m-card:has(.m-card__details:not([hidden])) {
+    border-color: #cbd5e1;
+    box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
+}
+.m-card__header {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 1rem;
+    background: transparent;
+    border: none;
+    text-align: left;
+    cursor: pointer;
+}
+.m-card__title-row {
+    grid-column: 1 / -1;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.m-card__title {
+    font-weight: 600;
+    font-size: 0.9375rem;
+    color: #111827;
+}
+.m-card__subtitle {
+    grid-column: 1;
+    font-size: 0.8125rem;
+    color: #6b7280;
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+.m-card__chevron {
+    grid-column: 2;
+    grid-row: 2;
+    color: #9ca3af;
+    transition: transform 0.2s ease;
+}
+.m-card__header[aria-expanded="true"] .m-card__chevron {
+    transform: rotate(180deg);
+}
+.m-card__details {
+    padding: 0 1rem 1rem 1rem;
+    border-top: 1px solid #f3f4f6;
+    margin-top: 0.5rem;
+    padding-top: 0.75rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+.m-card__details[hidden] {
+    display: none !important;
+}
+.m-card__detail-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.875rem;
+}
+.m-card__detail-label {
+    color: #6b7280;
+}
+.m-card__detail-value {
+    color: #111827;
+    font-weight: 500;
+}
