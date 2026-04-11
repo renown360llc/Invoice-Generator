@@ -198,7 +198,7 @@ export async function saveInvoice(invoiceData) {
  * Update only the status and optionally the paid_date of an invoice.
  * Used for quick actions on the invoices list (Mark as Paid, Mark as Sent).
  */
-export async function updateInvoiceStatus(invoiceId, status, paidDate = null) {
+export async function updateInvoiceStatus(invoiceId, status, paidDate = null, usdAmount = null) {
     const user = await getCurrentUser()
     if (!user) throw new Error('Not authenticated')
 
@@ -215,6 +215,15 @@ export async function updateInvoiceStatus(invoiceId, status, paidDate = null) {
     } else if (status !== 'paid') {
         // Clear paid_date if moving away from paid status
         updatePayload.paid_date = null
+    }
+
+    // Handle USD amount injection via JSONB merge
+    if (usdAmount !== null && usdAmount !== undefined && status === 'paid') {
+        updatePayload.totals = { ...(beforeRecord?.totals || {}), usd_received_amount: Number(usdAmount) }
+    } else if (status !== 'paid' && beforeRecord?.totals?.usd_received_amount) {
+        const newTotals = { ...beforeRecord.totals }
+        delete newTotals.usd_received_amount
+        updatePayload.totals = newTotals
     }
 
     const { data, error } = await supabase

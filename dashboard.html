@@ -356,26 +356,43 @@
   <!-- Modals and Toasts -->
   <div id="toast" class="toast" role="status" aria-live="polite" aria-atomic="true"></div>
 
-  <!-- Paid Date Modal -->
-  <div id="paidDateModal" class="modal-backdrop"
+  <!-- Edit Payment Info Modal -->
+  <div id="paymentInfoModal" class="modal-backdrop"
     style="display: none; align-items: center; justify-content: center; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 9999;">
     <div
       style="background: white; padding: 2rem; border-radius: var(--radius-md); box-shadow: var(--shadow-card); max-width: 400px; width: 100%;">
-      <h3 style="margin-bottom: 0.5rem; font-size: 1.125rem; color: var(--text-primary);">Set Payment Date</h3>
-      <p style="color: var(--text-secondary); margin-bottom: 1.5rem; font-size: 0.875rem;">When was this invoice paid?
-      </p>
+      <h3 style="margin-bottom: 0.5rem; font-size: 1.125rem; color: var(--text-primary);">Edit Payment Info</h3>
+      <p style="color: var(--text-secondary); margin-bottom: 1.5rem; font-size: 0.875rem;">Update the status and payment details for this invoice.</p>
 
       <div class="form-field" style="margin-bottom: 1.5rem;">
-        <input type="date" id="modalPaidDateInput" class="form-field__input">
+        <label for="modalStatusInput" style="display: block; font-size: 0.8125rem; font-weight: 600; margin-bottom: 0.4rem; color: var(--text-primary);">Status</label>
+        <select id="modalStatusInput" class="form-field__input">
+          <option value="draft">Draft</option>
+          <option value="sent">Sent</option>
+          <option value="paid">Paid</option>
+        </select>
+      </div>
+
+      <div id="modalPaidDetails" style="display: none;">
+        <div class="form-field" style="margin-bottom: 1.5rem;">
+          <label for="modalPaidDateInput" style="display: block; font-size: 0.8125rem; font-weight: 600; margin-bottom: 0.4rem; color: var(--text-primary);">Payment Date</label>
+          <input type="date" id="modalPaidDateInput" class="form-field__input">
+        </div>
+        
+        <div class="form-field" style="margin-bottom: 2rem;">
+          <label for="modalPaidUsdInput" style="display: block; font-size: 0.8125rem; font-weight: 600; margin-bottom: 0.4rem; color: var(--text-primary);">USD Equivalent Received (Optional)</label>
+          <input type="number" id="modalPaidUsdInput" class="form-field__input" placeholder="e.g. 750.00" step="0.01" min="0">
+        </div>
       </div>
 
       <div style="display: flex; gap: 0.75rem; justify-content: flex-end;">
         <button id="cancelPaidDateBtn" class="btn"
           style="background: var(--surface-alt); color: var(--text-secondary);">Cancel</button>
-        <button id="confirmPaidDateBtn" class="btn btn--primary">Mark as Paid</button>
+        <button id="confirmPaidDateBtn" class="btn btn--primary">Update Info</button>
       </div>
     </div>
   </div>
+
 
   <script type="module">
     import { loadLayout } from './src/components/layout.js';

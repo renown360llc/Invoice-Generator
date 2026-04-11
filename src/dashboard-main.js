@@ -1000,26 +1000,26 @@ function renderRecentInvoices(invoices) {
             if (due < new Date()) effectiveStatus = 'overdue'
         }
 
-        // Define status-based actions with clearer labels
-        let statusTransitionItems = ''
-        if (effectiveStatus === 'draft') {
-            statusTransitionItems = `
-                <button class="dropdown-item" onclick="window.markAsSentDash('${invoice.id}')">
-                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
-                    Mark as Sent
-                </button>`
-        } else if (effectiveStatus === 'sent' || effectiveStatus === 'overdue') {
-            statusTransitionItems = `
-                <button class="dropdown-item" onclick="window.markAsPaidDash('${invoice.id}')">
-                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
-                    Mark as Paid
-                </button>`
-        } else if (effectiveStatus === 'paid') {
-            statusTransitionItems = `
-                <button class="dropdown-item" onclick="window.unmarkPaidDash('${invoice.id}')">
-                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/></svg>
-                    Revert to Sent
-                </button>`
+        // Unified action trigger for status/payment info
+        const actionHtml = `
+            <button class="dropdown-item" onclick="window.openPaymentInfoModalDash('${invoice.id}')">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                Edit Payment Info
+            </button>`;
+        
+        statusTransitionItems = actionHtml;
+        const amountDisplay = formatCurrency(invoice.totals?.total || 0, invoice.invoice_meta?.currency);
+        const usdReceived = invoice.totals?.usd_received_amount;
+        let amountColumnHtml = `<strong>${amountDisplay}</strong>`;
+        
+        if (usdReceived && effectiveStatus === 'paid') {
+            amountColumnHtml = `
+                <div style="display:flex; flex-direction:column; align-items:flex-end; justify-content:center; gap:0.25rem;">
+                     <strong>${amountDisplay}</strong>
+                     <hr style="width:100%; max-width: 100px; border:0; border-top:1px solid var(--surface-border); margin:0;" />
+                     <span style="color:var(--text-secondary); font-size:0.85em; font-weight:500;">USD ${Number(usdReceived).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits:2})}</span>
+                </div>
+            `;
         }
 
         return `
@@ -1028,7 +1028,7 @@ function renderRecentInvoices(invoices) {
             <td>${escapeHtml(invoice.client_info?.name || 'N/A')}</td>
             <td>${formatDate(invoiceDate)}</td>
             <td>${renderDashboardStatusChip(effectiveStatus)}</td>
-            <td style="text-align: right;"><strong>${formatCurrency(invoice.totals?.total || 0, invoice.invoice_meta?.currency)}</strong></td>
+            <td style="text-align: right;">${amountColumnHtml}</td>
             <td style="text-align: right;">
                 <div class="row-actions">
                     <button class="action-btn" onclick="window.toggleRowActions(event, '${invoice.id}')">
@@ -1438,12 +1438,29 @@ async function initDashboard() {
         if (!window.modalWired) {
             window.modalWired = true
             document.getElementById('cancelPaidDateBtn')?.addEventListener('click', closePaidModalDash)
+            
+            // Status change toggle listener for dashboard modal
+            document.getElementById('modalStatusInput')?.addEventListener('change', (e) => {
+                const isPaid = e.target.value === 'paid'
+                const details = document.getElementById('modalPaidDetails')
+                if (details) details.style.display = isPaid ? 'block' : 'none'
+            })
+
             document.getElementById('confirmPaidDateBtn')?.addEventListener('click', async () => {
                 if (!window.invoiceToPayDash) return
-                const dateVal = document.getElementById('modalPaidDateInput').value
-                if (!dateVal) {
-                    showToast('Please select a payment date', 'error')
-                    return
+                
+                const nextStatus = document.getElementById('modalStatusInput').value
+                let dateVal = null
+                let parsedUsd = null
+
+                if (nextStatus === 'paid') {
+                    dateVal = document.getElementById('modalPaidDateInput').value
+                    if (!dateVal) {
+                        showToast('Please select a payment date', 'error')
+                        return
+                    }
+                    const usdVal = document.getElementById('modalPaidUsdInput')?.value
+                    parsedUsd = usdVal ? Number(usdVal) : null
                 }
 
                 const btn = document.getElementById('confirmPaidDateBtn')
@@ -1451,15 +1468,15 @@ async function initDashboard() {
                 btn.textContent = 'Saving...'
 
                 try {
-                    await updateInvoiceStatus(window.invoiceToPayDash, 'paid', dateVal)
-                    showToast('Invoice marked as paid', 'success')
+                    await updateInvoiceStatus(window.invoiceToPayDash, nextStatus, dateVal, parsedUsd)
+                    showToast(`Invoice updated to ${nextStatus}`, 'success')
                     closePaidModalDash()
                     initDashboard() // Refresh dashboard data
                 } catch (e) {
                     showToast('Error: ' + e.message, 'error')
                 } finally {
                     btn.disabled = false
-                    btn.textContent = 'Mark as Paid'
+                    btn.textContent = 'Update Info'
                 }
             })
         }
@@ -1487,38 +1504,43 @@ async function initDashboard() {
 
 // ── Quick Actions ──────────────────────────────────────────
 
-window.markAsSentDash = async function (id) {
-    try {
-        await updateInvoiceStatus(id, 'sent', null)
-        showToast('Invoice marked as sent', 'success')
-        initDashboard()
-    } catch (e) {
-        showToast('Error: ' + e.message, 'error')
-    }
-}
-
-window.unmarkPaidDash = async function (id) {
-    try {
-        await updateInvoiceStatus(id, 'sent', null)
-        showToast('Invoice reverted to sent status', 'info')
-        initDashboard()
-    } catch (e) {
-        showToast('Error: ' + e.message, 'error')
-    }
-}
-
 window.invoiceToPayDash = null
 
-window.markAsPaidDash = function (id) {
+window.openPaymentInfoModalDash = function (id) {
+    const invoice = allInvoicesCache.find(inv => inv.id === id)
+    if (!invoice) return
+
     window.invoiceToPayDash = id
-    // default to today
-    document.getElementById('modalPaidDateInput').value = new Date().toISOString().split('T')[0]
-    document.getElementById('paidDateModal').style.display = 'flex'
+    const status = invoice.status || 'draft'
+
+    // Set Status
+    const statusInput = document.getElementById('modalStatusInput')
+    if (statusInput) statusInput.value = status
+
+    // Toggle Payment Details
+    const details = document.getElementById('modalPaidDetails')
+    if (details) details.style.display = status === 'paid' ? 'block' : 'none'
+
+    // Set Payment Date
+    const dateInput = document.getElementById('modalPaidDateInput')
+    if (dateInput) {
+        dateInput.value = invoice.paid_date || new Date().toISOString().split('T')[0]
+    }
+    
+    // Set USD input
+    const usdInput = document.getElementById('modalPaidUsdInput')
+    if (usdInput) {
+        usdInput.value = invoice.totals?.usd_received_amount || ''
+    }
+
+    const container = document.getElementById('paymentInfoModal')
+    if (container) container.style.display = 'flex'
 }
 
 function closePaidModalDash() {
     window.invoiceToPayDash = null
-    document.getElementById('paidDateModal').style.display = 'none'
+    const container = document.getElementById('paymentInfoModal')
+    if (container) container.style.display = 'none'
 }
 
 

@@ -110,8 +110,11 @@ function cacheElements() {
     els.confirmDeleteBtn = document.getElementById('confirmDelete');
     els.cancelDeleteBtn = document.getElementById('cancelDelete');
 
-    els.paidModal = document.getElementById('paidDateModal');
+    els.paymentModal = document.getElementById('paymentInfoModal');
+    els.modalStatusInput = document.getElementById('modalStatusInput');
+    els.modalPaidDetails = document.getElementById('modalPaidDetails');
     els.paidDateInput = document.getElementById('paidDateInput');
+    els.paidUsdAmountInput = document.getElementById('paidUsdAmountInput');
     els.confirmPaidBtn = document.getElementById('confirmPaidDate');
     els.cancelPaidBtn = document.getElementById('cancelPaidDate');
 }
@@ -303,18 +306,9 @@ function bindEvents() {
             return;
         }
 
-        if (action === 'mark-sent') {
-            await updateStatus(invoice, 'sent');
+        if (action === 'mark-sent' || action === 'mark-paid' || action === 'edit-paid-date' || action === 'reopen' || action === 'edit-payment-info') {
+            openPaymentInfoModal(invoice);
             return;
-        }
-
-        if (action === 'mark-paid' || action === 'edit-paid-date') {
-            openPaidModal(invoice);
-            return;
-        }
-
-        if (action === 'reopen') {
-            await updateStatus(invoice, 'sent');
         }
 
         if (action === 'expand-ts') {
@@ -426,19 +420,31 @@ function bindEvents() {
     els.confirmPaidBtn?.addEventListener('click', async () => {
         if (!state.invoiceToPay) return;
 
-        const paidDate = String(els.paidDateInput?.value || '').trim();
-        if (!paidDate) {
-            showToast('Please select a payment date', 'error');
-            return;
+        const nextStatus = els.modalStatusInput?.value || 'sent';
+        let paidDate = null;
+        let parsedUsd = null;
+
+        if (nextStatus === 'paid') {
+            paidDate = String(els.paidDateInput?.value || '').trim();
+            if (!paidDate) {
+                showToast('Please select a payment date', 'error');
+                return;
+            }
+            const usdVal = String(els.paidUsdAmountInput?.value || '').trim();
+            parsedUsd = usdVal ? Number(usdVal) : null;
         }
 
         els.confirmPaidBtn.disabled = true;
         try {
-            await updateInvoiceStatus(state.invoiceToPay.id, 'paid', paidDate);
-            await markTimesheetsInvoiced(state.invoiceToPay);
+            await updateInvoiceStatus(state.invoiceToPay.id, nextStatus, paidDate, parsedUsd);
+            
+            if (nextStatus === 'sent' || nextStatus === 'paid') {
+                await markTimesheetsInvoiced(state.invoiceToPay);
+            }
+
             const invoiceNumber = state.invoiceToPay.invoice_number;
             closePaidModal();
-            showToast(`Invoice ${invoiceNumber} marked as paid`, 'success');
+            showToast(`Invoice ${invoiceNumber} updated to ${nextStatus}`, 'success');
             await loadInvoices();
         } catch (err) {
             console.error(err);
@@ -676,6 +682,28 @@ function renderTable() {
         const status = getEffectiveStatus(invoice);
         const currency = getInvoiceCurrency(invoice);
         const amount = formatAmountValue(getInvoiceAmount(invoice));
+        
+        const usdReceived = invoice.totals?.usd_received_amount;
+        let currencyColumn = currency;
+        let amountColumn = `<strong>${amount}</strong>`;
+
+        if (usdReceived && status === 'paid') {
+             currencyColumn = `
+                 <div style="display:flex; flex-direction:column; justify-content:center; gap:0.25rem;">
+                     <span>${currency}</span>
+                     <hr style="width:100%; border:0; border-top:1px solid var(--surface-border); margin:0;" />
+                     <span style="color:var(--text-secondary); font-size:0.85em;">USD</span>
+                 </div>
+             `;
+             amountColumn = `
+                 <div style="display:flex; flex-direction:column; justify-content:center; gap:0.25rem;">
+                     <strong>${amount}</strong>
+                     <hr style="width:100%; border:0; border-top:1px solid var(--surface-border); margin:0;" />
+                     <span style="color:var(--text-secondary); font-size:0.85em; font-weight:500;">${formatAmountValue(usdReceived)}</span>
+                 </div>
+             `;
+        }
+
         const clientName = escapeHtml(invoice.client_info?.name || 'N/A');
         const fromName = escapeHtml(getInvoiceFromName(invoice));
         const clientMeta = escapeHtml(getInvoiceClientMeta(invoice));
@@ -700,8 +728,8 @@ function renderTable() {
                 <td class="invoice-cell--date">${invoiceDate}</td>
                 <td class="invoice-cell--payment">${renderPaymentSummary(invoice, status)}</td>
                 <td class="invoice-cell--status">${renderStatusChip(status)}</td>
-                <td class="invoice-cell--currency">${currency}</td>
-                <td class="invoice-cell--amount"><strong>${amount}</strong></td>
+                <td class="invoice-cell--currency">${currencyColumn}</td>
+                <td class="invoice-cell--amount">${amountColumn}</td>
                 <td class="invoice-cell--actions">
                     <div class="actions-row invoice-row-actions">
                         ${renderPrimaryAction(invoice, status)}
@@ -753,6 +781,18 @@ function renderTable() {
             const status = getEffectiveStatus(invoice);
             const currency = getInvoiceCurrency(invoice);
             const amount = formatAmountValue(getInvoiceAmount(invoice));
+            
+            const usdReceived = invoice.totals?.usd_received_amount;
+            let mobileSubtitle = `<span>${currency} ${amount}</span>`;
+            if (usdReceived && status === 'paid') {
+                 mobileSubtitle = `
+                     <div style="display:flex; flex-direction:column; gap:0.2rem;">
+                         <span>${currency} ${amount}</span>
+                         <span style="color:var(--text-secondary); font-size:0.9em;">USD ${formatAmountValue(usdReceived)} <span style="font-size:0.8em; font-weight:normal">(converted)</span></span>
+                     </div>
+                 `;
+            }
+
             const clientName = escapeHtml(invoice.client_info?.name || 'N/A');
             const fromName = escapeHtml(getInvoiceFromName(invoice));
 
@@ -760,9 +800,7 @@ function renderTable() {
             const primaryAction = renderPrimaryAction(invoice, status).replace('class="action-btn invoice-primary-action"', 'class="btn btn--primary btn--sm" style="flex:1"');
             const secondaryActionsHTML = [];
             secondaryActionsHTML.push(`<button class="btn btn--outline btn--sm" data-action="edit" data-id="${invoice.id}" style="flex:1">Edit</button>`);
-            if (status !== 'paid') {
-                secondaryActionsHTML.push(`<button class="btn btn--outline btn--sm" data-action="mark-paid" data-id="${invoice.id}" style="flex:1">✓ Paid</button>`);
-            }
+            secondaryActionsHTML.push(`<button class="btn btn--outline btn--sm" data-action="edit-payment-info" data-id="${invoice.id}" style="flex:1">Status/Payment</button>`);
             secondaryActionsHTML.push(`<button class="btn btn--ghost btn--sm" data-action="delete" data-id="${invoice.id}" style="color:#ef4444; width:100%">Delete</button>`);
 
             return `
@@ -773,7 +811,7 @@ function renderTable() {
                         ${renderStatusChip(status)}
                     </div>
                     <div class="m-card__subtitle">
-                        <span>${amount} ${currency}</span>
+                        ${mobileSubtitle}
                         <span>•</span>
                         <span>${clientName}</span>
                     </div>
@@ -818,17 +856,10 @@ function renderPrimaryAction(invoice, effectiveStatus) {
 }
 
 function renderSecondaryStatusMenuAction(invoice, effectiveStatus) {
-    if (effectiveStatus !== 'paid') {
-        return '';
-    }
-
     return `
         <div class="dropdown-divider"></div>
-        <div class="dropdown-label">Payment</div>
-        <button class="dropdown-item" data-action="edit-paid-date" data-id="${invoice.id}">Edit payment date</button>
-        <div class="dropdown-divider"></div>
-        <div class="dropdown-label">Status</div>
-        <button class="dropdown-item" data-action="reopen" data-id="${invoice.id}">Set status to sent</button>
+        <div class="dropdown-label">Lifecycle</div>
+        <button class="dropdown-item" data-action="edit-payment-info" data-id="${invoice.id}">Edit status/payment</button>
     `;
 }
 
@@ -935,8 +966,18 @@ function closeDeleteModal() {
     }
 }
 
-function openPaidModal(invoice) {
+function openPaymentInfoModal(invoice) {
     state.invoiceToPay = invoice;
+    const status = getEffectiveStatus(invoice);
+
+    if (els.modalStatusInput) {
+        els.modalStatusInput.value = status;
+    }
+
+    if (els.modalPaidDetails) {
+        els.modalPaidDetails.style.display = status === 'paid' ? 'block' : 'none';
+    }
+
     if (els.paidDateInput) {
         if (invoice.paid_date) {
             els.paidDateInput.value = invoice.paid_date;
@@ -944,15 +985,20 @@ function openPaidModal(invoice) {
             els.paidDateInput.value = new Date().toISOString().slice(0, 10);
         }
     }
-    if (els.paidModal) {
-        els.paidModal.style.display = 'flex';
+
+    if (els.paidUsdAmountInput) {
+        els.paidUsdAmountInput.value = invoice.totals?.usd_received_amount || '';
+    }
+
+    if (els.paymentModal) {
+        els.paymentModal.style.display = 'flex';
     }
 }
 
 function closePaidModal() {
     state.invoiceToPay = null;
-    if (els.paidModal) {
-        els.paidModal.style.display = 'none';
+    if (els.paymentModal) {
+        els.paymentModal.style.display = 'none';
     }
 }
 
