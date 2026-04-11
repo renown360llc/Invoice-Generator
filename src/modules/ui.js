@@ -190,9 +190,11 @@ function renderPaper(state) {
             box-sizing: border-box;
         }
         .pv-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 40px; }
-        .pv-logo { max-height: 64px; max-width: 160px; object-fit: contain; margin-bottom: 12px; display: block; }
-        .pv-company-name { font-size: 22px; font-weight: 800; letter-spacing: -0.5px; color: ${brandColor}; margin-bottom: 6px; }
-        .pv-company-details { font-size: 12px; color: #64748b; line-height: 1.7; }
+        .pv-brand-section { display: flex; flex-direction: column; gap: 8px; flex: 1; }
+        .pv-logo-name-row { display: flex; align-items: center; gap: 14px; }
+        .pv-logo { max-height: 40px; max-width: 120px; object-fit: contain; flex-shrink: 0; }
+        .pv-company-name { font-size: 18px; font-weight: 800; letter-spacing: -0.5px; color: ${brandColor}; margin: 0; line-height: 1; }
+        .pv-company-details { font-size: 11px; color: #64748b; line-height: 1.5; }
         .pv-badge { text-align: right; }
         .pv-invoice-word { font-size: 32px; font-weight: 900; letter-spacing: 3px; color: #e2e8f0; text-transform: uppercase; margin-bottom: 14px; }
         .pv-meta { font-size: 12px; }
@@ -222,7 +224,7 @@ function renderPaper(state) {
         .pv-footer { display: flex; gap: 24px; align-items: flex-start; margin-top: 16px; }
         .pv-notes-block { flex: 1; }
         .pv-notes-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #94a3b8; margin-bottom: 6px; }
-        .pv-notes-text { font-size: 12px; color: #64748b; line-height: 1.6; }
+        .pv-notes-text { font-size: 12px; color: #64748b; line-height: 1.6; white-space: pre-wrap; }
 
         .pv-totals-table { width: 240px; min-width: 200px; border-collapse: collapse; }
         .pv-tot-label { text-align: left; padding: 5px 0; color: #64748b; font-size: 12px; }
@@ -238,9 +240,11 @@ function renderPaper(state) {
 
     <!-- Header -->
     <div class="pv-header">
-        <div>
-            ${state.logo ? `<img src="${state.logo}" class="pv-logo" alt="Logo">` : ''}
-            <div class="pv-company-name">${data.business_info.name || 'Your Company'}</div>
+        <div class="pv-brand-section">
+            <div class="pv-logo-name-row">
+                ${state.logo ? `<img src="${state.logo}" class="pv-logo" alt="Logo">` : ''}
+                <div class="pv-company-name">${data.business_info.name || 'Your Company'}</div>
+            </div>
             <div class="pv-company-details">
                 ${(data.business_info.address || '').split('\n').filter(Boolean).map(l => `<div>${l}</div>`).join('')}
                 ${data.business_info.email ? `<div>${data.business_info.email}</div>` : ''}
@@ -382,8 +386,12 @@ export function fillFormWithData(data) {
         document.getElementById('businessEmail').value = data.business_info.email || '';
         document.getElementById('businessPhone').value = data.business_info.phone || '';
         document.getElementById('businessAddress').value = data.business_info.address || '';
-        // Logo is handled via state usually, but valid reference in preview image can work for now
-        // or we pass state?
+        
+        // Update logo filename if applicable
+        const logoName = document.getElementById('logoFileName');
+        if (logoName && data.business_info.logo) {
+            logoName.textContent = 'Active Branding Logo';
+        }
     }
 
     // Client

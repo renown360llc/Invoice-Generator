@@ -1,5 +1,5 @@
 import { getCurrentUser } from './auth.js';
-import { getInvoices, updateInvoiceStatus } from './database.js';
+import { getInvoices, updateInvoiceStatus, recordInvoicePayment, deleteInvoicePayment } from './database.js';
 import { supabase } from './config.js';
 import { generatePDF } from './modules/pdf.js';
 import { dbGetConsultants } from './modules/db-consultants.js';
@@ -112,11 +112,14 @@ function cacheElements() {
 
     els.paymentModal = document.getElementById('paymentInfoModal');
     els.modalStatusInput = document.getElementById('modalStatusInput');
-    els.modalPaidDetails = document.getElementById('modalPaidDetails');
-    els.paidDateInput = document.getElementById('paidDateInput');
-    els.paidUsdAmountInput = document.getElementById('paidUsdAmountInput');
-    els.confirmPaidBtn = document.getElementById('confirmPaidDate');
-    els.cancelPaidBtn = document.getElementById('cancelPaidDate');
+    els.paymentLedgerBody = document.getElementById('paymentLedgerBody');
+    els.summaryTotal = document.getElementById('summaryTotal');
+    els.summaryPaid = document.getElementById('summaryPaid');
+    els.summaryBalance = document.getElementById('summaryBalance');
+    els.addPaymentBtn = document.getElementById('addPaymentBtn');
+    els.saveStatusBtn = document.getElementById('saveStatusBtn');
+    els.cancelPaymentBtn = document.getElementById('cancelPaymentBtn');
+    els.closePaymentModal = document.getElementById('closePaymentModal');
 }
 
 function closeAllRowMenus() {
@@ -219,6 +222,31 @@ function bindEvents() {
         } finally {
             els.refreshBtn.disabled = false;
         }
+    });
+
+    // Column Sorting Click Handler
+    document.querySelector('#invoicesTable thead')?.addEventListener('click', (event) => {
+        const th = event.target.closest('th.sortable');
+        if (!th) return;
+
+        const key = th.dataset.sortKey;
+        const currentSort = state.filters.sort;
+        const [currentKey, currentDir] = currentSort.split('-');
+
+        let nextDir = 'desc';
+        if (key === currentKey) {
+            nextDir = currentDir === 'desc' ? 'asc' : 'desc';
+        } else {
+            // Default directions for new columns
+            if (['client', 'company', 'invoice', 'status'].includes(key)) nextDir = 'asc';
+        }
+
+        state.filters.sort = `${key}-${nextDir}`;
+        state.currentPage = 1;
+
+        if (els.sortSelect) els.sortSelect.value = state.filters.sort;
+        persistFilters();
+        applyFiltersAndRender();
     });
 
     els.exportCsvBtn?.addEventListener('click', () => {
@@ -417,44 +445,105 @@ function bindEvents() {
 
     els.cancelDeleteBtn?.addEventListener('click', closeDeleteModal);
 
-    els.confirmPaidBtn?.addEventListener('click', async () => {
+    // Close Modal Button
+    els.closePaymentModal?.addEventListener('click', closePaidModal);
+    els.cancelPaymentBtn?.addEventListener('click', closePaidModal);
+
+    // Save Status ONLY (Manual override)
+    els.saveStatusBtn?.addEventListener('click', async () => {
         if (!state.invoiceToPay) return;
-
         const nextStatus = els.modalStatusInput?.value || 'sent';
-        let paidDate = null;
-        let parsedUsd = null;
-
-        if (nextStatus === 'paid') {
-            paidDate = String(els.paidDateInput?.value || '').trim();
-            if (!paidDate) {
-                showToast('Please select a payment date', 'error');
-                return;
-            }
-            const usdVal = String(els.paidUsdAmountInput?.value || '').trim();
-            parsedUsd = usdVal ? Number(usdVal) : null;
-        }
-
-        els.confirmPaidBtn.disabled = true;
+        els.saveStatusBtn.disabled = true;
         try {
-            await updateInvoiceStatus(state.invoiceToPay.id, nextStatus, paidDate, parsedUsd);
+            await updateInvoiceStatus(state.invoiceToPay.id, nextStatus);
             
-            if (nextStatus === 'sent' || nextStatus === 'paid') {
+            if (['sent', 'partially_paid', 'paid'].includes(nextStatus)) {
                 await markTimesheetsInvoiced(state.invoiceToPay);
             }
 
-            const invoiceNumber = state.invoiceToPay.invoice_number;
+            showToast(`Status updated to ${nextStatus}`, 'success');
             closePaidModal();
-            showToast(`Invoice ${invoiceNumber} updated to ${nextStatus}`, 'success');
             await loadInvoices();
         } catch (err) {
             console.error(err);
-            showToast('Failed to update invoice status', 'error');
+            showToast('Failed to update status', 'error');
         } finally {
-            els.confirmPaidBtn.disabled = false;
+            els.saveStatusBtn.disabled = false;
         }
     });
 
-    els.cancelPaidBtn?.addEventListener('click', closePaidModal);
+    // Add/Update Payment Installment
+    els.addPaymentBtn?.addEventListener('click', async () => {
+        if (!state.invoiceToPay) return;
+        
+        const date = document.getElementById('newPaymentDate')?.value;
+        const amount = document.getElementById('newPaymentAmount')?.value;
+        const usdAmount = document.getElementById('newPaymentUsd')?.value;
+        const note = document.getElementById('newPaymentNote')?.value;
+
+        if (!amount || Number(amount) <= 0) {
+            showToast('Please enter a valid payment amount', 'error');
+            return;
+        }
+
+        const btn = els.addPaymentBtn;
+        const originalText = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = state.editingPaymentId ? 'Updating...' : 'Recording...';
+
+        try {
+            const updated = await recordInvoicePayment(state.invoiceToPay.id, {
+                id: state.editingPaymentId,
+                date,
+                amount,
+                usdAmount,
+                note
+            });
+            
+            showToast(state.editingPaymentId ? 'Payment updated' : `Recorded payment of ${amount}`, 'success');
+            
+            // Re-render modal with new data
+            state.invoiceToPay = updated;
+            openPaymentInfoModal(updated);
+            resetPaymentForm();
+            await loadInvoices(); // Refresh grid
+        } catch (err) {
+            console.error(err);
+            showToast('Error recording payment: ' + err.message, 'error');
+        } finally {
+            btn.disabled = false;
+        }
+    });
+
+    // Ledger Actions (Delete/Edit)
+    els.paymentLedgerBody?.addEventListener('click', async (e) => {
+        const deleteBtn = e.target.closest('.ledger-delete');
+        const editBtn = e.target.closest('.ledger-edit');
+        if (!state.invoiceToPay) return;
+
+        if (deleteBtn) {
+            const paymentId = deleteBtn.dataset.paymentId;
+            if (!confirm('Are you sure you want to delete this payment installment?')) return;
+
+            try {
+                const updated = await deleteInvoicePayment(state.invoiceToPay.id, paymentId);
+                showToast('Payment deleted', 'info');
+                state.invoiceToPay = updated;
+                openPaymentInfoModal(updated);
+                await loadInvoices(); // Refresh grid
+            } catch (err) {
+                console.error(err);
+                showToast('Error deleting payment', 'error');
+            }
+        }
+
+        if (editBtn) {
+            const paymentId = editBtn.dataset.paymentId;
+            startEditingPayment(paymentId);
+        }
+    });
+
+    document.getElementById('cancelEditBtn')?.addEventListener('click', resetPaymentForm);
 
     document.addEventListener('click', (event) => {
         const target = event.target;
@@ -593,28 +682,30 @@ function sortInvoices(list, sortBy) {
     const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
 
     list.sort((a, b) => {
-        if (sortBy === 'date-desc') {
-            return getInvoiceDateTimestamp(b) - getInvoiceDateTimestamp(a);
-        }
+        if (sortBy === 'date-desc') return getInvoiceDateTimestamp(b) - getInvoiceDateTimestamp(a);
+        if (sortBy === 'date-asc') return getInvoiceDateTimestamp(a) - getInvoiceDateTimestamp(b);
+        if (sortBy === 'amount-desc') return getInvoiceAmount(b) - getInvoiceAmount(a);
+        if (sortBy === 'amount-asc') return getInvoiceAmount(a) - getInvoiceAmount(b);
+        if (sortBy === 'client-asc') return collator.compare(String(a.client_info?.name || ''), String(b.client_info?.name || ''));
+        if (sortBy === 'client-desc') return collator.compare(String(b.client_info?.name || ''), String(a.client_info?.name || ''));
+        if (sortBy === 'invoice-asc') return collator.compare(String(a.invoice_number || ''), String(b.invoice_number || ''));
+        if (sortBy === 'invoice-desc') return collator.compare(String(b.invoice_number || ''), String(a.invoice_number || ''));
+        if (sortBy === 'company-asc') return collator.compare(String(a.company_info?.name || ''), String(b.company_info?.name || ''));
+        if (sortBy === 'company-desc') return collator.compare(String(b.company_info?.name || ''), String(a.company_info?.name || ''));
+        if (sortBy === 'status-asc') return collator.compare(getEffectiveStatus(a), getEffectiveStatus(b));
+        if (sortBy === 'status-desc') return collator.compare(getEffectiveStatus(b), getEffectiveStatus(a));
+        if (sortBy === 'currency-asc') return collator.compare(getInvoiceCurrency(a), getInvoiceCurrency(b));
+        if (sortBy === 'currency-desc') return collator.compare(getInvoiceCurrency(b), getInvoiceCurrency(a));
 
-        if (sortBy === 'date-asc') {
-            return getInvoiceDateTimestamp(a) - getInvoiceDateTimestamp(b);
+        if (sortBy === 'payment-asc') {
+            const balA = a.totals?.balance_due ?? (getInvoiceAmount(a) - (a.totals?.amount_paid || 0));
+            const balB = b.totals?.balance_due ?? (getInvoiceAmount(b) - (b.totals?.amount_paid || 0));
+            return balB - balA; // Most Owed first
         }
-
-        if (sortBy === 'amount-desc') {
-            return getInvoiceAmount(b) - getInvoiceAmount(a);
-        }
-
-        if (sortBy === 'amount-asc') {
-            return getInvoiceAmount(a) - getInvoiceAmount(b);
-        }
-
-        if (sortBy === 'client-asc') {
-            return collator.compare(String(a.client_info?.name || ''), String(b.client_info?.name || ''));
-        }
-
-        if (sortBy === 'invoice-asc') {
-            return collator.compare(String(a.invoice_number || ''), String(b.invoice_number || ''));
+        if (sortBy === 'payment-desc') {
+            const balA = a.totals?.balance_due ?? (getInvoiceAmount(a) - (a.totals?.amount_paid || 0));
+            const balB = b.totals?.balance_due ?? (getInvoiceAmount(b) - (b.totals?.amount_paid || 0));
+            return balA - balB; // Least Owed first
         }
 
         return 0;
@@ -669,6 +760,18 @@ function renderItemsBreakdown(invoice, currency) {
 function renderTable() {
     if (!els.tableBody) return;
 
+    // Update Header Sort Icons
+    document.querySelectorAll('#invoicesTable th.sortable').forEach(th => {
+        const key = th.dataset.sortKey;
+        const [activeKey, activeDir] = state.filters.sort.split('-');
+        
+        th.classList.toggle('active', key === activeKey);
+        th.classList.remove('sort-asc', 'sort-desc');
+        if (key === activeKey) {
+            th.classList.add(`sort-${activeDir}`);
+        }
+    });
+
     if (state.filteredInvoices.length === 0) {
         setEmptyTable('No invoices found for selected filters.');
         return;
@@ -684,10 +787,21 @@ function renderTable() {
         const amount = formatAmountValue(getInvoiceAmount(invoice));
         
         const usdReceived = invoice.totals?.usd_received_amount;
+        const amountPaid = Number(invoice.totals?.amount_paid) || 0;
+        const balanceDue = Number(invoice.totals?.balance_due) ?? (getInvoiceAmount(invoice) - amountPaid);
+        
         let currencyColumn = currency;
         let amountColumn = `<strong>${amount}</strong>`;
 
-        if (usdReceived && status === 'paid') {
+        if (status === 'partially_paid') {
+            amountColumn = `
+                <div style="display:flex; flex-direction:column; justify-content:center; gap:0.2rem;">
+                    <div style="font-size:0.9rem; font-weight:700;">${amount}</div>
+                    <div style="font-size:0.75rem; color:#059669; font-weight:600;">Paid: ${formatAmountValue(amountPaid)}</div>
+                    <div style="font-size:0.75rem; color:#d97706; font-weight:600;">Due: ${formatAmountValue(Math.max(0, balanceDue))}</div>
+                </div>
+            `;
+        } else if (usdReceived && status === 'paid') {
              currencyColumn = `
                  <div style="display:flex; flex-direction:column; justify-content:center; gap:0.25rem;">
                      <span>${currency}</span>
@@ -748,7 +862,7 @@ function renderTable() {
                         </button>
                         <div id="invoice-menu-${invoice.id}" class="dropdown-menu invoice-row-menu">
                             <div class="dropdown-label">Invoice Actions</div>
-                            <button class="dropdown-item" data-action="edit" data-id="${invoice.id}">Edit invoice</button>
+                            <button class="dropdown-item" data-action="edit" data-id="${invoice.id}">View/Edit invoice</button>
                             <button class="dropdown-item" data-action="download" data-id="${invoice.id}">Download PDF</button>
                             <button class="dropdown-item" data-action="email" data-id="${invoice.id}">Send by email</button>
                             <button class="dropdown-item" data-action="expand-ts" data-id="${invoice.id}" data-inv-number="${escapeHtml(invoice.invoice_number || '')}">Linked timesheets</button>
@@ -966,33 +1080,155 @@ function closeDeleteModal() {
     }
 }
 
-function openPaymentInfoModal(invoice) {
+function ensureReconciled(invoice) {
+    if (!invoice) return null;
+    const totals = { ...(invoice.totals || {}) };
+    const payments = totals.payments || [];
+    
+    // Legacy Paid invoices: status is 'paid' but ledger is empty
+    if (invoice.status === 'paid' && payments.length === 0) {
+        const totalAmount = Number(totals.total) || 0;
+        totals.amount_paid = totalAmount;
+        totals.balance_due = 0;
+        totals.payments = [{
+            id: 'legacy-display-' + Date.now(),
+            date: invoice.paid_date || new Date().toISOString().split('T')[0],
+            amount: totalAmount,
+            usdAmount: totals.usd_received_amount || null,
+            note: 'Marked as paid (Legacy)'
+        }];
+    }
+    
+    // Legacy Partial invoices (if any existed): status is 'partially_paid' but balance_due not set
+    if (invoice.status === 'partially_paid' && totals.balance_due === undefined) {
+        const totalAmount = Number(totals.total) || 0;
+        const paidAmount = Number(totals.amount_paid) || 0;
+        totals.balance_due = Math.max(0, totalAmount - paidAmount);
+    }
+
+    return { ...invoice, totals };
+}
+
+function openPaymentInfoModal(invoiceRaw) {
+    const invoice = ensureReconciled(invoiceRaw);
     state.invoiceToPay = invoice;
-    const status = getEffectiveStatus(invoice);
+    const totals = invoice.totals || {};
+    const totalAmount = Number(totals.total) || 0;
+    const amountPaid = Number(totals.amount_paid) || 0;
+    const balanceDue = Number(totals.balance_due) ?? totalAmount;
+    const currency = getInvoiceCurrency(invoice);
 
+    // Update Summary
+    if (els.summaryTotal) els.summaryTotal.textContent = formatMoney(totalAmount, currency);
+    if (els.summaryPaid) els.summaryPaid.textContent = formatMoney(amountPaid, currency);
+    if (els.summaryBalance) els.summaryBalance.textContent = formatMoney(balanceDue, currency);
+    
+    // Update Progress Meter
+    const progressPercent = totalAmount > 0 ? Math.min(100, Math.round((amountPaid / totalAmount) * 100)) : 0;
+    const progressFill = document.getElementById('modalProgressFill');
+    const progressText = document.getElementById('modalProgressPercent');
+    if (progressFill) progressFill.style.width = `${progressPercent}%`;
+    if (progressText) progressText.textContent = `${progressPercent}%`;
+
+    const modalInvNum = document.getElementById('modalInvoiceNumber');
+    if (modalInvNum) modalInvNum.textContent = `Invoice #${invoice.invoice_number}`;
+
+    // Update Header Badge
+    const statusBadge = document.getElementById('modalStatusBadge');
+    if (statusBadge) {
+        const rawStatus = (invoice.status || 'draft');
+        const formatted = rawStatus.replace('_', ' ');
+        statusBadge.textContent = formatted.charAt(0).toUpperCase() + formatted.slice(1);
+    }
+
+    // Update Status
     if (els.modalStatusInput) {
-        els.modalStatusInput.value = status;
+        els.modalStatusInput.value = invoice.status || 'draft';
     }
 
-    if (els.modalPaidDetails) {
-        els.modalPaidDetails.style.display = status === 'paid' ? 'block' : 'none';
-    }
+    // Render Ledger
+    renderPaymentLedger(invoice);
 
-    if (els.paidDateInput) {
-        if (invoice.paid_date) {
-            els.paidDateInput.value = invoice.paid_date;
-        } else {
-            els.paidDateInput.value = new Date().toISOString().slice(0, 10);
-        }
-    }
-
-    if (els.paidUsdAmountInput) {
-        els.paidUsdAmountInput.value = invoice.totals?.usd_received_amount || '';
-    }
+    // Reset Form
+    const dateInput = document.getElementById('newPaymentDate');
+    if (dateInput) dateInput.value = new Date().toISOString().split('T')[0];
+    const amtInput = document.getElementById('newPaymentAmount');
+    if (amtInput) amtInput.value = '';
+    const usdInput = document.getElementById('newPaymentUsd');
+    if (usdInput) usdInput.value = '';
+    const noteInput = document.getElementById('newPaymentNote');
+    if (noteInput) noteInput.value = '';
 
     if (els.paymentModal) {
         els.paymentModal.style.display = 'flex';
     }
+}
+
+function startEditingPayment(paymentId) {
+    const invoice = state.invoiceToPay;
+    if (!invoice || !invoice.totals?.payments) return;
+    
+    const payment = invoice.totals.payments.find(p => p.id === paymentId);
+    if (!payment) return;
+
+    state.editingPaymentId = paymentId;
+
+    // Populate fields
+    if (document.getElementById('newPaymentDate')) document.getElementById('newPaymentDate').value = payment.date;
+    if (document.getElementById('newPaymentAmount')) document.getElementById('newPaymentAmount').value = payment.amount;
+    if (document.getElementById('newPaymentUsd')) document.getElementById('newPaymentUsd').value = payment.usdAmount || '';
+    if (document.getElementById('newPaymentNote')) document.getElementById('newPaymentNote').value = payment.note || '';
+
+    // UI Feedback
+    const indicator = document.getElementById('editModeIndicator');
+    if (indicator) indicator.style.display = 'flex';
+    if (els.addPaymentBtn) els.addPaymentBtn.textContent = 'Update Transaction';
+}
+
+function resetPaymentForm() {
+    state.editingPaymentId = null;
+    
+    // Clear inputs
+    if (document.getElementById('newPaymentDate')) document.getElementById('newPaymentDate').value = new Date().toISOString().split('T')[0];
+    if (document.getElementById('newPaymentAmount')) document.getElementById('newPaymentAmount').value = '';
+    if (document.getElementById('newPaymentUsd')) document.getElementById('newPaymentUsd').value = '';
+    if (document.getElementById('newPaymentNote')) document.getElementById('newPaymentNote').value = '';
+
+    // Reset UI
+    const indicator = document.getElementById('editModeIndicator');
+    if (indicator) indicator.style.display = 'none';
+    if (els.addPaymentBtn) els.addPaymentBtn.textContent = 'Record Transaction';
+}
+
+function renderPaymentLedger(invoice) {
+    if (!els.paymentLedgerBody) return;
+    const payments = invoice.totals?.payments || [];
+    const currency = getInvoiceCurrency(invoice);
+
+    if (payments.length === 0) {
+        els.paymentLedgerBody.innerHTML = `<tr><td colspan="3" style="text-align:center; padding:1.5rem; color:var(--text-secondary);">No payments recorded yet</td></tr>`;
+        return;
+    }
+
+    els.paymentLedgerBody.innerHTML = payments.map(p => `
+        <tr>
+            <td>${p.date}</td>
+            <td>
+                <div>${formatMoney(p.amount, currency)}</div>
+                ${p.usdAmount ? `<div style="font-size:0.7rem; color:var(--text-secondary)">USD ${p.usdAmount}</div>` : ''}
+            </td>
+            <td style="text-align:right">
+                <div style="display: flex; gap: 0.5rem; justify-content: flex-end;">
+                    <button class="ledger-edit" data-payment-id="${p.id}" title="Edit payment" style="background:none; border:none; color:var(--text-secondary); cursor:pointer; padding:2px;">
+                        <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                    </button>
+                    <button class="ledger-delete" data-payment-id="${p.id}" title="Delete payment" style="background:none; border:none; color:var(--text-secondary); cursor:pointer; padding:2px;">
+                        <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                    </button>
+                </div>
+            </td>
+        </tr>
+    `).join('');
 }
 
 function closePaidModal() {
@@ -1292,8 +1528,8 @@ function getInvoiceDateTimestamp(invoice) {
 
 function getEffectiveStatus(invoice) {
     const status = String(invoice.status || 'draft').toLowerCase();
-    if (status !== 'sent') {
-        return status === 'paid' ? 'paid' : status === 'draft' ? 'draft' : 'draft';
+    if (status === 'draft' || status === 'paid' || status === 'partially_paid') {
+        return status;
     }
 
     const dueRaw = getDueDateRaw(invoice);
@@ -1307,6 +1543,10 @@ function getEffectiveStatus(invoice) {
 
 function renderStatusChip(status) {
     const normalized = String(status || 'draft').toLowerCase();
+
+    if (normalized === 'partially_paid') {
+        return '<span class="status-chip status-chip--partially_paid">Partial</span>';
+    }
 
     if (normalized === 'sent') {
         return '<span class="status-chip status-chip--sent">Sent</span>';

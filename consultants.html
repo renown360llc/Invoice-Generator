@@ -474,6 +474,19 @@
                     <select id="currencyFilter" class="crm-toolbar__pill" aria-label="Currency">
                         <option value="all">All Currencies</option>
                     </select>
+                    <div class="crm-toolbar__divider"></div>
+                    <select id="sortSelect" class="crm-toolbar__pill" aria-label="Sort Order">
+                        <option value="name_asc">Name (A-Z)</option>
+                        <option value="name_desc">Name (Z-A)</option>
+                        <option value="client_asc">Client (A-Z)</option>
+                        <option value="client_desc">Client (Z-A)</option>
+                        <option value="start_date_desc">Start Date (Newest)</option>
+                        <option value="start_date_asc">Start Date (Oldest)</option>
+                        <option value="bill_rate_desc">Rate (Highest)</option>
+                        <option value="bill_rate_asc">Rate (Lowest)</option>
+                        <option value="status_asc">Status (A-Z)</option>
+                        <option value="status_desc">Status (Z-A)</option>
+                    </select>
                 </div>
                 <div class="crm-toolbar__divider"></div>
                 <div class="crm-toolbar__period-wrap">
@@ -611,20 +624,13 @@
                     <table class="table" id="consultantsTable">
                         <thead>
                             <tr>
-                                <th data-sort="name"><button class="sort-button" data-sort="name">Name <span
-                                            class="sort-icon">↕</span></button></th>
-                                <th data-sort="client"><button class="sort-button" data-sort="client">Client / W2 <span
-                                            class="sort-icon">↕</span></button></th>
-                                <th data-sort="start_date"><button class="sort-button" data-sort="start_date">Start Date
-                                        <span class="sort-icon">↕</span></button></th>
-                                <th data-sort="end_date"><button class="sort-button" data-sort="end_date">End Date <span
-                                            class="sort-icon">↕</span></button></th>
-                                <th data-sort="bill_rate"><button class="sort-button" data-sort="bill_rate">Rate <span
-                                            class="sort-icon">↕</span></button></th>
-                                <th data-sort="status"><button class="sort-button" data-sort="status">Status <span
-                                            class="sort-icon">↕</span></button></th>
-                                <th data-sort="coverage"><button class="sort-button" data-sort="coverage">Coverage <span
-                                            class="sort-icon">↕</span></button></th>
+                                <th class="sortable" data-sort-key="name">Name</th>
+                                <th class="sortable" data-sort-key="client">Client / W2</th>
+                                <th class="sortable" data-sort-key="start_date">Start Date</th>
+                                <th class="sortable" data-sort-key="end_date">End Date</th>
+                                <th class="sortable" data-sort-key="bill_rate">Rate</th>
+                                <th class="sortable" data-sort-key="status">Status</th>
+                                <th class="sortable" data-sort-key="coverage">Coverage</th>
                                 <th>Actions</th>
                             </tr>
                         </thead>

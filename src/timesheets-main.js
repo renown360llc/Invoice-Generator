@@ -39,6 +39,10 @@ let rawRows = [];
 let consultants = [];
 let rowsByConsultant = new Map();
 
+// Sorting State
+let sortKey = pagePrefs.sortKey || 'date';
+let sortDir = pagePrefs.sortDir || 'desc';
+
 let modalMode = 'add';
 let modalTimesheetId = null;
 let modalConsultantId = null;
@@ -86,6 +90,7 @@ function cacheElements() {
     els.deleteViewBtn = document.getElementById('deleteViewBtn');
     els.savedViewMeta = document.getElementById('savedViewMeta');
     els.exportCsvBtn = document.getElementById('exportCsvBtn');
+    els.sortSelect = document.getElementById('sortSelect'); // New Sort Dropdown
 
     els.tableBody = document.getElementById('timesheetsBody');
     els.periodTitle = document.getElementById('timesheetPeriodTitle');
@@ -145,6 +150,7 @@ function setupFilters() {
 
     if (els.statusFilter) els.statusFilter.value = selectedStatus;
     if (els.searchInput) els.searchInput.value = searchTerm;
+    if (els.sortSelect) els.sortSelect.value = `${sortKey}_${sortDir}`;
     renderSavedViews();
 
     updateAllMonthsToggleLabel();
@@ -177,6 +183,32 @@ function bindEvents() {
         persistShared();
         updateAllMonthsToggleLabel();
         updatePeriodLabel();
+        requestRender();
+    });
+
+    els.sortSelect?.addEventListener('change', (e) => {
+        const [key, dir] = e.target.value.split('_');
+        sortKey = key;
+        sortDir = dir;
+        updateSortingPrefs();
+        requestRender();
+    });
+
+    // Column Header Click Handling
+    document.querySelector('#desktopTimesheetTable thead')?.addEventListener('click', (e) => {
+        const th = e.target.closest('th.sortable');
+        if (!th) return;
+
+        const key = th.dataset.sortKey;
+        if (sortKey === key) {
+            sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+        } else {
+            sortKey = key;
+            sortDir = (['consultant', 'client', 'status'].includes(key)) ? 'asc' : 'desc';
+        }
+
+        if (els.sortSelect) els.sortSelect.value = `${sortKey}_${sortDir}`;
+        updateSortingPrefs();
         requestRender();
     });
 
@@ -662,12 +694,71 @@ function getFilteredRows() {
         };
     }).filter(Boolean);
 
-    rows.sort((a, b) => a.consultant_name.localeCompare(b.consultant_name));
+    rows.sort((a, b) => {
+        const isAsc = sortDir === 'asc';
+        const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
+
+        if (sortKey === 'consultant') {
+            return isAsc 
+                ? collator.compare(a.consultant_name, b.consultant_name)
+                : collator.compare(b.consultant_name, a.consultant_name);
+        }
+        if (sortKey === 'client') {
+            return isAsc 
+                ? collator.compare(a.client, b.client)
+                : collator.compare(b.client, a.client);
+        }
+        if (sortKey === 'company') {
+            return isAsc 
+                ? collator.compare(a.w2_company, b.w2_company)
+                : collator.compare(b.w2_company, a.w2_company);
+        }
+        if (sortKey === 'start') {
+            const dateA = a.period_start || '';
+            const dateB = b.period_start || '';
+            return isAsc ? dateA.localeCompare(dateB) : dateB.localeCompare(dateA);
+        }
+        if (sortKey === 'date') {
+            const dateA = a.period_end || '';
+            const dateB = b.period_end || '';
+            return isAsc ? dateA.localeCompare(dateB) : dateB.localeCompare(dateA);
+        }
+        if (sortKey === 'hours') {
+            return isAsc ? a.hours - b.hours : b.hours - a.hours;
+        }
+        if (sortKey === 'status') {
+            return isAsc ? a.status.localeCompare(b.status) : b.status.localeCompare(a.status);
+        }
+        if (sortKey === 'invoice') {
+            return isAsc ? a.invoice_number.localeCompare(b.invoice_number) : b.invoice_number.localeCompare(a.invoice_number);
+        }
+        if (sortKey === 'currency') {
+            return isAsc ? a.currency.localeCompare(b.currency) : b.currency.localeCompare(a.currency);
+        }
+
+        // Default to Name ASC
+        return collator.compare(a.consultant_name, b.consultant_name);
+    });
+
     return rows;
+}
+
+function updateSortingPrefs() {
+    setPagePrefs('timesheets', { ...getPagePrefs('timesheets'), sortKey, sortDir });
 }
 
 function renderTable() {
     if (!els.tbody) return;
+
+    // Update Headers
+    document.querySelectorAll('#desktopTimesheetTable th.sortable').forEach(th => {
+        const key = th.dataset.sortKey;
+        th.classList.toggle('active', key === sortKey);
+        th.classList.remove('sort-asc', 'sort-desc');
+        if (key === sortKey) {
+            th.classList.add(`sort-${sortDir}`);
+        }
+    });
 
     const rows = getFilteredRows();
     const range = getPeriodRange();

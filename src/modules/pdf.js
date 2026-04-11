@@ -76,31 +76,33 @@ export async function generatePDF(data) {
     const brandColor = data.settings.brandColor || '#3b82f6';
     const rgb = hexToRgb(brandColor);
 
-    // --- Header ---
+    // --- Header (Logo & Company Name Row) ---
+    let brandRowHeight = 0;
+    const hasLogo = !!data.business_info.logo;
 
-    // Logo
-    if (data.business_info.logo) {
+    if (hasLogo) {
         try {
-            // Check if logo is data URL or standard URL
-            // For simple implementation, assuming data URL or accessible URL
-            // doc.addImage is synchronous for data URLs usually
-            doc.addImage(data.business_info.logo, 'JPEG', margin, y, 40, 20);
-            // Note: Aspect ratio should be handled, but hardcoded 40x20 for now safety
-            // Or we just add it and let it scale? 
-            // Better to check image dimensions if possible, but let's stick to simple layout
-            y += 25;
+            // Render Logo (25x12mm scale - refined)
+            doc.addImage(data.business_info.logo, 'JPEG', margin, y, 25, 12);
+            brandRowHeight = 12;
         } catch (e) {
             console.warn('PDF Logo error:', e);
         }
     }
 
-    // Business Info
-    doc.setFontSize(18);
+    // Company Name (Placed next to logo if exists - refined size)
+    doc.setFontSize(15);
     doc.setTextColor(rgb.r, rgb.g, rgb.b);
     doc.setFont('helvetica', 'bold');
-    doc.text(data.business_info.name || 'Company Name', margin, y);
-    y += 7;
+    
+    const nameX = hasLogo ? margin + 30 : margin;
+    const nameY = hasLogo ? y + 8 : y + 5; 
+    doc.text(data.business_info.name || 'Company Name', nameX, nameY);
+    
+    // Prepare for details (Row 2 - Below branding)
+    y += Math.max(brandRowHeight, 10) + 8;
 
+    // Business Details (Below Logo/Name)
     doc.setFontSize(10);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(100);

@@ -2347,15 +2347,15 @@ canvas#revenueChart {
     top: 0;
     right: 0;
     bottom: 0;
-    width: 480px;
+    width: 520px; /* Increased for enterprise density */
     max-width: 95vw;
     background: white;
     z-index: 900;
     display: flex;
     flex-direction: column;
-    box-shadow: -8px 0 32px rgba(0, 0, 0, 0.12);
+    box-shadow: -12px 0 40px rgba(0, 0, 0, 0.1);
     transform: translateX(100%);
-    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .edit-panel.is-open {
@@ -2366,42 +2366,49 @@ canvas#revenueChart {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 1.5rem 1.75rem;
+    padding: 1.25rem 1.5rem;
     border-bottom: 1px solid var(--surface-border-subtle);
+    background: #fff;
     flex-shrink: 0;
 }
 
 .edit-panel__title {
-    font-size: 1.0625rem;
+    font-size: 1.125rem;
     font-weight: 700;
     color: var(--text-primary);
+    letter-spacing: -0.01em;
 }
 
 .edit-panel__close {
-    background: none;
+    background: var(--surface-alt);
     border: none;
     cursor: pointer;
-    font-size: 1.125rem;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.875rem;
     color: var(--text-secondary);
-    padding: 0.25rem 0.5rem;
-    border-radius: 6px;
-    line-height: 1;
-    transition: background 0.15s;
+    border-radius: 8px;
+    transition: all 0.2s;
 }
 
 .edit-panel__close:hover {
-    background: var(--surface-alt);
+    background: #e2e8f0;
+    color: var(--text-primary);
 }
 
 .edit-panel__body {
     flex: 1;
     overflow-y: auto;
-    padding: 1.75rem;
+    padding: 1.5rem;
+    background: #f8fafc; /* Subtle tint for contrast */
 }
 
 .edit-panel__footer {
     border-top: 1px solid var(--surface-border-subtle);
-    padding: 1.25rem 1.75rem;
+    padding: 1.25rem 1.5rem;
     display: flex;
     gap: 0.75rem;
     justify-content: flex-end;
@@ -2409,14 +2416,107 @@ canvas#revenueChart {
     background: white;
 }
 
+/* Enterprise Panel Utilities */
+.panel-card {
+    background: white;
+    border: 1px solid var(--surface-border-subtle);
+    border-radius: 12px;
+    padding: 1.25rem;
+    margin-bottom: 1.5rem;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+}
+
+.panel-card--accent {
+    border-top: 3px solid var(--primary);
+}
+
 .panel-section-label {
-    font-size: 0.6875rem;
-    font-weight: 700;
+    font-size: 0.75rem;
+    font-weight: 750;
     text-transform: uppercase;
-    letter-spacing: 0.07em;
-    color: var(--text-tertiary);
-    margin-bottom: 0.875rem;
-    margin-top: 0.25rem;
+    letter-spacing: 0.05em;
+    color: var(--text-secondary);
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.panel-section-label::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--surface-border-subtle);
+    opacity: 0.5;
+}
+
+.form-grid {
+    display: grid;
+    gap: 1.25rem;
+}
+
+.form-grid--2 {
+    grid-template-columns: 1fr 1fr;
+}
+
+.form-grid--3 {
+    grid-template-columns: 1fr 1fr 1fr;
+}
+
+.form-field--full {
+    grid-column: 1 / -1;
+}
+
+.color-picker-enterprise {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.5rem;
+    background: var(--surface-bg);
+    border: 1px solid var(--surface-border);
+    border-radius: 8px;
+}
+
+.color-picker-enterprise input[type="color"] {
+    width: 32px;
+    height: 32px;
+    border: none;
+    background: none;
+    cursor: pointer;
+}
+
+.color-picker-enterprise__value {
+    font-family: var(--font-mono);
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+}
+
+/* Logo Preview Box for Templates */
+.logo-preview-box {
+    width: 64px;
+    height: 64px;
+    border-radius: 8px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    flex-shrink: 0;
+}
+
+.logo-preview-box img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+.logo-preview-placeholder {
+    font-size: 0.65rem;
+    color: #94a3b8;
+    text-transform: uppercase;
+    font-weight: 700;
+    letter-spacing: 0.02em;
 }
 
 /* ============================================================================
@@ -3733,3 +3833,227 @@ canvas#revenueChart {
 .invoice-row--expanded .invoice-row-chevron {
     transform: rotate(90deg);
 }
+
+/* ============================================================================
+   Enterprise Reconciliation Components (ERP)
+   ============================================================================ */
+
+.erp-modal-header {
+    padding-bottom: 0.75rem;
+    margin-bottom: 1rem;
+    border-bottom: 1px solid var(--surface-glass-border);
+}
+
+.erp-status-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.15rem 0.5rem;
+    border-radius: 999px;
+    font-size: 0.65rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    background: var(--primary-light);
+    color: var(--primary);
+    border: 1px solid rgba(255, 107, 74, 0.2);
+}
+
+.erp-financial-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+    background: #f8fafc;
+    padding: 0.875rem;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--surface-glass-border);
+    justify-content: space-between;
+}
+
+.erp-metric {
+    display: flex;
+    flex-direction: column;
+    min-width: 80px;
+}
+
+.erp-metric__label {
+    font-size: 0.625rem;
+    font-weight: 700;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 0.125rem;
+}
+
+.erp-metric__value {
+    font-size: 0.875rem;
+    font-weight: 800;
+    color: var(--text-primary);
+    white-space: nowrap;
+}
+
+/* Progress Meter */
+.erp-progress-container {
+    margin-bottom: 1.25rem;
+}
+
+.erp-progress-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.375rem;
+}
+
+.erp-progress-label {
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--text-secondary);
+}
+
+.erp-progress-percent {
+    font-size: 0.75rem;
+    font-weight: 800;
+    color: var(--accent-green);
+}
+
+.erp-progress-bar {
+    height: 6px;
+    background: #e2e8f0;
+    border-radius: 999px;
+    overflow: hidden;
+}
+
+.erp-progress-fill {
+    height: 100%;
+    background: var(--accent-green);
+    border-radius: 999px;
+    transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Section Cards */
+.erp-card {
+    background: #ffffff;
+    border: 1px solid var(--surface-glass-border);
+    border-radius: var(--radius-md);
+    padding: 0.875rem;
+    margin-bottom: 1rem;
+}
+
+.erp-card__title {
+    display: flex;
+    align-items: center;
+    font-size: 0.75rem;
+    font-weight: 800;
+    color: var(--text-primary);
+    text-transform: uppercase;
+    letter-spacing: 0.025em;
+    margin-bottom: 0.75rem;
+    gap: 0.5rem;
+}
+
+/* Tooltip System */
+.info-tooltip-container {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    cursor: help;
+}
+
+.info-tooltip-trigger {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #e2e8f0;
+    color: #64748b;
+    font-size: 10px;
+    font-weight: 800;
+    font-family: serif;
+    font-style: italic;
+    margin-left: 0.375rem;
+}
+
+.info-tooltip-box {
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%) translateY(-8px);
+    width: 200px;
+    padding: 0.75rem;
+    background: #1e293b;
+    color: #ffffff;
+    font-size: 0.75rem;
+    font-weight: 400;
+    line-height: 1.4;
+    border-radius: 6px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    z-index: 100;
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.2s ease;
+    pointer-events: none;
+}
+
+.info-tooltip-box::after {
+    content: '';
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border-width: 6px;
+    border-style: solid;
+    border-color: #1e293b transparent transparent transparent;
+}
+
+.info-tooltip-container:hover .info-tooltip-box {
+    opacity: 1;
+    visibility: visible;
+    transform: translateX(-50%) translateY(-12px);
+}
+
+
+/* Sorting Enhancements */
+.table th.sortable {
+    cursor: pointer;
+    user-select: none;
+    transition: background-color 0.15s ease;
+    white-space: nowrap;
+    position: relative;
+    padding-right: 1.5rem !important;
+}
+
+.table th.sortable:hover {
+    background-color: var(--surface-bg-alt);
+    color: var(--primary);
+}
+
+.table th.sortable::after {
+    content: '↕';
+    position: absolute;
+    right: 0.5rem;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 0.75rem;
+    opacity: 0.2;
+    transition: all 0.2s ease;
+}
+
+.table th.sortable.active {
+    color: var(--primary);
+    background-color: rgba(255, 107, 74, 0.05);
+}
+
+.table th.sortable.active::after {
+    opacity: 1;
+}
+
+.table th.sortable.sort-asc::after {
+    content: '↑';
+}
+
+.table th.sortable.sort-desc::after {
+    content: '↓';
+}
+

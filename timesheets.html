@@ -265,6 +265,17 @@
                     <select id="currencyFilter" class="crm-toolbar__pill" aria-label="Currency">
                         <option value="all">All Currencies</option>
                     </select>
+                    <div class="crm-toolbar__divider"></div>
+                    <select id="sortSelect" class="crm-toolbar__pill" aria-label="Sort Order">
+                        <option value="date_desc">End Date (Newest)</option>
+                        <option value="date_asc">End Date (Oldest)</option>
+                        <option value="consultant_asc">Consultant (A-Z)</option>
+                        <option value="consultant_desc">Consultant (Z-A)</option>
+                        <option value="client_asc">Client (A-Z)</option>
+                        <option value="client_desc">Client (Z-A)</option>
+                        <option value="hours_desc">Hours (Highest)</option>
+                        <option value="hours_asc">Hours (Lowest)</option>
+                    </select>
                 </div>
                 <div class="crm-toolbar__divider"></div>
                 <div class="crm-toolbar__period-wrap">
@@ -330,15 +341,15 @@
                     <table class="table" id="desktopTimesheetTable">
                         <thead>
                             <tr>
-                                <th>Consultant</th>
-                                <th>Client</th>
-                                <th>W2 Company</th>
-                                <th>Period Start</th>
-                                <th>Period End</th>
-                                <th>Hours</th>
-                                <th>Status</th>
-                                <th>Invoice #</th>
-                                <th>Currency</th>
+                                <th class="sortable" data-sort-key="consultant">Consultant</th>
+                                <th class="sortable" data-sort-key="client">Client</th>
+                                <th class="sortable" data-sort-key="company">W2 Company</th>
+                                <th class="sortable" data-sort-key="start">Period Start</th>
+                                <th class="sortable" data-sort-key="date">Period End</th>
+                                <th class="sortable" data-sort-key="hours">Hours</th>
+                                <th class="sortable" data-sort-key="status">Status</th>
+                                <th class="sortable" data-sort-key="invoice">Invoice #</th>
+                                <th class="sortable" data-sort-key="currency">Currency</th>
                                 <th>Actions</th>
                             </tr>
                         </thead>

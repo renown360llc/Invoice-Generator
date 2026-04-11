@@ -89,8 +89,63 @@
       }
 
       .revenue-overview__currencies {
-        justify-content: flex-start;
-      }
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-start;
+    }
+    }
+
+    /* Ledger & Status Styles */
+    .status-chip--partially_paid {
+        background: #fef3c7 !important;
+        color: #92400e !important;
+    }
+
+    .ledger-table {
+        width: 100%;
+        font-size: 0.8rem;
+        border-collapse: collapse;
+        margin-top: 0.5rem;
+    }
+    .ledger-table th {
+        text-align: left;
+        padding: 0.5rem;
+        color: var(--text-secondary);
+        border-bottom: 1px solid var(--surface-border);
+        font-weight: 600;
+    }
+    .ledger-table td {
+        padding: 0.5rem;
+        border-bottom: 1px dashed var(--surface-border);
+    }
+    .ledger-delete {
+        color: #ef4444;
+        cursor: pointer;
+        padding: 0.25rem;
+        border-radius: 4px;
+    }
+    .ledger-delete:hover {
+        background: #fef2f2;
+    }
+    .balance-summary {
+        background: var(--surface-alt);
+        border-radius: 8px;
+        padding: 0.75rem;
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 0.5rem;
+        margin-bottom: 1rem;
+    }
+    .balance-item__label {
+        font-size: 0.7rem;
+        color: var(--text-secondary);
+        text-transform: uppercase;
+        letter-spacing: 0.025em;
+    }
+    .balance-item__value {
+        font-size: 0.9rem;
+        font-weight: 700;
+        color: var(--text-primary);
     }
   </style>
   <script type="module">
@@ -358,37 +413,132 @@
 
   <!-- Edit Payment Info Modal -->
   <div id="paymentInfoModal" class="modal-backdrop"
-    style="display: none; align-items: center; justify-content: center; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 9999;">
+    style="display: none; align-items: center; justify-content: center; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 9999;">
     <div
-      style="background: white; padding: 2rem; border-radius: var(--radius-md); box-shadow: var(--shadow-card); max-width: 400px; width: 100%;">
-      <h3 style="margin-bottom: 0.5rem; font-size: 1.125rem; color: var(--text-primary);">Edit Payment Info</h3>
-      <p style="color: var(--text-secondary); margin-bottom: 1.5rem; font-size: 0.875rem;">Update the status and payment details for this invoice.</p>
+      style="background: white; border-radius: 1.25rem; padding: 1.25rem; max-width: 520px; width: 100%; margin: 1rem; max-height: 92vh; overflow-y: auto; box-shadow: var(--shadow-paper);">
+      
+      <!-- Header -->
+      <div class="erp-modal-header">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+          <div class="erp-status-badge" id="modalStatusBadge">Sent</div>
+          <button id="closePaymentModal" style="background:none; border:none; color:var(--text-tertiary); cursor:pointer; padding:4px;">
+            <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+          </button>
+        </div>
+        <h3 style="font-size: 1.25rem; font-weight: 800; color: var(--text-primary); letter-spacing: -0.02em;">Payment Reconciliation</h3>
+        <p id="modalInvoiceNumber" style="color: var(--text-secondary); font-size: 0.8rem; margin-top: 0.125rem; font-weight: 500;"></p>
+      </div>
 
-      <div class="form-field" style="margin-bottom: 1.5rem;">
-        <label for="modalStatusInput" style="display: block; font-size: 0.8125rem; font-weight: 600; margin-bottom: 0.4rem; color: var(--text-primary);">Status</label>
-        <select id="modalStatusInput" class="form-field__input">
+      <!-- Compact Financial Summary -->
+      <div class="erp-financial-row">
+        <div class="erp-metric">
+          <span class="erp-metric__label">Billed</span>
+          <span id="summaryTotal" class="erp-metric__value">$0.00</span>
+        </div>
+        <div class="erp-metric">
+          <span class="erp-metric__label">Paid</span>
+          <span id="summaryPaid" class="erp-metric__value" style="color: var(--accent-green);">$0.00</span>
+        </div>
+        <div class="erp-metric">
+          <span class="erp-metric__label">Due</span>
+          <span id="summaryBalance" class="erp-metric__value" style="color: var(--accent-yellow);">$0.00</span>
+        </div>
+        <div class="erp-metric" style="align-items: flex-end; min-width: 60px;">
+          <span class="erp-metric__label">Progress</span>
+          <span class="erp-metric__value" id="modalProgressPercent" style="color: var(--accent-green);">0%</span>
+        </div>
+      </div>
+
+      <div class="erp-progress-bar" style="margin-top: -0.5rem; margin-bottom: 1.25rem;">
+        <div class="erp-progress-fill" id="modalProgressFill" style="width: 0%"></div>
+      </div>
+
+      <!-- Post New Entry -->
+      <div class="erp-card" style="background: rgba(248, 250, 252, 0.5); border-style: dashed; margin-bottom: 0.75rem;">
+        <div class="erp-card__title" style="margin-bottom: 0.5rem;">
+          <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          Post New Installment
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 0.75rem;">
+          <div>
+            <label style="display: block; font-size: 0.65rem; font-weight: 700; margin-bottom: 0.25rem; color: var(--text-secondary); text-transform: uppercase;">Entry Date</label>
+            <input type="date" id="newPaymentDate" style="width: 100%; padding: 0.45rem; border: 1.5px solid var(--surface-glass-border); border-radius: 6px; font-size: 0.8rem;">
+          </div>
+          <div>
+            <label style="display: block; font-size: 0.65rem; font-weight: 700; margin-bottom: 0.25rem; color: var(--text-secondary); text-transform: uppercase;">Credit Amount</label>
+            <input type="number" id="newPaymentAmount" placeholder="0.00" step="0.01" style="width: 100%; padding: 0.45rem; border: 1.5px solid var(--surface-glass-border); border-radius: 6px; font-size: 0.8rem;">
+          </div>
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 0.875rem;">
+          <div>
+            <label style="display: block; font-size: 0.65rem; font-weight: 700; margin-bottom: 0.25rem; color: var(--text-secondary); text-transform: uppercase;">
+              USD Realized
+              <div class="info-tooltip-container">
+                <span class="info-tooltip-trigger">i</span>
+                <div class="info-tooltip-box">Exact USD amount received.</div>
+              </div>
+            </label>
+            <input type="number" id="newPaymentUsd" placeholder="0.00" step="0.01" style="width: 100%; padding: 0.45rem; border: 1.5px solid var(--surface-glass-border); border-radius: 6px; font-size: 0.8rem;">
+          </div>
+          <div>
+            <label style="display: block; font-size: 0.65rem; font-weight: 700; margin-bottom: 0.25rem; color: var(--text-secondary); text-transform: uppercase;">Ref / Note</label>
+            <input type="text" id="newPaymentNote" placeholder="e.g. Check #..." style="width: 100%; padding: 0.45rem; border: 1.5px solid var(--surface-glass-border); border-radius: 6px; font-size: 0.8rem;">
+          </div>
+        </div>
+        <button id="addPaymentBtn" class="btn btn--primary" style="width: 100%; padding: 0.5rem; font-weight: 700; font-size: 0.85rem;">Record Transaction</button>
+      </div>
+
+      <!-- Transaction Audit Trail -->
+      <div class="erp-card" style="margin-bottom: 0.75rem;">
+        <div class="erp-card__title" style="margin-bottom: 0.5rem;">
+          <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+          Audit Trail
+          <div class="info-tooltip-container">
+            <span class="info-tooltip-trigger">i</span>
+            <div class="info-tooltip-box">Log of all installments received.</div>
+          </div>
+        </div>
+        <div style="max-height: 100px; overflow-y: auto; margin: 0 -0.25rem;">
+          <table class="ledger-table">
+            <tbody id="paymentLedgerBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div id="editModeIndicator" style="display: none; align-items: center; justify-content: space-between; margin-bottom: 0.5rem; padding: 0.4rem 0.75rem; background: var(--primary-light); border-radius: 6px; border: 1px solid rgba(255,107,74,0.1);">
+        <span style="font-size: 0.75rem; font-weight: 700; color: var(--primary);">Editing Installment...</span>
+        <button id="cancelEditBtn" style="background: none; border: none; color: var(--text-secondary); font-size: 0.7rem; font-weight: 700; cursor: pointer; text-decoration: underline;">Cancel Edit</button>
+      </div>
+        <div style="margin-bottom: 1rem;">
+          <label style="display: block; font-size: 0.75rem; font-weight: 700; margin-bottom: 0.375rem; color: var(--text-secondary);">
+            USD Realized
+            <div class="info-tooltip-container">
+              <span class="info-tooltip-trigger">i</span>
+              <div class="info-tooltip-box">Record the exact amount realized in your USD account after bank conversion fees.</div>
+            </div>
+          </label>
+          <input type="number" id="newPaymentUsd" placeholder="0.00" step="0.01" style="width: 100%; padding: 0.6rem; border: 1.5px solid var(--surface-glass-border); border-radius: 8px; font-size: 0.875rem;">
+
+      <!-- Advanced Status Override -->
+      <div style="margin-top: 1rem; padding: 0.5rem 0.875rem; background: #fdfdfd; border: 1px solid var(--surface-glass-border); border-radius: 8px;">
+        <label style="display: flex; align-items: center; font-size: 0.7rem; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em;">
+          Manual Status Override
+          <div class="info-tooltip-container">
+            <span class="info-tooltip-trigger">i</span>
+            <div class="info-tooltip-box">Update the invoice status manually.</div>
+          </div>
+        </label>
+        <select id="modalStatusInput" style="width: 100%; border: none; background: transparent; font-size: 0.875rem; font-weight: 600; padding: 0.25rem 0; cursor: pointer; color: var(--text-primary); outline: none;">
           <option value="draft">Draft</option>
           <option value="sent">Sent</option>
+          <option value="partially_paid">Partially Paid</option>
           <option value="paid">Paid</option>
         </select>
       </div>
 
-      <div id="modalPaidDetails" style="display: none;">
-        <div class="form-field" style="margin-bottom: 1.5rem;">
-          <label for="modalPaidDateInput" style="display: block; font-size: 0.8125rem; font-weight: 600; margin-bottom: 0.4rem; color: var(--text-primary);">Payment Date</label>
-          <input type="date" id="modalPaidDateInput" class="form-field__input">
-        </div>
-        
-        <div class="form-field" style="margin-bottom: 2rem;">
-          <label for="modalPaidUsdInput" style="display: block; font-size: 0.8125rem; font-weight: 600; margin-bottom: 0.4rem; color: var(--text-primary);">USD Equivalent Received (Optional)</label>
-          <input type="number" id="modalPaidUsdInput" class="form-field__input" placeholder="e.g. 750.00" step="0.01" min="0">
-        </div>
-      </div>
-
-      <div style="display: flex; gap: 0.75rem; justify-content: flex-end;">
-        <button id="cancelPaidDateBtn" class="btn"
-          style="background: var(--surface-alt); color: var(--text-secondary);">Cancel</button>
-        <button id="confirmPaidDateBtn" class="btn btn--primary">Update Info</button>
+      <div style="display: flex; gap: 0.75rem; margin-top: 1.25rem;">
+        <button id="cancelPaymentBtn" class="btn" style="flex: 1; padding: 0.5rem; font-size: 0.85rem; background: var(--surface-alt); border: 1px solid var(--surface-glass-border);">Cancel</button>
+        <button id="saveStatusBtn" class="btn btn--primary" style="flex: 1.5; padding: 0.5rem; font-size: 0.85rem;">Save Changes</button>
       </div>
     </div>
   </div>

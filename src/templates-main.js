@@ -9,6 +9,7 @@ import { getTemplates, updateTemplate, deleteTemplate } from './database.js'
 // ── State ───────────────────────────────────────────────────────────────────
 let allTemplates = []
 let templateToDelete = null
+let currentBizLogo = null // Stores base64 of the logo being edited
 
 // ── Toast ────────────────────────────────────────────────────────────────────
 function showToast(message, type = 'info') {
@@ -128,7 +129,15 @@ function openEditPanel(templateId) {
     document.getElementById('editClientAddress').value = client.address || ''
     document.getElementById('editCurrency').value = settings.currency || 'USD'
     document.getElementById('editTaxRate').value = settings.taxRate || 0
-    document.getElementById('editBrandColor').value = settings.brandColor || '#000000'
+    const brandColor = settings.brandColor || '#000000'
+    document.getElementById('editBrandColor').value = brandColor
+    const brandColorValue = document.getElementById('editBrandColorValue')
+    if (brandColorValue) brandColorValue.textContent = brandColor.toUpperCase()
+    document.getElementById('editPaymentInstructions').value = settings.payment_instructions || ''
+
+    // Populate logo
+    currentBizLogo = biz.logo || null
+    updateLogoPreview()
 
     // Show panel
     document.getElementById('editPanel').classList.add('is-open')
@@ -149,6 +158,7 @@ async function saveEdit() {
             email: document.getElementById('editBizEmail').value,
             phone: document.getElementById('editBizPhone').value,
             address: document.getElementById('editBizAddress').value,
+            logo: currentBizLogo
         },
         client: {
             name: document.getElementById('editClientName').value,
@@ -160,7 +170,8 @@ async function saveEdit() {
             currency: document.getElementById('editCurrency').value,
             taxRate: document.getElementById('editTaxRate').value,
             brandColor: document.getElementById('editBrandColor').value,
-        }
+        },
+        payment_instructions: document.getElementById('editPaymentInstructions').value
     }
 
     if (!templateData.name) {
@@ -232,12 +243,45 @@ async function init() {
             }
         })
 
-        // Handle ?template_use=ID from "Use Template" button — sets template in app.html
-        // (app-main.js handleLoadTemplate already reads from DB by ID, so we just pass the param)
+        // Color picker live preview
+        document.getElementById('editBrandColor')?.addEventListener('input', (e) => {
+            const val = e.target.value.toUpperCase()
+            const display = document.getElementById('editBrandColorValue')
+            if (display) display.textContent = val
+        })
+
+        // Logo upload listener
+        document.getElementById('editBizLogoUpload')?.addEventListener('change', handleLogoUpload)
 
     } catch (e) {
         console.error('Init error:', e)
     }
 }
 
+function updateLogoPreview() {
+    const preview = document.getElementById('editBizLogoPreview')
+    const fileNameEl = document.getElementById('editBizLogoFileName')
+    
+    if (currentBizLogo) {
+        preview.innerHTML = `<img src="${currentBizLogo}" alt="Logo">`
+        fileNameEl.textContent = 'Change Logo'
+    } else {
+        preview.innerHTML = `<span class="logo-preview-placeholder">No Logo</span>`
+        fileNameEl.textContent = 'Choose Logo'
+    }
+}
+
+function handleLogoUpload(e) {
+    const file = e.target.files[0]
+    if (!file) return
+
+    const reader = new FileReader()
+    reader.onload = (evt) => {
+        currentBizLogo = evt.target.result
+        updateLogoPreview()
+    }
+    reader.readAsDataURL(file)
+}
+
 init()
+

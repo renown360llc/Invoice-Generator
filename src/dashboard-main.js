@@ -1,5 +1,5 @@
 import { getCurrentUser, signOut } from './auth.js'
-import { getInvoices, getInvoice, updateInvoiceStatus } from './database.js'
+import { getInvoices, getInvoice, updateInvoiceStatus, recordInvoicePayment, deleteInvoicePayment } from './database.js'
 import { dbGetConsultants } from './modules/db-consultants.js'
 import { dbGetTimesheetsForYear } from './modules/db-timesheets.js'
 import { getRecentAuditEvents } from './modules/audit-trail.js'
@@ -19,7 +19,8 @@ function getInvoiceCurrency(inv) {
 }
 
 function isPaidInvoice(inv) {
-    return String(inv.status || '').toLowerCase() === 'paid'
+    const s = String(inv.status || '').toLowerCase();
+    return s === 'paid' || s === 'partially_paid';
 }
 
 function parseDateOnly(dateString) {
@@ -261,12 +262,14 @@ function calculateStats(invoices) {
     const currentMonth = now.getMonth()
     const currentYear = now.getFullYear()
 
-    // Helper: Sum totals by currency
-    const sumByCurrency = (list) => {
+    // Helper: Sum collected amounts by currency
+    const sumCollected = (list) => {
         const totals = {}
         list.forEach(inv => {
             const curr = getInvoiceCurrency(inv)
-            totals[curr] = (totals[curr] || 0) + (inv.totals?.total || 0)
+            // Sum actual collected amounts for accurate revenue tracking
+            const amount = Number(inv.totals?.amount_paid || 0)
+            totals[curr] = (totals[curr] || 0) + amount
         })
         return totals
     }
@@ -286,12 +289,12 @@ function calculateStats(invoices) {
     })
 
     // Calculate aggregate buckets
-    const monthlyRevenue = sumByCurrency(thisMonthRevenue)
-    const yearlyRevenue = sumByCurrency(thisYearRevenue)
+    const monthlyRevenue = sumCollected(thisMonthRevenue)
+    const yearlyRevenue = sumCollected(thisYearRevenue)
 
     // Calculate Average Invoice Size per Currency
     // (Total Revenue in Currency X) / (Count of Invoices in Currency X)
-    const totalRevenueAllTime = sumByCurrency(paidInvoices)
+    const totalRevenueAllTime = sumCollected(paidInvoices)
     const avgInvoice = {}
 
     Object.keys(totalRevenueAllTime).forEach(curr => {
@@ -302,8 +305,18 @@ function calculateStats(invoices) {
     })
 
     // Outstanding receivables = totals of sent/overdue (not yet paid) invoices
-    const outstanding = invoices.filter(inv => inv.status === 'sent' || inv.status === 'overdue');
-    const outstandingReceivables = sumByCurrency(outstanding);
+    // Note: Enterprise logic sums the balance_due for all active invoices
+    const sumBalance = (list) => {
+        const totals = {}
+        list.forEach(inv => {
+            const curr = getInvoiceCurrency(inv)
+            const due = Number(inv.totals?.balance_due ?? inv.totals?.total ?? 0)
+            totals[curr] = (totals[curr] || 0) + due
+        })
+        return totals
+    }
+    const outstanding = invoices.filter(inv => inv.status === 'sent' || inv.status === 'overdue' || inv.status === 'partially_paid');
+    const outstandingReceivables = sumBalance(outstanding);
 
     return {
         monthlyRevenue,
@@ -1007,12 +1020,24 @@ function renderRecentInvoices(invoices) {
                 Edit Payment Info
             </button>`;
         
-        statusTransitionItems = actionHtml;
-        const amountDisplay = formatCurrency(invoice.totals?.total || 0, invoice.invoice_meta?.currency);
+        const statusTransitionItems = actionHtml;
+        const currency = invoice.invoice_meta?.currency || 'USD';
+        const amountDisplay = formatCurrency(invoice.totals?.total || 0, currency);
+        const amountPaid = Number(invoice.totals?.amount_paid) || 0;
+        const balanceDue = Number(invoice.totals?.balance_due) ?? (Number(invoice.totals?.total) - amountPaid);
         const usdReceived = invoice.totals?.usd_received_amount;
+        
         let amountColumnHtml = `<strong>${amountDisplay}</strong>`;
         
-        if (usdReceived && effectiveStatus === 'paid') {
+        if (effectiveStatus === 'partially_paid') {
+            amountColumnHtml = `
+                <div style="display:flex; flex-direction:column; align-items:flex-end; justify-content:center; gap:0.2rem;">
+                    <div style="font-size:0.9rem; font-weight:700;">${amountDisplay}</div>
+                    <div style="font-size:0.7rem; color:#059669; font-weight:600;">Paid: ${formatCurrency(amountPaid, currency)}</div>
+                    <div style="font-size:0.7rem; color:#d97706; font-weight:600;">Due: ${formatCurrency(Math.max(0, balanceDue), currency)}</div>
+                </div>
+            `;
+        } else if (usdReceived && effectiveStatus === 'paid') {
             amountColumnHtml = `
                 <div style="display:flex; flex-direction:column; align-items:flex-end; justify-content:center; gap:0.25rem;">
                      <strong>${amountDisplay}</strong>
@@ -1084,6 +1109,7 @@ function renderDashboardStatusChip(status) {
         draft: { label: 'Draft', bg: '#f3f4f6', color: '#6b7280', border: '#e5e7eb' },
         sent: { label: 'Sent', bg: '#eff6ff', color: '#2563eb', border: '#bfdbfe' },
         overdue: { label: 'Overdue', bg: '#fef2f2', color: '#dc2626', border: '#fecaca' },
+        partially_paid: { label: 'Partial', bg: '#fffbe3', color: '#92400e', border: '#fef3c7' },
         paid: { label: 'Paid', bg: '#f0fdf4', color: '#059669', border: '#a7f3d0' }
     }[status] || { label: status, bg: '#f3f4f6', color: '#374151', border: '#e5e7eb' };
     return `<span style="display:inline-block;padding:0.2rem 0.6rem;border-radius:999px;font-size:0.7rem;font-weight:700;letter-spacing:0.04em;background:${cfg.bg};color:${cfg.color};border:1px solid ${cfg.border};text-transform:uppercase">${cfg.label}</span>`;
@@ -1437,49 +1463,104 @@ async function initDashboard() {
         // Wire up Modal Events once
         if (!window.modalWired) {
             window.modalWired = true
-            document.getElementById('cancelPaidDateBtn')?.addEventListener('click', closePaidModalDash)
             
-            // Status change toggle listener for dashboard modal
-            document.getElementById('modalStatusInput')?.addEventListener('change', (e) => {
-                const isPaid = e.target.value === 'paid'
-                const details = document.getElementById('modalPaidDetails')
-                if (details) details.style.display = isPaid ? 'block' : 'none'
-            })
+            document.getElementById('closePaymentModal')?.addEventListener('click', closePaidModalDash);
+            document.getElementById('cancelPaymentBtn')?.addEventListener('click', closePaidModalDash);
 
-            document.getElementById('confirmPaidDateBtn')?.addEventListener('click', async () => {
-                if (!window.invoiceToPayDash) return
-                
-                const nextStatus = document.getElementById('modalStatusInput').value
-                let dateVal = null
-                let parsedUsd = null
-
-                if (nextStatus === 'paid') {
-                    dateVal = document.getElementById('modalPaidDateInput').value
-                    if (!dateVal) {
-                        showToast('Please select a payment date', 'error')
-                        return
-                    }
-                    const usdVal = document.getElementById('modalPaidUsdInput')?.value
-                    parsedUsd = usdVal ? Number(usdVal) : null
-                }
-
-                const btn = document.getElementById('confirmPaidDateBtn')
-                btn.disabled = true
-                btn.textContent = 'Saving...'
-
+            // Save Status Only
+            document.getElementById('saveStatusBtn')?.addEventListener('click', async () => {
+                if (!window.invoiceToPayDash) return;
+                const nextStatus = document.getElementById('modalStatusInput').value;
+                const btn = document.getElementById('saveStatusBtn');
+                btn.disabled = true;
                 try {
-                    await updateInvoiceStatus(window.invoiceToPayDash, nextStatus, dateVal, parsedUsd)
-                    showToast(`Invoice updated to ${nextStatus}`, 'success')
-                    closePaidModalDash()
-                    initDashboard() // Refresh dashboard data
+                    await updateInvoiceStatus(window.invoiceToPayDash, nextStatus);
+                    showToast(`Status updated to ${nextStatus}`, 'success');
+                    closePaidModalDash();
+                    initDashboard(); 
                 } catch (e) {
-                    showToast('Error: ' + e.message, 'error')
+                    showToast('Error: ' + e.message, 'error');
                 } finally {
-                    btn.disabled = false
-                    btn.textContent = 'Update Info'
+                    btn.disabled = false;
                 }
-            })
+            });
+
+        // Ledger Actions (Delete/Edit)
+        const ledgerBody = document.getElementById('paymentLedgerBody');
+        if (ledgerBody && !ledgerBody.hasAttribute('data-listener')) {
+            ledgerBody.setAttribute('data-listener', 'true');
+            ledgerBody.addEventListener('click', async (e) => {
+                const deleteBtn = e.target.closest('.ledger-delete');
+                const editBtn = e.target.closest('.ledger-edit');
+                if (!window.invoiceToPayDash) return;
+
+                if (deleteBtn) {
+                    const paymentId = deleteBtn.dataset.paymentId;
+                    if (!confirm('Are you sure you want to delete this installment?')) return;
+
+                    try {
+                        const updated = await deleteInvoicePayment(window.invoiceToPayDash, paymentId);
+                        showToast('Payment deleted', 'info');
+                        openPaymentInfoModalDash(window.invoiceToPayDash, updated);
+                        document.dispatchEvent(new CustomEvent('dashboard:data-loaded'));
+                    } catch (err) {
+                        console.error('Delete payment error:', err);
+                        showToast('Error deleting payment', 'error');
+                    }
+                }
+
+                if (editBtn) {
+                    const paymentId = editBtn.dataset.paymentId;
+                    startEditingPaymentDash(paymentId);
+                }
+            });
         }
+
+        document.getElementById('cancelEditBtn')?.addEventListener('click', resetPaymentFormDash);
+
+        // Add/Update Payment
+        document.getElementById('addPaymentBtn')?.addEventListener('click', async () => {
+            const id = window.invoiceToPayDash;
+            if (!id) return;
+
+            const date = document.getElementById('newPaymentDate')?.value;
+            const amount = document.getElementById('newPaymentAmount')?.value;
+            const usdAmount = document.getElementById('newPaymentUsd')?.value;
+            const note = document.getElementById('newPaymentNote')?.value;
+
+            if (!amount || Number(amount) <= 0) {
+                showToast('Please enter a valid amount', 'error');
+                return;
+            }
+
+            const btn = document.getElementById('addPaymentBtn');
+            btn.disabled = true;
+            btn.textContent = window.editingPaymentIdDash ? 'Updating...' : 'Recording...';
+
+            try {
+                const updated = await recordInvoicePayment(id, {
+                    id: window.editingPaymentIdDash,
+                    date,
+                    amount,
+                    usdAmount,
+                    note
+                });
+                
+                showToast(window.editingPaymentIdDash ? 'Payment updated' : 'Payment recorded', 'success');
+                openPaymentInfoModalDash(id, updated);
+                resetPaymentFormDash();
+                document.dispatchEvent(new CustomEvent('dashboard:data-loaded'));
+            } catch (e) {
+                console.error('Record payment error:', e);
+                showToast('Error recording payment: ' + e.message, 'error');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Record Transaction';
+            }
+        });
+        }
+        // End of listeners block
+
 
         const active = consultants.filter((consultant) => isConsultantActiveForRange(consultant, getCurrentMonthRange()))
         const kpiEl = document.getElementById('activeConsultantsKpi')
@@ -1506,35 +1587,169 @@ async function initDashboard() {
 
 window.invoiceToPayDash = null
 
-window.openPaymentInfoModalDash = function (id) {
-    const invoice = allInvoicesCache.find(inv => inv.id === id)
-    if (!invoice) return
-
-    window.invoiceToPayDash = id
-    const status = invoice.status || 'draft'
-
-    // Set Status
-    const statusInput = document.getElementById('modalStatusInput')
-    if (statusInput) statusInput.value = status
-
-    // Toggle Payment Details
-    const details = document.getElementById('modalPaidDetails')
-    if (details) details.style.display = status === 'paid' ? 'block' : 'none'
-
-    // Set Payment Date
-    const dateInput = document.getElementById('modalPaidDateInput')
-    if (dateInput) {
-        dateInput.value = invoice.paid_date || new Date().toISOString().split('T')[0]
+function ensureReconciledDash(invoice) {
+    if (!invoice) return null;
+    const totals = { ...(invoice.totals || {}) };
+    const payments = totals.payments || [];
+    
+    // Normalize legacy Paid invoices
+    if (invoice.status === 'paid' && payments.length === 0) {
+        const totalAmount = Number(totals.total) || 0;
+        totals.amount_paid = totalAmount;
+        totals.balance_due = 0;
+        totals.payments = [{
+            id: 'legacy-dash-' + Date.now(),
+            date: invoice.paid_date || new Date().toISOString().split('T')[0],
+            amount: totalAmount,
+            usdAmount: totals.usd_received_amount || null,
+            note: 'Marked as paid (Legacy)'
+        }];
     }
     
-    // Set USD input
-    const usdInput = document.getElementById('modalPaidUsdInput')
-    if (usdInput) {
-        usdInput.value = invoice.totals?.usd_received_amount || ''
+    // Normalize legacy Partial invoices
+    if (invoice.status === 'partially_paid' && totals.balance_due === undefined) {
+        const totalAmount = Number(totals.total) || 0;
+        const paidAmount = Number(totals.amount_paid) || 0;
+        totals.balance_due = Math.max(0, totalAmount - paidAmount);
     }
 
-    const container = document.getElementById('paymentInfoModal')
-    if (container) container.style.display = 'flex'
+    return { ...invoice, totals };
+}
+
+window.openPaymentInfoModalDash = function (id, invoiceData = null) {
+    let invoice = invoiceData || allInvoicesCache.find(inv => inv.id === id);
+    if (!invoice) return;
+    
+    invoice = ensureReconciledDash(invoice);
+
+    window.invoiceToPayDash = id;
+    const totals = invoice.totals || {};
+    const currency = invoice.invoice_meta?.currency || 'USD';
+    const totalAmount = Number(totals.total || 0);
+    const amountPaid = Number(totals.amount_paid || 0);
+    const balanceDue = Number(totals.balance_due ?? (totalAmount - amountPaid));
+
+    // Update Summary
+    const sTotal = document.getElementById('summaryTotal');
+    const sPaid = document.getElementById('summaryPaid');
+    const sBalance = document.getElementById('summaryBalance');
+    if (sTotal) sTotal.textContent = formatCurrency(totalAmount, currency);
+    if (sPaid) sPaid.textContent = formatCurrency(amountPaid, currency);
+    if (sBalance) sBalance.textContent = formatCurrency(balanceDue, currency);
+
+    // Update Progress Meter
+    const progressPercent = totalAmount > 0 ? Math.min(100, Math.round((amountPaid / totalAmount) * 100)) : 0;
+    const progressFill = document.getElementById('modalProgressFill');
+    const progressText = document.getElementById('modalProgressPercent');
+    if (progressFill) progressFill.style.width = `${progressPercent}%`;
+    if (progressText) progressText.textContent = `${progressPercent}%`;
+
+    const modalInvNum = document.getElementById('modalInvoiceNumber');
+    if (modalInvNum) modalInvNum.textContent = `Invoice #${invoice.invoice_number}`;
+
+    // Update Header Badge
+    const statusBadge = document.getElementById('modalStatusBadge');
+    if (statusBadge) {
+        const rawStatus = (invoice.status || 'draft');
+        const formatted = rawStatus.replace('_', ' ');
+        statusBadge.textContent = formatted.charAt(0).toUpperCase() + formatted.slice(1);
+    }
+
+    // Set Status
+    const statusInput = document.getElementById('modalStatusInput');
+    if (statusInput) statusInput.value = invoice.status || 'draft';
+
+    // Render Ledger
+    renderPaymentLedgerDash(invoice);
+
+    // Reset Form
+    const dateInput = document.getElementById('newPaymentDate');
+    if (dateInput) dateInput.value = new Date().toISOString().split('T')[0];
+    const amtInput = document.getElementById('newPaymentAmount');
+    if (amtInput) amtInput.value = '';
+    const usdInput = document.getElementById('newPaymentUsd');
+    if (usdInput) usdInput.value = '';
+    const noteInput = document.getElementById('newPaymentNote');
+    if (noteInput) noteInput.value = '';
+
+    const container = document.getElementById('paymentInfoModal');
+    if (container) {
+        container.style.display = 'flex';
+        resetPaymentFormDash(); // Always start in 'Add' mode
+    }
+}
+
+window.editingPaymentIdDash = null;
+
+function startEditingPaymentDash(paymentId) {
+    const id = window.invoiceToPayDash;
+    const invoice = allInvoicesCache.find(inv => inv.id === id);
+    if (!invoice || !invoice.totals?.payments) return;
+    
+    const payment = invoice.totals.payments.find(p => p.id === paymentId);
+    if (!payment) return;
+
+    window.editingPaymentIdDash = paymentId;
+
+    // Populate fields
+    if (document.getElementById('newPaymentDate')) document.getElementById('newPaymentDate').value = payment.date;
+    if (document.getElementById('newPaymentAmount')) document.getElementById('newPaymentAmount').value = payment.amount;
+    if (document.getElementById('newPaymentUsd')) document.getElementById('newPaymentUsd').value = payment.usdAmount || '';
+    if (document.getElementById('newPaymentNote')) document.getElementById('newPaymentNote').value = payment.note || '';
+
+    // UI Feedback
+    const indicator = document.getElementById('editModeIndicator');
+    if (indicator) indicator.style.display = 'flex';
+    const btn = document.getElementById('addPaymentBtn');
+    if (btn) btn.textContent = 'Update Transaction';
+}
+
+function resetPaymentFormDash() {
+    window.editingPaymentIdDash = null;
+    
+    // Reset fields
+    if (document.getElementById('newPaymentDate')) document.getElementById('newPaymentDate').value = new Date().toISOString().split('T')[0];
+    if (document.getElementById('newPaymentAmount')) document.getElementById('newPaymentAmount').value = '';
+    if (document.getElementById('newPaymentUsd')) document.getElementById('newPaymentUsd').value = '';
+    if (document.getElementById('newPaymentNote')) document.getElementById('newPaymentNote').value = '';
+
+    // Reset UI
+    const indicator = document.getElementById('editModeIndicator');
+    if (indicator) indicator.style.display = 'none';
+    const btn = document.getElementById('addPaymentBtn');
+    if (btn) btn.textContent = 'Record Transaction';
+}
+
+function renderPaymentLedgerDash(invoice) {
+    const body = document.getElementById('paymentLedgerBody');
+    if (!body) return;
+    const payments = invoice.totals?.payments || [];
+    const currency = invoice.invoice_meta?.currency || 'USD';
+
+    if (payments.length === 0) {
+        body.innerHTML = `<tr><td colspan="3" style="text-align:center; padding:1.5rem; color:var(--text-secondary);">No payments recorded yet</td></tr>`;
+        return;
+    }
+
+    body.innerHTML = payments.map(p => `
+        <tr>
+            <td>${p.date}</td>
+            <td>
+                <div>${formatCurrency(p.amount, currency)}</div>
+                ${p.usdAmount ? `<div style="font-size:0.7rem; color:var(--text-secondary)">USD ${p.usdAmount}</div>` : ''}
+            </td>
+            <td style="text-align:right">
+                <div style="display: flex; gap: 0.5rem; justify-content: flex-end;">
+                    <button class="ledger-edit" data-payment-id="${p.id}" title="Edit payment" style="background:none; border:none; color:var(--text-secondary); cursor:pointer; padding:2px;">
+                        <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                    </button>
+                    <button class="ledger-delete" data-payment-id="${p.id}" title="Delete payment" style="background:none; border:none; color:var(--text-secondary); cursor:pointer; padding:2px;">
+                        <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                    </button>
+                </div>
+            </td>
+        </tr>
+    `).join('');
 }
 
 function closePaidModalDash() {

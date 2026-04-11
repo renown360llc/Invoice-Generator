@@ -97,7 +97,7 @@ function setLocked(locked, status = 'paid') {
         if (unlockBtn) unlockBtn.style.display = 'none';
         if (unsavedBadge) unsavedBadge.style.display = state.isDirty ? 'inline-flex' : 'none';
         if (saveBtn) { saveBtn.disabled = false; saveBtn.title = ''; }
-        if (title) title.textContent = state.currentInvoiceNumber ? 'Edit Invoice' : 'Create Invoice';
+        if (title) title.textContent = state.currentInvoiceNumber ? 'View/Edit Invoice' : 'Create Invoice';
         if (subtitle) {
             subtitle.textContent = state.currentInvoiceNumber
                 ? 'Update line items, client details, and payment settings in one place.'
@@ -444,7 +444,8 @@ async function handleUpdateTemplate() {
             name: state.currentTemplateName, // Use existing name
             business: formData.business_info,
             client: formData.client_info,
-            settings: formData.settings
+            settings: formData.settings,
+            payment_instructions: formData.payment_instructions
         };
 
         try {
@@ -742,7 +743,8 @@ async function handleSaveTemplate() {
             name: name.trim(),
             business: formData.business_info,
             client: formData.client_info,
-            settings: formData.settings
+            settings: formData.settings,
+            payment_instructions: formData.payment_instructions
         };
 
         try {
@@ -776,7 +778,7 @@ async function handleLoadTemplate(id) {
             settings: template.settings,
             items: [],
             notes: '',
-            payment_instructions: ''
+            payment_instructions: template.settings?.payment_instructions || ''
         };
         console.log('DEBUG: Mapped data for fillForm:', data);
 

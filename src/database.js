@@ -28,7 +28,10 @@ export async function saveTemplate(templateData) {
             name: templateData.name,
             business_info: templateData.business,
             client_info: templateData.client,
-            settings: templateData.settings
+            settings: {
+                ...templateData.settings,
+                payment_instructions: templateData.payment_instructions
+            }
         })
         .select()
         .single()
@@ -68,7 +71,10 @@ export async function updateTemplate(templateId, templateData) {
             name: templateData.name,
             business_info: templateData.business,
             client_info: templateData.client,
-            settings: templateData.settings
+            settings: {
+                ...templateData.settings,
+                payment_instructions: templateData.payment_instructions
+            }
         })
         .eq('id', templateId)
         .eq('user_id', user.id)
@@ -210,21 +216,39 @@ export async function updateInvoiceStatus(invoiceId, status, paidDate = null, us
         .single()
 
     const updatePayload = { status }
+    
+    // Manage paid_date based on status
     if (paidDate) {
         updatePayload.paid_date = paidDate
     } else if (status !== 'paid') {
-        // Clear paid_date if moving away from paid status
         updatePayload.paid_date = null
     }
 
-    // Handle USD amount injection via JSONB merge
+    // Handle JSONB totals enrichment (payments preservation)
+    const totals = { ...(beforeRecord?.totals || {}) }
+    
+    // Legacy USD amount handling (if marking as paid directly)
     if (usdAmount !== null && usdAmount !== undefined && status === 'paid') {
-        updatePayload.totals = { ...(beforeRecord?.totals || {}), usd_received_amount: Number(usdAmount) }
-    } else if (status !== 'paid' && beforeRecord?.totals?.usd_received_amount) {
-        const newTotals = { ...beforeRecord.totals }
-        delete newTotals.usd_received_amount
-        updatePayload.totals = newTotals
+        totals.usd_received_amount = Number(usdAmount)
+    } else if (status !== 'paid' && totals.usd_received_amount) {
+        delete totals.usd_received_amount
     }
+
+    // If manually marking as paid, ensure balance is synced
+    if (status === 'paid' && (!totals.payments || totals.payments.length === 0)) {
+        const totalAmount = Number(totals.total) || 0
+        totals.amount_paid = totalAmount
+        totals.balance_due = 0
+        totals.payments = [{
+            id: 'legacy-' + Date.now(),
+            date: paidDate || new Date().toISOString().split('T')[0],
+            amount: totalAmount,
+            usdAmount: usdAmount ? Number(usdAmount) : null,
+            note: 'Marked as paid'
+        }]
+    }
+
+    updatePayload.totals = totals
 
     const { data, error } = await supabase
         .from('invoices')
@@ -251,6 +275,153 @@ export async function updateInvoiceStatus(invoiceId, status, paidDate = null, us
             status,
             paid_date: paidDate || null
         }
+    })
+
+    return data
+}
+
+/**
+ * Records a new payment installment for an invoice
+ */
+export async function recordInvoicePayment(invoiceId, paymentData) {
+    const user = await getCurrentUser()
+    if (!user) throw new Error('Not authenticated')
+
+    const { data: invoice } = await supabase
+        .from('invoices')
+        .select('*')
+        .eq('id', invoiceId)
+        .eq('user_id', user.id)
+        .single()
+
+    if (!invoice) throw new Error('Invoice not found')
+
+    const totals = { ...(invoice.totals || {}) }
+    let payments = [...(totals.payments || [])]
+    const existingIndex = paymentData.id ? payments.findIndex(p => p.id === paymentData.id) : -1
+
+    const paymentRecord = {
+        id: paymentData.id || Math.random().toString(36).substring(2, 11),
+        date: paymentData.date || new Date().toISOString().split('T')[0],
+        amount: Number(paymentData.amount) || 0,
+        usdAmount: paymentData.usdAmount ? Number(paymentData.usdAmount) : null,
+        note: (paymentData.note || '').trim()
+    }
+
+    if (existingIndex > -1) {
+        payments[existingIndex] = paymentRecord
+    } else {
+        payments.push(paymentRecord)
+    }
+
+    // Recalculate balances
+    const totalAmount = Number(totals.total) || 0
+    const amountPaid = payments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0)
+    const usdReceivedTotal = payments.reduce((sum, p) => sum + (Number(p.usdAmount) || 0), 0)
+
+    totals.payments = payments
+    totals.amount_paid = amountPaid
+    totals.balance_due = Math.max(0, totalAmount - amountPaid)
+    totals.usd_received_amount = usdReceivedTotal > 0 ? usdReceivedTotal : null
+
+    // Status Resolution
+    let nextStatus = invoice.status
+    if (amountPaid >= totalAmount) {
+        nextStatus = 'paid'
+    } else if (amountPaid > 0) {
+        nextStatus = 'partially_paid'
+    }
+
+    const updatePayload = {
+        totals,
+        status: nextStatus,
+        paid_date: nextStatus === 'paid' ? (invoice.paid_date || paymentRecord.date) : null
+    }
+
+    const { data, error } = await supabase
+        .from('invoices')
+        .update(updatePayload)
+        .eq('id', invoiceId)
+        .select()
+        .single()
+
+    if (error) throw error
+
+    await logAuditEvent({
+        entityType: 'invoice',
+        entityId: invoiceId,
+        entityKey: invoice.invoice_number,
+        action: 'payment_recorded',
+        summary: `Recorded payment of ${paymentRecord.amount} for invoice ${invoice.invoice_number}`,
+        after: data,
+        context: { payment: paymentRecord }
+    })
+
+    return data
+}
+
+/**
+ * Deletes a payment installment
+ */
+export async function deleteInvoicePayment(invoiceId, paymentId) {
+    const user = await getCurrentUser()
+    if (!user) throw new Error('Not authenticated')
+
+    const { data: invoice } = await supabase
+        .from('invoices')
+        .select('*')
+        .eq('id', invoiceId)
+        .eq('user_id', user.id)
+        .single()
+
+    if (!invoice) throw new Error('Invoice not found')
+
+    const totals = { ...(invoice.totals || {}) }
+    const payments = (totals.payments || []).filter(p => p.id !== paymentId)
+
+    // Recalculate balances
+    const totalAmount = Number(totals.total) || 0
+    const amountPaid = payments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0)
+    const usdReceivedTotal = payments.reduce((sum, p) => sum + (Number(p.usdAmount) || 0), 0)
+
+    totals.payments = payments
+    totals.amount_paid = amountPaid
+    totals.balance_due = Math.max(0, totalAmount - amountPaid)
+    totals.usd_received_amount = usdReceivedTotal > 0 ? usdReceivedTotal : null
+
+    // Status Resolution
+    let nextStatus = invoice.status
+    if (amountPaid >= totalAmount) {
+        nextStatus = 'paid'
+    } else if (amountPaid > 0) {
+        nextStatus = 'partially_paid'
+    } else if (invoice.status === 'paid' || invoice.status === 'partially_paid') {
+        nextStatus = 'sent'
+    }
+
+    const updatePayload = {
+        totals,
+        status: nextStatus,
+        paid_date: nextStatus === 'paid' ? invoice.paid_date : null
+    }
+
+    const { data, error } = await supabase
+        .from('invoices')
+        .update(updatePayload)
+        .eq('id', invoiceId)
+        .select()
+        .single()
+
+    if (error) throw error
+
+    await logAuditEvent({
+        entityType: 'invoice',
+        entityId: invoiceId,
+        entityKey: invoice.invoice_number,
+        action: 'payment_deleted',
+        summary: `Deleted a payment installment for invoice ${invoice.invoice_number}`,
+        after: data,
+        context: { paymentId }
     })
 
     return data

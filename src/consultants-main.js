@@ -373,6 +373,7 @@ function renderTable() {
         }).join('');
     }
 
+    updateSortIndicators();
 }
 
 /**
@@ -458,19 +459,24 @@ function setSelectOptions(select, allLabel, options, selectedValue, hasPairs = f
 }
 
 function updateSortIndicators() {
-    document.querySelectorAll('.sort-button').forEach((button) => {
-        const key = button.dataset.sort;
-        const icon = button.querySelector('.sort-icon');
+    document.querySelectorAll('#consultantsTable th.sortable').forEach((th) => {
+        const key = th.dataset.sortKey;
         const active = key === sortState.key;
 
-        button.classList.toggle('is-active', active);
-        if (!icon) return;
-
-        if (!active) {
-            icon.textContent = '↕';
-        } else {
-            icon.textContent = sortState.dir === 'asc' ? '▲' : '▼';
+        th.classList.toggle('active', active);
+        th.classList.remove('sort-asc', 'sort-desc');
+        if (active) {
+            th.classList.add(`sort-${sortState.dir}`);
         }
+    });
+}
+
+function updateSortingPrefs() {
+    setPagePrefs('consultants', {
+        status: currentFilter,
+        sortKey: sortState.key,
+        sortDir: sortState.dir,
+        savedViewId: currentSavedViewId
     });
 }
 
@@ -481,12 +487,7 @@ function setSort(key) {
         sortState = { key, dir: 'asc' };
     }
 
-    setPagePrefs('consultants', {
-        status: currentFilter,
-        sortKey: sortState.key,
-        sortDir: sortState.dir
-    });
-
+    updateSortingPrefs();
     requestRender();
 }
 
@@ -816,6 +817,7 @@ function cacheElements() {
     els.periodJumpMonths = document.getElementById('periodJumpMonths');
     els.periodJumpAllBtn = document.getElementById('periodJumpAllBtn');
     els.exportCsvBtn = document.getElementById('exportCsvBtn');
+    els.sortSelect = document.getElementById('sortSelect'); // New Sort Dropdown
     els.resetFiltersBtn = document.getElementById('resetFiltersBtn');
     els.filterSummary = document.getElementById('consultantsFilterSummary');
     els.savedViewSelect = document.getElementById('savedViewSelect');
@@ -897,8 +899,28 @@ function bindPageEvents() {
     els.modal?.addEventListener('click', handleModalBackdropClick);
     document.addEventListener('keydown', handleGlobalKeydown);
 
-    document.querySelectorAll('.sort-button').forEach((button) => {
-        button.addEventListener('click', () => setSort(button.dataset.sort));
+    // Column Header Click Handling
+    document.querySelector('#consultantsTable thead')?.addEventListener('click', (event) => {
+        const th = event.target.closest('th.sortable');
+        if (!th) return;
+
+        const key = th.dataset.sortKey;
+        if (sortState.key === key) {
+            sortState.dir = sortState.dir === 'asc' ? 'desc' : 'asc';
+        } else {
+            sortState = { key, dir: (['name', 'client', 'status'].includes(key)) ? 'asc' : 'desc' };
+        }
+
+        if (els.sortSelect) els.sortSelect.value = `${sortState.key}_${sortState.dir}`;
+        updateSortingPrefs();
+        requestRender();
+    });
+
+    els.sortSelect?.addEventListener('change', (event) => {
+        const [key, dir] = event.target.value.split('_');
+        sortState = { key, dir };
+        updateSortingPrefs();
+        requestRender();
     });
 
     const handleSearch = debounce((event) => {
@@ -1437,6 +1459,7 @@ async function init() {
 
     if (els.statusFilter) els.statusFilter.value = currentFilter;
     if (els.searchInput) els.searchInput.value = searchQuery;
+    if (els.sortSelect) els.sortSelect.value = `${sortState.key}_${sortState.dir}`;
 
     await fetchData();
     updateSortIndicators();
