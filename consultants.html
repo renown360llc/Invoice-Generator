@@ -437,14 +437,16 @@
                     <p class="dashboard__subtitle">Manage consultant profiles, rates, and billing attributes used across
                         CRM and invoicing.</p>
                 </div>
-                <div class="consultants-header__actions">
+                <div class="consultants-header__actions" style="display:flex;gap:0.5rem;align-items:center;">
+                    <button id="exportCsvBtn" class="btn btn--outline" title="Export Consultants to CSV">
+                        <svg class="btn-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                        <span class="btn-text">Export CSV</span>
+                    </button>
                     <button id="addConsultantBtn" class="btn btn--primary">
                         <svg class="btn-icon" fill="currentColor" viewBox="0 0 20 20">
-                            <path fill-rule="evenodd"
-                                d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z"
-                                clip-rule="evenodd" />
+                            <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd" />
                         </svg>
-                        Add Consultant
+                        <span class="btn-text">Add Consultant</span>
                     </button>
                 </div>
             </div>

@@ -183,6 +183,11 @@ function renderTable() {
             if (!hay.includes(searchQuery)) return false;
         }
 
+        // Consultant's contract must overlap with the globally selected period filter
+        const cStart = consultant.start_date || '0000-01-01';
+        const cEnd = consultant.end_date || '9999-12-31';
+        if (cStart > range.end || cEnd < range.start) return false;
+
         const active = isConsultantActive(consultant);
         const isPending = consultant.status === 'pending';
         if (currentFilter === 'active' && !active) return false;
@@ -810,6 +815,7 @@ function cacheElements() {
     els.periodJumpYear = document.getElementById('periodJumpYear');
     els.periodJumpMonths = document.getElementById('periodJumpMonths');
     els.periodJumpAllBtn = document.getElementById('periodJumpAllBtn');
+    els.exportCsvBtn = document.getElementById('exportCsvBtn');
     els.resetFiltersBtn = document.getElementById('resetFiltersBtn');
     els.filterSummary = document.getElementById('consultantsFilterSummary');
     els.savedViewSelect = document.getElementById('savedViewSelect');
@@ -828,6 +834,23 @@ function cacheElements() {
     els.errorBillRate = document.getElementById('billRateError');
     els.errorCommissionRate = document.getElementById('commissionRateError');
     els.errorCurrency = document.getElementById('currencyError');
+
+    // Dynamic date bounds validation
+    els.startDate?.addEventListener('change', () => {
+        if (els.startDate.value && els.endDate) {
+            els.endDate.min = els.startDate.value;
+        } else if (els.endDate) {
+            els.endDate.removeAttribute('min');
+        }
+    });
+
+    els.endDate?.addEventListener('change', () => {
+        if (els.endDate.value && els.startDate) {
+            els.startDate.max = els.endDate.value;
+        } else if (els.startDate) {
+            els.startDate.removeAttribute('max');
+        }
+    });
 }
 
 function setupPeriodControls() {
@@ -911,6 +934,14 @@ function bindPageEvents() {
         filterW2 = normalizeTextFilter(event.target.value);
         persistSharedFilters();
         requestRender();
+    });
+
+    els.cardContainer?.addEventListener('click', async (event) => {
+        handleActionClick(event);
+    });
+
+    els.exportCsvBtn?.addEventListener('click', () => {
+        exportFilteredConsultantsToCsv();
     });
 
     els.yearFilter?.addEventListener('change', async (event) => {
@@ -1243,6 +1274,77 @@ function clearFormErrors() {
     ].forEach((node) => {
         if (node) node.textContent = '';
     });
+}
+
+function exportFilteredConsultantsToCsv() {
+    const filteredRows = consultants.filter((consultant) => {
+        if (searchQuery) {
+            const hay = `${consultant.name || ''} ${consultant.client || ''} ${consultant.w2_company || ''}`.toLowerCase();
+            if (!hay.includes(searchQuery)) return false;
+        }
+
+        const range = getPeriodRange();
+        const cStart = consultant.start_date || '0000-01-01';
+        const cEnd = consultant.end_date || '9999-12-31';
+        if (cStart > range.end || cEnd < range.start) return false;
+
+        const active = isConsultantActive(consultant);
+        const isPending = consultant.status === 'pending';
+        if (currentFilter === 'active' && !active) return false;
+        if (currentFilter === 'pending' && !isPending) return false;
+        if (currentFilter === 'inactive' && (active || isPending)) return false;
+
+        if (filterCurrency !== 'all' && normalizeCurrency(consultant.currency || 'USD') !== filterCurrency) return false;
+        if (filterClient !== 'all' && normalizeTextFilter(consultant.client) !== filterClient) return false;
+        if (filterW2 !== 'all' && normalizeTextFilter(consultant.w2_company) !== filterW2) return false;
+
+        return true;
+    });
+
+    if (filteredRows.length === 0) {
+        showToast('No consultants to export', 'info');
+        return;
+    }
+
+    const rows = [];
+    rows.push(['Consultant Name', 'Status', 'Start Date', 'End Date', 'Client', 'W2 Company', 'Currency', 'Bill Rate', 'Commission Rate']);
+
+    filteredRows.forEach(c => {
+        const name = String(c.name || '—').replace(/"/g, '""');
+        const status = c.status || 'active';
+        const start = c.start_date || '—';
+        const end = c.end_date || '—';
+        const client = String(c.client || '—').replace(/"/g, '""');
+        const w2 = String(c.w2_company || '—').replace(/"/g, '""');
+        const curr = c.currency || 'USD';
+        
+        const bRate = Number(c.bill_rate || 0).toFixed(2);
+        const cRate = Number(c.commission_rate || 0).toFixed(2);
+
+        rows.push([
+            `"${name}"`, 
+            status, 
+            start, 
+            end, 
+            `"${client}"`, 
+            `"${w2}"`, 
+            curr, 
+            bRate, 
+            cRate
+        ]);
+    });
+
+    const csvContent = rows.map(e => e.join(",")).join("\n");
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    link.setAttribute("href", url);
+    const range = getPeriodRange();
+    link.setAttribute("download", `Consultants_Export_${range.monthKey || selectedYear}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
 }
 
 function updateFilterSummary(total, periodLabel) {

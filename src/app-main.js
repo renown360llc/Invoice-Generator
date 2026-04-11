@@ -311,8 +311,31 @@ function bindEventListeners() {
     document.getElementById('cancelTimesheetBtn')?.addEventListener('click', closeTimesheetModal);
     document.getElementById('loadTimesheetsBtn')?.addEventListener('click', loadPendingTimesheetsIntoModal);
     document.getElementById('generateTimesheetBtn')?.addEventListener('click', generateTimesheetItems);
-    document.getElementById('tsPeriodStart')?.addEventListener('change', markTimesheetRangeDirty);
-    document.getElementById('tsPeriodEnd')?.addEventListener('change', markTimesheetRangeDirty);
+    
+    // Date bounds logic
+    const invDate = document.getElementById('invoiceDate');
+    const dueDate = document.getElementById('dueDate');
+    invDate?.addEventListener('change', (e) => {
+        if (invDate.value && dueDate) dueDate.min = invDate.value;
+        else if (dueDate) dueDate.removeAttribute('min');
+    });
+    dueDate?.addEventListener('change', (e) => {
+        if (dueDate.value && invDate) invDate.max = dueDate.value;
+        else if (invDate) invDate.removeAttribute('max');
+    });
+
+    const tsStart = document.getElementById('tsPeriodStart');
+    const tsEnd = document.getElementById('tsPeriodEnd');
+    tsStart?.addEventListener('change', (e) => {
+        markTimesheetRangeDirty();
+        if (tsStart.value && tsEnd) tsEnd.min = tsStart.value;
+        else if (tsEnd) tsEnd.removeAttribute('min');
+    });
+    tsEnd?.addEventListener('change', (e) => {
+        markTimesheetRangeDirty();
+        if (tsEnd.value && tsStart) tsStart.max = tsEnd.value;
+        else if (tsStart) tsStart.removeAttribute('max');
+    });
 
     document.getElementById('logoUpload').addEventListener('change', (e) => {
         handleLogoUpload(e, (logoBase64) => {

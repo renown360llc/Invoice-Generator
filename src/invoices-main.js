@@ -1324,49 +1324,65 @@ function exportFilteredInvoicesToCSV() {
     }
 
     const rows = [];
-    rows.push(['Invoice Number', 'Amount', 'Currency', 'Payment Received', 'Status', 'Client']);
+    rows.push(['Invoice Number', 'Invoice Date', 'Payment Date', 'Status', 'Client', 'Currency', 'Description', 'Period', 'Consultant', 'Quantity', 'Rate', 'Amount']);
 
     const totalsByCurrency = new Map();
 
     state.filteredInvoices.forEach(invoice => {
         const invNum = String(invoice.invoice_number || '—').replace(/"/g, '""');
-        const amount = Number(getInvoiceAmount(invoice) || 0);
-        const currency = String(getInvoiceCurrency(invoice) || 'USD');
         const status = getEffectiveStatus(invoice);
         const clientName = String(invoice.client_info?.name || '—').replace(/"/g, '""');
+
+        const invDate = formatDate(getInvoiceDateRaw(invoice) || invoice.created_at || '');
         const rawDate = invoice.paid_date || '';
-        
         let paymentReceived = '';
         if (status === 'paid' && rawDate) {
             paymentReceived = formatDate(rawDate);
         }
 
-        rows.push([
-            `"${invNum}"`,
-            amount.toFixed(2),
-            `"${currency}"`,
-            `"${paymentReceived}"`,
-            `"${status}"`,
-            `"${clientName}"`
-        ]);
+        const currency = getInvoiceCurrency(invoice);
+        const items = Array.isArray(invoice.items) && invoice.items.length > 0 ? invoice.items : [{}]; // fallback if no items
 
-        if (!totalsByCurrency.has(currency)) {
-            totalsByCurrency.set(currency, 0);
-        }
-        totalsByCurrency.set(currency, totalsByCurrency.get(currency) + amount);
+        items.forEach(item => {
+            const desc = String(item.desc || '—').replace(/"/g, '""');
+            const period = String(item.period || '').replace(/"/g, '""');
+            const consultant = String(item.consultant || '').replace(/"/g, '""');
+            const qty = Number(item.qty || 1);
+            const rate = Number(item.rate || 0);
+            const amount = Number(item.amount || 0);
+
+            rows.push([
+                `"${invNum}"`,
+                `"${invDate}"`,
+                `"${paymentReceived}"`,
+                `"${status}"`,
+                `"${clientName}"`,
+                `"${currency}"`,
+                `"${desc}"`,
+                `"${period}"`,
+                `"${consultant}"`,
+                qty,
+                rate.toFixed(2),
+                amount.toFixed(2)
+            ]);
+
+            if (!totalsByCurrency.has(currency)) {
+                totalsByCurrency.set(currency, 0);
+            }
+            totalsByCurrency.set(currency, totalsByCurrency.get(currency) + amount);
+        });
     });
 
     rows.push([]);
-    rows.push(['TOTALS', '', '', '', '', '']);
+    rows.push(['TOTALS', '', '', '', '', '', '', '', '', '', '', '']);
     
     Array.from(totalsByCurrency.entries()).sort((a, b) => a[0].localeCompare(b[0])).forEach(([currency, total]) => {
         rows.push([
             `"${currency} Total"`,
-            total.toFixed(2),
+            '', '', '', '', 
             `"${currency}"`,
-            '',
-            '',
-            ''
+            '', '', '', '', '',
+            total.toFixed(2)
         ]);
     });
 

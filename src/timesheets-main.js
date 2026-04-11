@@ -85,7 +85,9 @@ function cacheElements() {
     els.updateViewBtn = document.getElementById('updateViewBtn');
     els.deleteViewBtn = document.getElementById('deleteViewBtn');
     els.savedViewMeta = document.getElementById('savedViewMeta');
-    els.timesheetMeta = document.getElementById('timesheetMeta');
+    els.exportCsvBtn = document.getElementById('exportCsvBtn');
+
+    els.tableBody = document.getElementById('timesheetsBody');
     els.periodTitle = document.getElementById('timesheetPeriodTitle');
     els.consultantsStat = document.getElementById('timesheetConsultantsStat');
     els.hoursStat = document.getElementById('timesheetHoursStat');
@@ -106,6 +108,23 @@ function cacheElements() {
     els.modalDelete = document.getElementById('tsModalDelete');
     els.modalClose = document.getElementById('tsModalClose');
     els.modalCancel = document.getElementById('tsModalCancel');
+
+    // Dynamic date bounds validation
+    els.modalStart?.addEventListener('change', () => {
+        if (els.modalStart.value && els.modalEnd) {
+            els.modalEnd.min = els.modalStart.value;
+        } else if (els.modalEnd) {
+            els.modalEnd.removeAttribute('min');
+        }
+    });
+
+    els.modalEnd?.addEventListener('change', () => {
+        if (els.modalEnd.value && els.modalStart) {
+            els.modalStart.max = els.modalEnd.value;
+        } else if (els.modalStart) {
+            els.modalStart.removeAttribute('max');
+        }
+    });
 }
 
 function setupFilters() {
@@ -134,6 +153,9 @@ function setupFilters() {
 }
 
 function bindEvents() {
+    els.exportCsvBtn?.addEventListener('click', () => {
+        exportFilteredTimesheetsToCsv();
+    });
     els.yearFilter?.addEventListener('change', async (e) => {
         selectedYear = Number(e.target.value);
         persistShared();
@@ -1138,6 +1160,68 @@ function capitalize(value) {
 
 function toIso(date) {
     return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}-${String(date.getUTCDate()).padStart(2, '0')}`;
+}
+
+function exportFilteredTimesheetsToCsv() {
+    const tableRows = buildFlattenedRows();
+    let filtered = tableRows.filter((row) => {
+        if (selectedStatus !== 'all' && row.status !== selectedStatus) return false;
+        if (filterCurrency !== 'all' && normalizeCurrency(row.consultant?.currency || 'USD') !== filterCurrency) return false;
+        if (filterClient !== 'all' && normalizeTextFilter(row.consultant?.client) !== filterClient) return false;
+        if (filterW2 !== 'all' && normalizeTextFilter(row.consultant?.w2_company) !== filterW2) return false;
+        
+        if (searchTerm) {
+            const h = `${row.consultant?.name || ''} ${row.consultant?.client || ''} ${row.consultant?.w2_company || ''}`.toLowerCase();
+            if (!h.includes(searchTerm)) return false;
+        }
+        return true;
+    });
+
+    if (filtered.length === 0) {
+        showToast('No timesheets to export', 'info');
+        return;
+    }
+
+    const rows = [];
+    rows.push(['Consultant Name', 'Period Start', 'Period End', 'Hours', 'Status', 'Client', 'W2 Company', 'Bill Rate', 'Currency', 'Invoice Ref']);
+
+    filtered.forEach(r => {
+        const c = r.consultant || {};
+        const name = String(c.name || '—').replace(/"/g, '""');
+        const start = r.period_start || '—';
+        const end = r.period_end || '—';
+        const hours = r.hours || 0;
+        const status = r.status || 'pending';
+        const client = String(c.client || '—').replace(/"/g, '""');
+        const w2 = String(c.w2_company || '—').replace(/"/g, '""');
+        const rate = Number(c.bill_rate || 0).toFixed(2);
+        const curr = c.currency || 'USD';
+        const inv = String(r.invoice_id || '').replace(/"/g, '""');
+
+        rows.push([
+            `"${name}"`,
+            start,
+            end,
+            hours,
+            status,
+            `"${client}"`,
+            `"${w2}"`,
+            rate,
+            curr,
+            `"${inv}"`
+        ]);
+    });
+
+    const csvContent = rows.map(e => e.join(",")).join("\n");
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    link.setAttribute("href", url);
+    link.setAttribute("download", `Timesheets_Export_${selectedMonth === 'all' ? 'All' : selectedMonth}_${selectedYear}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
 }
 
 function escapeHtml(value) {
