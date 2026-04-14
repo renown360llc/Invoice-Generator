@@ -598,7 +598,7 @@ function renderAll() {
     renderSummary(monthRows);
     renderKpis(monthRows);
     renderInsights(monthRows);
-    renderClientBreakdown(filtered);
+    renderClientBreakdown(monthRows);
     renderPivot(filtered);
     updateSummaryMeta(monthRows);
 
