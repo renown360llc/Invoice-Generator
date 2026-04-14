@@ -30,7 +30,7 @@ export async function dbUpsertTimesheets(entries = []) {
 
     const { data, error } = await supabase
         .from('timesheets')
-        .upsert(payload, { onConflict: 'user_id,consultant_id,period_start,period_end' })
+        .insert(payload)
         .select();
 
     if (error) throw error;
