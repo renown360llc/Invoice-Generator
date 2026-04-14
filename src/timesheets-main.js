@@ -886,9 +886,10 @@ function renderTable() {
         // ── Expand chevron (shown only when 2+ timesheet sub-rows exist) ──
         const expandBtn = hasMultiple
             ? `<button class="ts-expand-btn" data-consultant="${row.consultant_id}" aria-expanded="false"
-                   style="background:none;border:none;cursor:pointer;padding:2px 4px;color:#6b7280;transition:transform 0.2s;flex-shrink:0;"
+                   style="background:transparent;border:none;cursor:pointer;padding:8px;margin-left:-8px;color:#64748b;transition:color 0.2s, transform 0.2s;flex-shrink:0;border-radius:6px;display:flex;align-items:center;justify-content:center;"
+                   onmouseover="this.style.color='#0f172a'" onmouseout="this.style.color='#64748b'"
                    title="Show ${row.times.length} individual entries">
-                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m9 18 6-6-6-6"/></svg>
+                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m9 18 6-6-6-6"/></svg>
                </button>`
             : '';
 
