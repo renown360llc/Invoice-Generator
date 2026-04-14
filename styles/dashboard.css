@@ -2555,11 +2555,11 @@ canvas#revenueChart {
 
 .crm-toolbar__search input {
     width: 100%;
-    height: 34px;
-    padding: 0 0.65rem 0 1.85rem;
+    height: 38px;
+    padding: 0 0.75rem 0 2rem;
     border: 1px solid #e5e7eb;
     border-radius: 8px;
-    font-size: 0.8125rem;
+    font-size: 0.875rem;
     font-family: var(--font-sans);
     color: var(--text-primary);
     background: #f9fafb;
@@ -2592,11 +2592,11 @@ canvas#revenueChart {
 }
 
 .crm-toolbar__pill {
-    height: 34px;
-    padding: 0 0.7rem;
+    height: 38px;
+    padding: 0 0.85rem;
     border: 1px solid #e5e7eb;
     border-radius: 8px;
-    font-size: 0.78rem;
+    font-size: 0.85rem;
     font-weight: 500;
     font-family: var(--font-sans);
     color: var(--text-secondary);
@@ -2644,7 +2644,7 @@ canvas#revenueChart {
     gap: 0;
     border: 1px solid #e5e7eb;
     border-radius: 8px;
-    height: 34px;
+    height: 38px;
     background: #f9fafb;
 }
 
@@ -2673,8 +2673,8 @@ canvas#revenueChart {
 }
 
 .crm-toolbar__period-label {
-    padding: 0 0.35rem;
-    font-size: 0.8125rem;
+    padding: 0 0.5rem;
+    font-size: 0.85rem;
     font-weight: 600;
     color: var(--text-primary);
     white-space: nowrap;
@@ -2817,11 +2817,11 @@ canvas#revenueChart {
 }
 
 .crm-toolbar__views select {
-    height: 34px;
-    padding: 0 1.5rem 0 0.6rem;
+    height: 38px;
+    padding: 0 1.7rem 0 0.75rem;
     border: 1px solid #e5e7eb;
     border-radius: 8px;
-    font-size: 0.78rem;
+    font-size: 0.85rem;
     font-weight: 500;
     font-family: var(--font-sans);
     color: var(--text-secondary);
@@ -2845,12 +2845,12 @@ canvas#revenueChart {
 }
 
 .crm-toolbar__clear {
-    height: 34px;
-    padding: 0 0.65rem;
+    height: 38px;
+    padding: 0 0.85rem;
     border: none;
     border-radius: 8px;
     background: transparent;
-    font-size: 0.78rem;
+    font-size: 0.85rem;
     font-weight: 600;
     font-family: var(--font-sans);
     color: var(--text-tertiary);
@@ -2865,12 +2865,12 @@ canvas#revenueChart {
 }
 
 .crm-toolbar__action {
-    height: 34px;
-    padding: 0 0.75rem;
+    height: 38px;
+    padding: 0 0.85rem;
     border: 1px solid #e5e7eb;
     border-radius: 8px;
     background: white;
-    font-size: 0.78rem;
+    font-size: 0.85rem;
     font-weight: 600;
     font-family: var(--font-sans);
     color: var(--text-secondary);
