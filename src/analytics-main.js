@@ -447,14 +447,26 @@ function bindEvents() {
         }
 
         // Detail table row → open drawer
-        const tableRow = target.closest('#monthSnapshotBody tr[data-consultant-id]');
+        const tableRow = target.closest('#clientBreakdownBody tr[data-consultant-id]');
         if (tableRow) {
             const consultantId = tableRow.dataset.consultantId;
             const currency = tableRow.dataset.currency;
             openDrawer(consultantId, currency);
             return;
         }
+
+        // Client Breakdown accordion toggle
+        const clientHeader = target.closest('.client-group-header');
+        if (clientHeader) {
+            const groupId = clientHeader.dataset.groupId;
+            clientHeader.classList.toggle('is-expanded');
+            document.querySelectorAll(`.client-group-row--child[data-parent-id="${groupId}"]`).forEach(row => {
+                row.classList.toggle('is-visible');
+            });
+            return;
+        }
     });
+
 
     // ── Drawer close ──
     els.drawerCloseBtn?.addEventListener('click', closeDrawer);
@@ -780,10 +792,13 @@ function renderClientBreakdown(rows) {
         const totalHours = consultants.reduce((s, c) => s + c.hours, 0);
         const consultantCount = consultants.length;
 
+        const groupId = `client-grp-${clientName.replace(/\W+/g, '')}`;
+
         // Client header row
         const headerRow = `
-            <tr class="client-group-header">
+            <tr class="client-group-header" data-group-id="${groupId}" style="cursor:pointer;" title="Click to expand/collapse consultants">
                 <td class="client-group-header__name" colspan="2">
+                    <span class="client-group-chevron">▶</span>
                     <span class="client-group-icon">🏢</span>
                     ${escapeHtml(clientName)}
                 </td>
@@ -792,14 +807,14 @@ function renderClientBreakdown(rows) {
                 <td class="client-group-header__revenue" colspan="2">${totalRevStr}</td>
             </tr>`;
 
-        // Individual consultant rows under this client
+        // Individual consultant rows under this client — collapsed by default
         const consultantRows = consultants.map(c => {
             const status = c.statuses.size === 1 ? Array.from(c.statuses)[0] : 'mixed';
             const invoiceLink = renderInvoiceLink(c.invoices);
             const rateStr = c.bill_rate > 0 ? `${c.currency} ${c.bill_rate.toFixed(2)}/hr` : `${c.currency} —`;
 
             return `
-                <tr class="client-group-row" data-consultant-id="${escapeHtml(c.consultant_id)}" data-currency="${escapeHtml(c.currency)}" style="cursor:pointer;" title="Click to view details">
+                <tr class="client-group-row client-group-row--child" data-parent-id="${groupId}" data-consultant-id="${escapeHtml(c.consultant_id)}" data-currency="${escapeHtml(c.currency)}" style="cursor:pointer;" title="Click to view details">
                     <td class="client-group-row__indent"></td>
                     <td>
                         <div class="analytics-person">

@@ -469,16 +469,16 @@
                         <div class="kpi-card__filter-hint">Click to reset filters</div>
                     </article>
                     <article class="kpi-card kpi-card--interactive" data-filter="revenue" id="kpiRevenue">
-                        <div class="kpi-card__label">Projected <span id="projectedRevenueLabelMeta" class="kpi-card__label-meta">(Period)</span></div>
+                        <div class="kpi-card__label">Projected <span id="projectedRevenueLabelMeta" class="kpi-card__label-meta">(Period)</span><span class="kpi-card__tooltip" data-tooltip="Total invoice value of the hours logged in the selected month.">?</span></div>
                         <div class="kpi-card__value" id="projectedRevenueCard">$0.00</div>
                         <div class="kpi-card__filter-hint">Click to view detail</div>
                     </article>
                     <article class="kpi-card" id="kpiActualRevenue">
-                        <div class="kpi-card__label">Collected <span id="actualRevenueLabelMeta" class="kpi-card__label-meta">(Period)</span></div>
+                        <div class="kpi-card__label">Collected <span id="actualRevenueLabelMeta" class="kpi-card__label-meta">(Period)</span><span class="kpi-card__tooltip" data-tooltip="Amount successfully paid so far specifically for work done in the selected month (Accrual basis).">?</span></div>
                         <div class="kpi-card__value" id="actualRevenueCard">$0.00</div>
                     </article>
                     <article class="kpi-card" id="kpiCashFlow">
-                        <div class="kpi-card__label">Cash Flow <span id="cashFlowLabelMeta" class="kpi-card__label-meta">(Received)</span></div>
+                        <div class="kpi-card__label">Cash Flow <span id="cashFlowLabelMeta" class="kpi-card__label-meta">(Received)</span><span class="kpi-card__tooltip" data-tooltip="Total cash that landed in the bank during the selected month, regardless of when the work was done (Cash basis).">?</span></div>
                         <div class="kpi-card__value" id="cashFlowCard" style="color:var(--success)">$0.00</div>
                     </article>
                     <article class="kpi-card kpi-card--interactive" data-filter="consultants" id="kpiConsultants">
@@ -609,8 +609,11 @@
 
             <div class="analytics-panel" id="panel-pivot" role="tabpanel">
                 <div class="section">
-                    <div class="section__header">
-                        <h2 class="section__title" id="pivotTitle">Pivot by Consultant and Month</h2>
+                    <div class="section__header" style="align-items: flex-end;">
+                        <div>
+                            <h2 class="section__title" id="pivotTitle" style="margin-bottom: 0.25rem;">Pivot by Consultant and Month</h2>
+                            <p class="table-note" style="margin: 0;">Heat intensity reflects relative value. <span style="display:inline-flex;align-items:center;gap:3px;margin-left:6px;"><span style="width:6px;height:6px;border-radius:50%;background:#22c55e;display:inline-block;"></span> Invoiced</span> &nbsp;<span style="display:inline-flex;align-items:center;gap:3px;"><span style="width:6px;height:6px;border-radius:50%;background:#f97316;display:inline-block;"></span> Pending</span></p>
+                        </div>
                         <div class="segmented" role="group" aria-label="Pivot metric">
                             <button id="pivotHoursBtn" class="segmented__btn is-active" type="button">Hours</button>
                             <button id="pivotRevenueBtn" class="segmented__btn" type="button">Revenue</button>
@@ -632,7 +635,6 @@
                             </tbody>
                         </table>
                     </div>
-                    <p class="table-note">Heat intensity reflects relative value. <span style="display:inline-flex;align-items:center;gap:3px;"><span style="width:6px;height:6px;border-radius:50%;background:#22c55e;display:inline-block;"></span> Invoiced</span> &nbsp;<span style="display:inline-flex;align-items:center;gap:3px;"><span style="width:6px;height:6px;border-radius:50%;background:#f97316;display:inline-block;"></span> Pending</span></p>
                 </div>
             </div>
         </div>

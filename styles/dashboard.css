@@ -3267,6 +3267,28 @@ canvas#revenueChart {
 .client-group-header {
     background: #f8fafc;
     border-top: 2px solid var(--surface-glass-border);
+    user-select: none;
+}
+
+.client-group-chevron {
+    display: inline-block;
+    transition: transform 0.2s ease;
+    font-size: 0.65rem;
+    margin-right: 0.45rem;
+    color: var(--text-tertiary);
+    vertical-align: middle;
+}
+
+.client-group-header.is-expanded .client-group-chevron {
+    transform: rotate(90deg);
+}
+
+.client-group-row--child {
+    display: none;
+}
+
+.client-group-row--child.is-visible {
+    display: table-row;
 }
 
 .client-group-header > td {
@@ -4247,5 +4269,78 @@ canvas#revenueChart {
 
 .table th.sortable.sort-desc::after {
     content: '↓';
+}
+
+/* ============================================================
+   KPI Tooltips
+   ============================================================ */
+
+.kpi-card__tooltip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 15px;
+    height: 15px;
+    border-radius: 50%;
+    background: #e2e8f0;
+    color: var(--text-secondary);
+    font-size: 0.65rem;
+    font-weight: 700;
+    margin-left: 0.4rem;
+    cursor: help;
+    vertical-align: middle;
+    transition: background 0.15s, color 0.15s;
+    user-select: none;
+    position: relative;
+}
+
+.kpi-card__tooltip:hover {
+    background: #94a3b8;
+    color: white;
+}
+
+/* Custom instant tooltip overlay */
+.kpi-card__tooltip::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%) translateY(-6px);
+    background: #1e293b;
+    color: #fff;
+    padding: 0.4rem 0.6rem;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    font-weight: 500;
+    white-space: nowrap;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.15s, transform 0.15s;
+    pointer-events: none;
+    z-index: 50;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+/* Little triangle pointer */
+.kpi-card__tooltip::before {
+    content: '';
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%) translateY(0);
+    border-width: 4px;
+    border-style: solid;
+    border-color: #1e293b transparent transparent transparent;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.15s;
+    pointer-events: none;
+    z-index: 51;
+}
+
+.kpi-card__tooltip:hover::after,
+.kpi-card__tooltip:hover::before {
+    opacity: 1;
+    visibility: visible;
 }
 
