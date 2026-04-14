@@ -231,7 +231,7 @@ function bindEvents() {
 
     els.periodJumpMonths?.addEventListener('click', (event) => {
         const button = event.target.closest('button[data-month]');
-        if (!(button instanceof HTMLElement)) return;
+        if (!(button instanceof Element)) return;
         selectedMonth = String(button.dataset.month || defaultMonth);
         if (els.monthFilter) els.monthFilter.value = selectedMonth;
         persistShared();
@@ -388,7 +388,7 @@ function bindEvents() {
 
     document.addEventListener('click', async (e) => {
         const target = e.target;
-        if (!(target instanceof HTMLElement)) return;
+        if (!(target instanceof Element)) return;
 
         if (els.periodJumpMenu && !els.periodJumpMenu.hidden && !target.closest('.crm-toolbar__period-wrap')) {
             closePeriodJumpMenu();

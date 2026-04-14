@@ -1006,7 +1006,7 @@ function bindPageEvents() {
 
     els.periodJumpMonths?.addEventListener('click', (event) => {
         const button = event.target.closest('button[data-month]');
-        if (!(button instanceof HTMLElement)) return;
+        if (!(button instanceof Element)) return;
         selectedMonth = String(button.dataset.month || defaultMonth);
         if (els.monthFilter) els.monthFilter.value = selectedMonth;
         persistSharedFilters();
