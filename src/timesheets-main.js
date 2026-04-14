@@ -3,7 +3,8 @@ import {
     dbGetTimesheetsForYear,
     dbUpdateTimesheet,
     dbDeleteTimesheet,
-    dbUpsertTimesheets
+    dbUpsertTimesheets,
+    dbInsertTimesheet
 } from './modules/db-timesheets.js';
 import { dbGetConsultants } from './modules/db-consultants.js';
 import { showToast, debounce, createRenderScheduler } from './modules/utils.js';
@@ -43,6 +44,8 @@ let rowsByConsultant = new Map();
 let sortKey = pagePrefs.sortKey || 'date';
 let sortDir = pagePrefs.sortDir || 'desc';
 
+// modalMode: 'add' | 'edit' | 'supplemental'
+// 'supplemental' = plain INSERT, allows a second row for the same consultant/period
 let modalMode = 'add';
 let modalTimesheetId = null;
 let modalConsultantId = null;
@@ -421,6 +424,42 @@ function bindEvents() {
             return;
         }
 
+        // "Add Supplemental" — plain INSERT so a second row can exist alongside
+        // an already-invoiced one for the same consultant.
+        const suppBtn = target.closest('.ts-add-supplemental');
+        if (suppBtn) {
+            modalMode = 'supplemental';
+            modalTimesheetId = null;
+            modalConsultantId = suppBtn.getAttribute('data-consultant');
+            modalDefaultPeriod = {
+                start: suppBtn.getAttribute('data-start') || '',
+                end: suppBtn.getAttribute('data-end') || ''
+            };
+
+            openModal({
+                consultant: getConsultantName(modalConsultantId),
+                start: modalDefaultPeriod.start,
+                end: modalDefaultPeriod.end,
+                hours: 0,
+                status: 'pending',
+                invoice: ''
+            });
+            return;
+        }
+
+        // Expand/collapse sub-rows for consultants with multiple timesheet entries
+        const expandBtn = target.closest('.ts-expand-btn');
+        if (expandBtn) {
+            const consultantId = expandBtn.getAttribute('data-consultant');
+            const subRow = document.querySelector(`.ts-subrows[data-for="${consultantId}"]`);
+            if (!subRow) return;
+            const isOpen = !subRow.hidden;
+            subRow.hidden = isOpen;
+            expandBtn.setAttribute('aria-expanded', String(!isOpen));
+            expandBtn.style.transform = isOpen ? 'rotate(0deg)' : 'rotate(90deg)';
+            return;
+        }
+
         const editBtn = target.closest('.ts-edit-row');
         if (editBtn) {
             const id = editBtn.getAttribute('data-id');
@@ -788,18 +827,40 @@ function renderTable() {
         return;
     }
 
-    els.tbody.innerHTML = rows.map((row) => {
-        const hasEntries = row.times.length > 0;
-        const isInvoiced = row.status === 'invoiced';
+    els.tbody.innerHTML = rows.flatMap((row) => {
+        const hasEntries  = row.times.length > 0;
+        const isInvoiced  = row.status === 'invoiced';
+        const isMixed     = row.status === 'mixed';
+        const hasMultiple = row.times.length > 1;
 
+        // Per-status breakdowns (used for both display and mixed-row actions)
+        const pendingTimes  = row.times.filter(t => t.status === 'pending');
+        const invoicedTimes = row.times.filter(t => t.status === 'invoiced');
+        const pendingHours  = pendingTimes.reduce((s, t) => s + (t.hours || 0), 0);
+        const invoicedHours = invoicedTimes.reduce((s, t) => s + (t.hours || 0), 0);
+        const primaryPending = pendingTimes.length
+            ? [...pendingTimes].sort((a, b) => String(b.period_start || '').localeCompare(String(a.period_start || '')))[0]
+            : null;
+
+        // All unique invoice numbers for this consultant in the period
+        const allInvoiceNums = Array.from(new Set(
+            row.times.map(t => t.invoice_number).filter(Boolean)
+        ));
+
+        // ── Actions ──────────────────────────────────────────────────────
         let actions;
         if (!hasEntries) {
             actions = `<button class="btn btn--primary btn--sm ts-add-row" data-consultant="${row.consultant_id}" data-start="${row.period_start}" data-end="${row.period_end}">Add</button>`;
-        } else if (isInvoiced) {
-            // Locked row — show invoice link and a subtle unlock hint
+        } else if (isMixed) {
+            const invoiceUrl = `app.html?consultant_id=${encodeURIComponent(row.consultant_id)}`;
             actions = `
-                <span style="font-size:0.75rem;color:#6b7280;display:inline-flex;align-items:center;gap:0.25rem;">🔒 Invoiced</span>
-                <button class="btn btn--ghost btn--sm ts-edit-row ts-edit-invoiced" title="This timesheet is invoiced. Click to view (editing blocked)." data-id="${row.primary.id}" data-consultant="${row.consultant_id}" style="color:#9ca3af;">View</button>
+                <a href="${invoiceUrl}" class="btn btn--primary btn--sm" title="Create invoice for ${pendingHours.toFixed(2)}h pending">Invoice ${pendingHours.toFixed(2)}h</a>
+                ${primaryPending ? `<button class="btn btn--ghost btn--sm ts-edit-row" data-id="${primaryPending.id}" data-consultant="${row.consultant_id}">Edit</button>` : ''}
+            `;
+        } else if (isInvoiced) {
+            actions = `
+                <button class="btn btn--ghost btn--sm ts-add-supplemental" data-consultant="${row.consultant_id}" data-start="${row.primary?.period_start || ''}" data-end="${row.primary?.period_end || ''}" title="Add more hours on a separate invoice">+ Supplemental</button>
+                <button class="btn btn--ghost btn--sm ts-edit-row ts-edit-invoiced" data-id="${row.primary.id}" data-consultant="${row.consultant_id}" style="color:#9ca3af;">View</button>
             `;
         } else {
             actions = `
@@ -808,41 +869,134 @@ function renderTable() {
             `;
         }
 
+        // ── Hours cell ────────────────────────────────────────────────────
+        const hoursCell = isMixed
+            ? `<div style="line-height:1.6;">
+                   <div style="font-size:0.75rem;color:#6b7280;">${invoicedHours.toFixed(2)}h invoiced</div>
+                   <div style="font-weight:700;color:#ea580c;">${pendingHours.toFixed(2)}h pending</div>
+               </div>`
+            : row.hours.toFixed(2);
+
+        // ── Invoice numbers cell ──────────────────────────────────────────
+        // Show all linked invoice numbers as pills when multiple exist
+        const invoiceCell = allInvoiceNums.length > 1
+            ? allInvoiceNums.map(n => `<span style="display:inline-block;background:#f0f9ff;border:1px solid #bae6fd;border-radius:4px;padding:1px 6px;font-size:0.72rem;font-weight:600;color:#0369a1;margin:1px;">${escapeHtml(n)}</span>`).join(' ')
+            : escapeHtml(row.invoice_number);
+
+        // ── Expand chevron (shown only when 2+ timesheet sub-rows exist) ──
+        const expandBtn = hasMultiple
+            ? `<button class="ts-expand-btn" data-consultant="${row.consultant_id}" aria-expanded="false"
+                   style="background:none;border:none;cursor:pointer;padding:2px 4px;color:#6b7280;transition:transform 0.2s;flex-shrink:0;"
+                   title="Show ${row.times.length} individual entries">
+                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m9 18 6-6-6-6"/></svg>
+               </button>`
+            : '';
+
         const rowStyle = isInvoiced ? 'background:#fafafa; opacity:0.9;' : '';
 
-        return `
+        // ── Main summary row ──────────────────────────────────────────────
+        const mainRow = `
             <tr style="${rowStyle}">
                 <td>
-                    <div style="font-weight:600;display:flex;align-items:center;gap:0.35rem;flex-wrap:wrap;">
-                        <span>${escapeHtml(row.consultant_name)}</span>
-                        ${renderNoteTooltip(row.notes)}
+                    <div style="display:flex;align-items:center;gap:0.3rem;">
+                        ${expandBtn}
+                        <div>
+                            <div style="font-weight:600;display:flex;align-items:center;gap:0.35rem;flex-wrap:wrap;">
+                                <span>${escapeHtml(row.consultant_name)}</span>
+                                ${renderNoteTooltip(row.notes)}
+                            </div>
+                            <div style="font-size:12px;color:var(--text-tertiary);">${row.currency} ${(row.bill_rate || 0).toFixed(2)}/hr</div>
+                        </div>
                     </div>
-                    <div style="font-size:12px;color:var(--text-tertiary);">${row.currency} ${(row.bill_rate || 0).toFixed(2)}/hr</div>
                 </td>
                 <td>${escapeHtml(row.client)}</td>
                 <td>${escapeHtml(row.w2_company)}</td>
                 <td>${row.period_start || '—'}</td>
                 <td>${row.period_end || '—'}</td>
-                <td>${row.hours.toFixed(2)}</td>
+                <td>${hoursCell}</td>
                 <td>${renderStatusBadge(row.status)}</td>
-                <td>${escapeHtml(row.invoice_number)}</td>
+                <td>${invoiceCell}</td>
                 <td>${row.currency}</td>
                 <td><div class="ts-inline-controls">${actions}</div></td>
             </tr>
         `;
+
+        // ── Sub-rows (one per individual timesheet entry, hidden by default) ─
+        const subRowHtml = hasMultiple ? `
+            <tr class="ts-subrows" data-for="${row.consultant_id}" hidden>
+                <td colspan="10" style="padding:0;background:#f8fafc;border-top:none;">
+                    <table style="width:100%;border-collapse:collapse;">
+                        <thead>
+                            <tr style="background:#f1f5f9;">
+                                <th style="padding:6px 12px 6px 36px;font-size:0.72rem;color:#64748b;font-weight:600;text-align:left;">Period</th>
+                                <th style="padding:6px 12px;font-size:0.72rem;color:#64748b;font-weight:600;text-align:left;">Hours</th>
+                                <th style="padding:6px 12px;font-size:0.72rem;color:#64748b;font-weight:600;text-align:left;">Status</th>
+                                <th style="padding:6px 12px;font-size:0.72rem;color:#64748b;font-weight:600;text-align:left;">Invoice</th>
+                                <th style="padding:6px 12px;font-size:0.72rem;color:#64748b;font-weight:600;text-align:left;">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${row.times.map(t => {
+                                const tInvoiced = t.status === 'invoiced';
+                                const subActions = tInvoiced
+                                    ? `<button class="btn btn--ghost btn--sm ts-edit-row ts-edit-invoiced" data-id="${t.id}" data-consultant="${row.consultant_id}" style="color:#9ca3af;font-size:0.72rem;">View</button>`
+                                    : `<button class="btn btn--outline btn--sm ts-edit-row" data-id="${t.id}" data-consultant="${row.consultant_id}" style="font-size:0.72rem;">Edit</button>
+                                       <button class="btn btn--ghost btn--sm ts-delete-row" data-id="${t.id}" style="font-size:0.72rem;color:#ef4444;">Del</button>`;
+                                return `
+                                    <tr style="border-top:1px solid #e2e8f0;">
+                                        <td style="padding:7px 12px 7px 36px;font-size:0.8125rem;">${t.period_start || '—'} → ${t.period_end || '—'}</td>
+                                        <td style="padding:7px 12px;font-size:0.8125rem;font-weight:600;">${(t.hours || 0).toFixed(2)}</td>
+                                        <td style="padding:7px 12px;">${renderStatusBadge(t.status)}</td>
+                                        <td style="padding:7px 12px;font-size:0.8125rem;">
+                                            ${t.invoice_number
+                                                ? `<span style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:4px;padding:2px 7px;font-size:0.72rem;font-weight:600;color:#0369a1;">${escapeHtml(t.invoice_number)}</span>`
+                                                : '<span style="color:#9ca3af;font-size:0.75rem;">Unbilled</span>'}
+                                        </td>
+                                        <td style="padding:7px 12px;">
+                                            <div class="ts-inline-controls">${subActions}</div>
+                                        </td>
+                                    </tr>`;
+                            }).join('')}
+                        </tbody>
+                    </table>
+                </td>
+            </tr>
+        ` : '';
+
+        return [mainRow, subRowHtml];
     }).join('');
 
     // ── Mobile card view (accordion) ──
     if (els.cardContainer) {
         els.cardContainer.innerHTML = rows.map((row) => {
-            const hasEntries = row.times.length > 0;
-            const isInvoiced = row.status === 'invoiced';
+            const hasEntries  = row.times.length > 0;
+            const isInvoiced  = row.status === 'invoiced';
+            const isMixed     = row.status === 'mixed';
+            const hasMultiple = row.times.length > 1;
+
+            const pendingTimes  = row.times.filter(t => t.status === 'pending');
+            const invoicedTimes = row.times.filter(t => t.status === 'invoiced');
+            const pendingHours  = pendingTimes.reduce((s, t) => s + (t.hours || 0), 0);
+            const invoicedHours = invoicedTimes.reduce((s, t) => s + (t.hours || 0), 0);
+            const primaryPending = pendingTimes.length
+                ? [...pendingTimes].sort((a, b) => String(b.period_start || '').localeCompare(String(a.period_start || '')))[0]
+                : null;
+            const allInvoiceNums = Array.from(new Set(row.times.map(t => t.invoice_number).filter(Boolean)));
 
             let actions;
             if (!hasEntries) {
                 actions = `<button class="btn btn--primary btn--sm ts-add-row" data-consultant="${row.consultant_id}" data-start="${row.period_start}" data-end="${row.period_end}" style="width:100%;">Add Timesheet</button>`;
+            } else if (isMixed) {
+                const invoiceUrl = `app.html?consultant_id=${encodeURIComponent(row.consultant_id)}`;
+                actions = `
+                    <a href="${invoiceUrl}" class="btn btn--primary btn--sm" style="flex:1;text-align:center;">Invoice ${pendingHours.toFixed(2)}h Pending</a>
+                    ${primaryPending ? `<button class="btn btn--ghost btn--sm ts-edit-row" data-id="${primaryPending.id}" data-consultant="${row.consultant_id}">Edit</button>` : ''}
+                `;
             } else if (isInvoiced) {
-                actions = `<button class="btn btn--ghost btn--sm ts-edit-row ts-edit-invoiced" data-id="${row.primary.id}" data-consultant="${row.consultant_id}" style="width:100%; color:#6b7280; background:#f3f4f6;">🔒 View Invoiced Entry</button>`;
+                actions = `
+                    <button class="btn btn--outline btn--sm ts-add-supplemental" data-consultant="${row.consultant_id}" data-start="${row.primary?.period_start || ''}" data-end="${row.primary?.period_end || ''}" style="flex:1;">+ Supplemental</button>
+                    <button class="btn btn--ghost btn--sm ts-edit-row ts-edit-invoiced" data-id="${row.primary.id}" data-consultant="${row.consultant_id}" style="color:#6b7280;">View</button>
+                `;
             } else {
                 actions = `
                     <button class="btn btn--outline btn--sm ts-edit-row" data-id="${row.primary.id}" data-consultant="${row.consultant_id}" style="flex:1;">Edit</button>
@@ -850,18 +1004,47 @@ function renderTable() {
                 `;
             }
 
+            const hoursSubtitle = isMixed
+                ? `<span style="color:#ea580c;font-weight:700;">${pendingHours.toFixed(2)}h pend</span> <span style="color:#6b7280;">/ ${invoicedHours.toFixed(2)}h inv</span>`
+                : `${row.hours.toFixed(2)} hrs`;
+
+            // Invoice pills when multiple invoices
+            const invoiceValue = allInvoiceNums.length > 1
+                ? allInvoiceNums.map(n => `<span style="display:inline-block;background:#f0f9ff;border:1px solid #bae6fd;border-radius:4px;padding:1px 5px;font-size:0.7rem;font-weight:600;color:#0369a1;">${escapeHtml(n)}</span>`).join(' ')
+                : escapeHtml(row.invoice_number || '—');
+
+            // Per-entry sub-list for cards with multiple timesheets
+            const subEntries = hasMultiple ? `
+                <div style="margin-top:0.75rem;border-top:1px solid #f1f5f9;padding-top:0.75rem;">
+                    <div style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#9ca3af;margin-bottom:0.5rem;">Timesheet Entries</div>
+                    ${row.times.map(t => `
+                        <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #f8fafc;font-size:0.8125rem;">
+                            <div>
+                                <div style="font-weight:600;">${(t.hours || 0).toFixed(2)}h ${renderStatusBadge(t.status)}</div>
+                                <div style="font-size:0.75rem;color:#6b7280;">${t.period_start || '—'} → ${t.period_end || '—'}</div>
+                                ${t.invoice_number ? `<div style="font-size:0.72rem;color:#0369a1;">${escapeHtml(t.invoice_number)}</div>` : '<div style="font-size:0.72rem;color:#9ca3af;">Unbilled</div>'}
+                            </div>
+                            ${t.status !== 'invoiced'
+                                ? `<button class="btn btn--ghost btn--sm ts-edit-row" data-id="${t.id}" data-consultant="${row.consultant_id}" style="font-size:0.75rem;">Edit</button>`
+                                : `<button class="btn btn--ghost btn--sm ts-edit-row ts-edit-invoiced" data-id="${t.id}" data-consultant="${row.consultant_id}" style="font-size:0.75rem;color:#9ca3af;">View</button>`}
+                        </div>`).join('')}
+                </div>` : '';
+
+            const cardBorder = isMixed ? 'border-left:3px solid #ea580c;' : hasMultiple ? 'border-left:3px solid #3b82f6;' : '';
+
             return `
-            <div class="m-card">
+            <div class="m-card" style="${cardBorder}">
                 <button class="m-card__header" aria-expanded="false" data-card-toggle="${row.consultant_id}">
                     <div class="m-card__title-row">
                         <span class="m-card__title">
                             ${escapeHtml(row.consultant_name)}
-                            ${row.notes ? `<span class="m-card__note" title="${escapeHtml(row.notes)}">📝</span>` : ''}
+                            ${hasMultiple ? `<span style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:4px;padding:1px 5px;font-size:0.68rem;font-weight:700;color:#1d4ed8;margin-left:4px;">${row.times.length} entries</span>` : ''}
+                            ${row.notes ? `<span class="m-card__note" title="${escapeHtml(row.notes)}">&#128221;</span>` : ''}
                         </span>
                         ${renderStatusBadge(row.status)}
                     </div>
                     <div class="m-card__subtitle">
-                        <span>${row.hours.toFixed(2)} hrs</span>
+                        <span>${hoursSubtitle}</span>
                         <span>•</span>
                         <span>${escapeHtml(row.client)}</span>
                         <span>•</span>
@@ -881,10 +1064,11 @@ function renderTable() {
                         <span class="m-card__detail-value">${escapeHtml(row.w2_company)}</span>
                     </div>
                     <div class="m-card__detail-row">
-                        <span class="m-card__detail-label">Invoice #</span>
-                        <span class="m-card__detail-value">${escapeHtml(row.invoice_number)}</span>
+                        <span class="m-card__detail-label">Invoice${allInvoiceNums.length > 1 ? 's' : ''}</span>
+                        <span class="m-card__detail-value">${invoiceValue}</span>
                     </div>
-                    <div class="m-card__actions" style="margin-top:0.75rem; display:flex; gap:0.5rem;">
+                    ${subEntries}
+                    <div class="m-card__actions" style="margin-top:0.75rem; display:flex; gap:0.5rem; flex-wrap:wrap;">
                         ${actions}
                     </div>
                 </div>
@@ -917,12 +1101,18 @@ function openModal(data) {
     if (!els.modal) return;
 
     if (els.modalTitle) {
-        els.modalTitle.textContent = modalMode === 'add' ? 'Add Timesheet' : 'Edit Timesheet';
+        els.modalTitle.textContent =
+            modalMode === 'supplemental' ? 'Add Supplemental Hours' :
+            modalMode === 'add'          ? 'Add Timesheet' :
+                                           'Edit Timesheet';
     }
     if (els.modalSubtitle) {
-        els.modalSubtitle.textContent = modalMode === 'add'
-            ? 'Create a new timesheet entry for the selected consultant.'
-            : 'Update hours and period. Invoice linkage is managed from the invoice flow.';
+        els.modalSubtitle.textContent =
+            modalMode === 'supplemental'
+                ? 'Creates a second independent timesheet row that can be billed on a separate invoice.'
+                : modalMode === 'add'
+                    ? 'Create a new timesheet entry for the selected consultant.'
+                    : 'Update hours and period. Invoice linkage is managed from the invoice flow.';
     }
 
     if (els.modalDelete) {
@@ -1000,13 +1190,29 @@ async function saveFromModal() {
                 return;
             }
             await dbUpsertTimesheets([{
-                consultant_id: modalConsultantId,
-                period_start: start || modalDefaultPeriod.start,
-                period_end: end || modalDefaultPeriod.end,
-                hours_worked: hours,
-                status: 'pending',
+                consultant_id:  modalConsultantId,
+                period_start:   start || modalDefaultPeriod.start,
+                period_end:     end   || modalDefaultPeriod.end,
+                hours_worked:   hours,
+                status:         'pending',
                 invoice_number: null
             }]);
+        } else if (modalMode === 'supplemental') {
+            // Plain INSERT — creates a second independent row for the same consultant.
+            // Requires the unique constraint on (user_id,consultant_id,period_start,period_end)
+            // to have been dropped. See schema migration in schema.sql.
+            if (!modalConsultantId) {
+                showToast('Consultant is missing for this action', 'error');
+                return;
+            }
+            await dbInsertTimesheet({
+                consultant_id:  modalConsultantId,
+                period_start:   start || modalDefaultPeriod.start,
+                period_end:     end   || modalDefaultPeriod.end,
+                hours_worked:   hours,
+                status:         'pending',
+                invoice_number: null
+            });
         } else if (modalMode === 'edit' && modalTimesheetId) {
             await dbUpdateTimesheet(modalTimesheetId, {
                 period_start: start,

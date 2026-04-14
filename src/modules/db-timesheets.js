@@ -58,6 +58,60 @@ export async function dbUpsertTimesheets(entries = []) {
     return savedRows;
 }
 
+/**
+ * Insert a brand-new timesheet row without any conflict resolution.
+ * Use this for supplemental billing — when a consultant already has an
+ * invoiced timesheet for a period and you need to add MORE hours that
+ * will be billed on a separate invoice.
+ *
+ * Requires the unique constraint on (user_id, consultant_id, period_start,
+ * period_end) to have been dropped via the schema migration in schema.sql.
+ */
+export async function dbInsertTimesheet(entry = {}) {
+    const user = await getCurrentUser();
+    if (!user) throw new Error('Not authenticated');
+
+    const consultantId = entry.consultant_id;
+    let consultantName = '';
+    if (consultantId) {
+        const { data: c } = await supabase
+            .from('consultants')
+            .select('name')
+            .eq('id', consultantId)
+            .eq('user_id', user.id)
+            .single();
+        consultantName = c?.name || '';
+    }
+
+    const { data, error } = await supabase
+        .from('timesheets')
+        .insert({
+            user_id:        user.id,
+            consultant_id:  consultantId,
+            invoice_id:     entry.invoice_id     || null,
+            invoice_number: entry.invoice_number || null,
+            period_start:   entry.period_start,
+            period_end:     entry.period_end,
+            hours_worked:   entry.hours_worked,
+            status:         entry.status || 'pending'
+        })
+        .select()
+        .single();
+
+    if (error) throw error;
+
+    await logAuditEvent({
+        entityType: 'timesheet',
+        entityId:   data?.id,
+        entityKey:  consultantName || consultantId,
+        action:     'created',
+        summary:    `Created supplemental timesheet for ${consultantName || 'consultant'} (${entry.hours_worked}h)`,
+        after:      { ...data, consultant_name: consultantName }
+    });
+
+    return data;
+}
+
 export async function dbUpdateTimesheet(id, updates = {}) {
     const user = await getCurrentUser();
     if (!user) throw new Error('Not authenticated');

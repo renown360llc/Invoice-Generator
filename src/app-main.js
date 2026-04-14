@@ -197,6 +197,9 @@ async function init() {
     const urlParams = new URLSearchParams(window.location.search);
     const invoiceNumber = urlParams.get('invoice_number') || urlParams.get('invoice'); // Support both for now
     const action = urlParams.get('action');
+    // consultant_id: when arriving from timesheets page "Invoice Xh Pending" button,
+    // this pre-filters the timesheet picker to only that consultant's pending hours.
+    const prefillConsultantId = urlParams.get('consultant_id') || '';
 
     if (invoiceNumber) {
         // Set mode to update (store ID if possible, but number is key)
@@ -243,6 +246,13 @@ async function init() {
             }
         } catch (_) { /* non-fatal — logo is optional */ }
         // ── End auto-restore ─────────────────────────────────────────────
+
+        // ── Supplemental billing: auto-open timesheet picker for a specific consultant ──
+        // Arriving via timesheets page "Invoice Xh Pending" button sets consultant_id param.
+        if (prefillConsultantId) {
+            state.prefillConsultantId = prefillConsultantId;
+            await openTimesheetModal();
+        }
 
         updatePreview(state);
     }
@@ -959,6 +969,32 @@ async function loadPendingTimesheetsIntoModal() {
                 updateTimesheetSelectionMeta();
             });
         });
+
+        // ── Supplemental billing pre-filter ──────────────────────────────
+        // When arriving via "Invoice Xh Pending" from the timesheets page,
+        // pre-select only that consultant and show an explanatory banner.
+        if (state.prefillConsultantId) {
+            const matchIndex = pendingTimesheetGroups.findIndex(
+                g => String(g.consultant_id) === String(state.prefillConsultantId)
+            );
+            if (matchIndex !== -1) {
+                // Uncheck all, then check only the target consultant
+                document.querySelectorAll('.ts-include-candidate').forEach(box => {
+                    box.checked = String(pendingTimesheetGroups[Number(box.dataset.index)]?.consultant_id) === String(state.prefillConsultantId);
+                });
+                const matched = pendingTimesheetGroups[matchIndex];
+                // Inject a pre-filter notice above the list
+                const notice = document.createElement('div');
+                notice.style.cssText = 'background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:0.625rem 0.875rem;margin-bottom:0.75rem;font-size:0.8125rem;color:#9a3412;display:flex;justify-content:space-between;align-items:center;gap:0.5rem;';
+                notice.innerHTML = `
+                    <span><strong>${escapeHtmlText(matched.consultant_name)}</strong> — ${matched.hours.toFixed(2)}h pending pre-selected for supplemental invoice. Uncheck to deselect or add other consultants above.</span>
+                    <button type="button" style="background:none;border:none;cursor:pointer;font-size:1rem;color:#9a3412;flex-shrink:0;" title="Dismiss" onclick="this.parentElement.remove()">&#x2715;</button>
+                `;
+                listContainer?.insertAdjacentElement('beforebegin', notice);
+            } else {
+                showToast('No pending hours found for that consultant in this period. Try adjusting the date range.', 'info');
+            }
+        }
 
         updateTimesheetSelectionMeta();
     } catch (e) {
