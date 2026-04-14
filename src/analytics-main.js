@@ -536,9 +536,16 @@ function normalizeRows(rows) {
 function populateFilterOptions() {
     const currencySet = new Set(['USD', 'EUR', 'GBP', 'CAD', 'AUD', 'INR']);
     rawRows.forEach(row => currencySet.add(normalizeCurrency(row.currency)));
+    rawConsultants.forEach(c => currencySet.add(normalizeCurrency(c.currency)));
 
-    const clientMap = collectLabelMap(rawRows.map(row => row.client));
-    const w2Map = collectLabelMap(rawRows.map(row => row.w2_company));
+    const clientMap = collectLabelMap([
+        ...rawRows.map(row => row.client),
+        ...rawConsultants.map(c => c.client)
+    ]);
+    const w2Map = collectLabelMap([
+        ...rawRows.map(row => row.w2_company),
+        ...rawConsultants.map(c => c.w2_company)
+    ]);
 
     setSelectOptions(els.currencyFilter, 'All Currencies', Array.from(currencySet).sort((a, b) => a.localeCompare(b)), selectedCurrency);
     setSelectOptions(els.clientFilter, 'All Clients', Array.from(clientMap.entries()).sort((a, b) => a[1].localeCompare(b[1])), selectedClient, true);
