@@ -3261,79 +3261,271 @@ canvas#revenueChart {
 }
 
 /* ============================================================
-   ANALYTICS – Expandable Pivot Rows
+   ANALYTICS – Client Breakdown (Clients Tab)
    ============================================================ */
-.pivot-row--summary {
-    cursor: pointer;
-    transition: background 0.12s;
-}
 
-.pivot-row--summary:hover {
+.client-group-header {
     background: #f8fafc;
+    border-top: 2px solid var(--surface-glass-border);
 }
 
-.pivot-row--summary td:first-child {
-    font-weight: 600;
+.client-group-header > td {
+    padding: 0.75rem 1rem;
+    font-size: 0.8125rem;
 }
 
-.pivot-chevron {
-    display: inline-flex;
-    width: 14px;
-    height: 14px;
-    margin-right: 0.35rem;
-    vertical-align: middle;
-    transition: transform 0.15s;
-    color: var(--text-tertiary);
-}
-
-.pivot-row--summary.is-expanded .pivot-chevron {
-    transform: rotate(90deg);
-    color: var(--accent);
-}
-
-.pivot-row--detail {
-    display: none;
-}
-
-.pivot-row--detail.is-visible {
-    display: table-row;
-}
-
-.pivot-row--detail td {
-    background: #f8fafc;
-    font-size: 0.78rem;
-    border-top: none;
-    padding-top: 0.3rem;
-    padding-bottom: 0.3rem;
-}
-
-.pivot-month-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
-    gap: 0.35rem 0.75rem;
-}
-
-.pivot-month-cell {
-    display: flex;
-    justify-content: space-between;
-    align-items: baseline;
-    font-size: 0.75rem;
-    color: var(--text-secondary);
-    padding: 0.2rem 0.35rem;
-    border-radius: 4px;
-    background: #fff;
-    border: 1px solid var(--surface-glass-border);
-}
-
-.pivot-month-cell__label {
-    font-weight: 600;
-    color: var(--text-tertiary);
-}
-
-.pivot-month-cell__value {
-    font-weight: 700;
+.client-group-header__name {
+    font-weight: 800;
     color: var(--text-primary);
 }
+
+.client-group-icon {
+    margin-right: 0.35rem;
+    opacity: 0.7;
+}
+
+.client-group-header__stat {
+    font-weight: 600;
+    color: var(--text-tertiary);
+}
+
+.client-group-header__revenue {
+    font-weight: 800;
+    color: var(--text-primary);
+    text-align: right;
+}
+
+.client-group-row {
+    transition: background 0.15s;
+}
+
+.client-group-row:hover {
+    background: #f8fafc;
+}
+
+.client-group-row > td {
+    padding: 0.65rem 1rem;
+    border-bottom: 1px solid var(--border-light);
+}
+
+.client-group-row__indent {
+    width: 2rem;
+    padding: 0 !important;
+    border-right: 2px solid #e2e8f0;
+    border-bottom: none !important;
+    background: transparent;
+}
+
+.client-group-row:last-child .client-group-row__indent {
+    border-bottom-left-radius: 6px;
+}
+
+/* ============================================================
+   ANALYTICS – Full-Grid Heatmap Pivot Table
+   ============================================================ */
+
+.pivot-wrap {
+    border: 1px solid var(--surface-glass-border);
+    border-radius: var(--radius-md);
+    overflow-x: auto;
+}
+
+.pivot-table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: auto;
+}
+
+/* Column sizing — compact month columns, auto-sized by content */
+.pivot-col-month {
+    text-align: center;
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: var(--text-tertiary);
+    padding: 0.55rem 0.4rem;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+}
+
+.pivot-col-total {
+    text-align: right;
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: var(--text-tertiary);
+    padding: 0.55rem 0.6rem;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+}
+
+/* Generic pivot cell */
+.pivot-cell {
+    padding: 0.55rem 0.4rem;
+    font-size: 0.78rem;
+    border-bottom: 1px solid var(--surface-glass-border);
+    vertical-align: middle;
+    transition: filter 0.1s;
+}
+
+/* Name cell — sticky left */
+.pivot-cell--name {
+    padding: 0.5rem 0.75rem;
+    min-width: 100px;
+    max-width: 145px;
+    width: 145px;
+    position: sticky;
+    left: 0;
+    background: white;
+    z-index: 1;
+    border-right: 1px solid var(--surface-glass-border);
+}
+
+.pivot-row:hover .pivot-cell--name {
+    background: #f8fafc;
+}
+
+.pivot-name-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+}
+
+.pivot-name-text {
+    font-weight: 600;
+    color: var(--text-primary);
+    font-size: 0.78rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 120px;
+}
+
+.pivot-currency-badge {
+    display: inline-block;
+    background: #f1f5f9;
+    color: var(--text-tertiary);
+    border-radius: 3px;
+    padding: 0px 4px;
+    font-size: 0.65rem;
+    font-weight: 700;
+    line-height: 1.6;
+}
+
+.pivot-client-tag {
+    display: inline-block;
+    background: #e0f2fe;
+    color: #0369a1;
+    border-radius: 3px;
+    padding: 0px 4px;
+    font-size: 0.65rem;
+    font-weight: 600;
+    line-height: 1.6;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.pivot-cell--currency {
+    display: none; /* currency shown inline in name cell now */
+}
+
+/* Data cells (heat-colored) */
+.pivot-cell--data {
+    text-align: center;
+    padding: 0.4rem 0.3rem;
+    position: relative;
+    transition: filter 0.12s;
+    white-space: nowrap;
+}
+
+.pivot-cell--data:hover {
+    filter: brightness(0.92);
+}
+
+.pivot-cell__dot {
+    display: inline-block;
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    vertical-align: middle;
+    margin-right: 3px;
+    flex-shrink: 0;
+}
+
+.pivot-cell__val {
+    font-size: 0.7rem;
+    font-weight: 600;
+    vertical-align: middle;
+    white-space: nowrap;
+}
+
+/* Empty month cell */
+.pivot-cell--empty {
+    text-align: center;
+    color: var(--text-tertiary);
+    font-size: 0.68rem;
+}
+
+/* Total column — sticky right */
+.pivot-cell--total {
+    text-align: right;
+    padding: 0.5rem 0.75rem;
+    font-weight: 700;
+    font-size: 0.78rem;
+    color: var(--text-primary);
+    border-left: 1px solid var(--surface-glass-border);
+    background: #f8fafc;
+    white-space: nowrap;
+    position: sticky;
+    right: 0;
+}
+
+/* Row hover */
+.pivot-row:hover .pivot-cell--data {
+    filter: brightness(0.93);
+}
+
+/* Footer totals row */
+.pivot-footer-row {
+    background: #f1f5f9;
+}
+
+.pivot-footer__label {
+    font-weight: 700;
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+    padding: 0.6rem 0.75rem;
+    position: sticky;
+    left: 0;
+    background: #f1f5f9;
+    border-right: 1px solid var(--surface-glass-border);
+    border-top: 2px solid var(--surface-glass-border);
+}
+
+.pivot-footer__cell {
+    text-align: center;
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--text-secondary);
+    border-top: 2px solid var(--surface-glass-border);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 90px;
+}
+
+.pivot-footer__grand {
+    text-align: right;
+    padding: 0.6rem 0.75rem;
+    font-weight: 800;
+    font-size: 0.82rem;
+    color: var(--text-primary);
+    border-left: 1px solid var(--surface-glass-border);
+    border-top: 2px solid var(--surface-glass-border);
+    background: #e2e8f0;
+}
+
+
 
 /* ============================================================
    ANALYTICS – Detail Drawer (Slide-Over)

@@ -443,8 +443,8 @@
             <div class="analytics-tabs-row">
                 <nav class="analytics-tabs" role="tablist">
                     <button class="analytics-tabs__btn is-active" data-tab="overview" role="tab" aria-selected="true">Overview</button>
-                    <button class="analytics-tabs__btn" data-tab="detail" role="tab" aria-selected="false">
-                        Detail <span id="detailTabBadge" class="analytics-tabs__badge">0</span>
+                    <button class="analytics-tabs__btn" data-tab="clients" role="tab" aria-selected="false">
+                        Clients <span id="clientTabBadge" class="analytics-tabs__badge">0</span>
                     </button>
                     <button class="analytics-tabs__btn" data-tab="pivot" role="tab" aria-selected="false">Pivot</button>
                 </nav>
@@ -575,11 +575,11 @@
                 </section>
             </div>
 
-            <!-- ═══ PANEL: Detail ═══ -->
-            <div class="analytics-panel" id="panel-detail" role="tabpanel">
+            <!-- ═══ PANEL: Clients ═══ -->
+            <div class="analytics-panel" id="panel-clients" role="tabpanel">
                 <div class="section">
                     <div class="section__header">
-                        <h2 class="section__title" id="monthSnapshotTitle">Selected Month Performance</h2>
+                        <h2 class="section__title" id="clientBreakdownTitle">Client Revenue Breakdown</h2>
                         <div class="dashboard__actions">
                             <button id="exportCsvBtn" class="btn btn--outline btn--sm" type="button">Export CSV</button>
                             <button id="copyCsvBtn" class="btn btn--ghost btn--sm" type="button">Copy CSV</button>
@@ -598,9 +598,9 @@
                                     <th>Invoice Link</th>
                                 </tr>
                             </thead>
-                            <tbody id="monthSnapshotBody">
+                            <tbody id="clientBreakdownBody">
                                 <tr>
-                                    <td colspan="7" class="table__empty">Loading...</td>
+                                    <td colspan="6" class="table__empty">Loading...</td>
                                 </tr>
                             </tbody>
                         </table>
@@ -608,7 +608,6 @@
                 </div>
             </div>
 
-            <!-- ═══ PANEL: Pivot ═══ -->
             <div class="analytics-panel" id="panel-pivot" role="tabpanel">
                 <div class="section">
                     <div class="section__header">
@@ -634,7 +633,7 @@
                             </tbody>
                         </table>
                     </div>
-                    <p class="table-note">Click a row to expand monthly breakdown. Use the Hours/Revenue toggle to switch the pivot metric.</p>
+                    <p class="table-note">Heat intensity reflects relative value. <span style="display:inline-flex;align-items:center;gap:3px;"><span style="width:6px;height:6px;border-radius:50%;background:#22c55e;display:inline-block;"></span> Invoiced</span> &nbsp;<span style="display:inline-flex;align-items:center;gap:3px;"><span style="width:6px;height:6px;border-radius:50%;background:#f97316;display:inline-block;"></span> Pending</span></p>
                 </div>
             </div>
         </div>
