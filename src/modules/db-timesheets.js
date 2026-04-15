@@ -8,6 +8,7 @@ export async function dbUpsertTimesheets(entries = []) {
 
     const consultantIds = Array.from(new Set(entries.map((entry) => entry.consultant_id).filter(Boolean)));
     let consultantMap = new Map();
+    let existingMap = new Map();
     if (consultantIds.length) {
         const { data: consultants } = await supabase
             .from('consultants')
@@ -15,6 +16,34 @@ export async function dbUpsertTimesheets(entries = []) {
             .in('id', consultantIds)
             .eq('user_id', user.id);
         consultantMap = new Map((consultants || []).map((row) => [row.id, row.name]));
+
+        const periodStarts = Array.from(new Set(entries.map((entry) => entry.period_start).filter(Boolean)));
+        const periodEnds = Array.from(new Set(entries.map((entry) => entry.period_end).filter(Boolean)));
+        let existingQuery = supabase
+            .from('timesheets')
+            .select('id,consultant_id,period_start,period_end')
+            .eq('user_id', user.id)
+            .in('consultant_id', consultantIds);
+
+        if (periodStarts.length === 1) {
+            existingQuery = existingQuery.eq('period_start', periodStarts[0]);
+        } else if (periodStarts.length > 1) {
+            existingQuery = existingQuery.in('period_start', periodStarts);
+        }
+
+        if (periodEnds.length === 1) {
+            existingQuery = existingQuery.eq('period_end', periodEnds[0]);
+        } else if (periodEnds.length > 1) {
+            existingQuery = existingQuery.in('period_end', periodEnds);
+        }
+
+        const { data: existingRows, error: existingError } = await existingQuery;
+        if (existingError) throw existingError;
+
+        existingMap = new Map((existingRows || []).map((row) => [
+            `${row.consultant_id}__${row.period_start}__${row.period_end}`,
+            row
+        ]));
     }
 
     const payload = entries.map(entry => ({
@@ -30,7 +59,9 @@ export async function dbUpsertTimesheets(entries = []) {
 
     const { data, error } = await supabase
         .from('timesheets')
-        .insert(payload)
+        .upsert(payload, {
+            onConflict: 'user_id,consultant_id,period_start,period_end'
+        })
         .select();
 
     if (error) throw error;
@@ -42,12 +73,15 @@ export async function dbUpsertTimesheets(entries = []) {
             && entry.period_start === row.period_start
             && entry.period_end === row.period_end
         )) || {};
+        const key = `${row.consultant_id}__${row.period_start}__${row.period_end}`;
+        const existing = existingMap.get(key);
+        const action = existing ? 'updated' : 'created';
         return logAuditEvent({
             entityType: 'timesheet',
             entityId: row.id,
             entityKey: consultantMap.get(row.consultant_id) || row.consultant_id,
-            action: source.id ? 'updated' : 'created',
-            summary: `${source.id ? 'Updated' : 'Created'} timesheet for ${consultantMap.get(row.consultant_id) || 'consultant'}`.trim(),
+            action,
+            summary: `${action === 'updated' ? 'Updated' : 'Created'} timesheet for ${consultantMap.get(row.consultant_id) || 'consultant'}`.trim(),
             after: {
                 ...row,
                 consultant_name: consultantMap.get(row.consultant_id) || null
@@ -59,13 +93,10 @@ export async function dbUpsertTimesheets(entries = []) {
 }
 
 /**
- * Insert a brand-new timesheet row without any conflict resolution.
- * Use this for supplemental billing — when a consultant already has an
- * invoiced timesheet for a period and you need to add MORE hours that
- * will be billed on a separate invoice.
- *
- * Requires the unique constraint on (user_id, consultant_id, period_start,
- * period_end) to have been dropped via the schema migration in schema.sql.
+ * Insert a brand-new timesheet row without conflict resolution.
+ * Use this for supplemental billing when the extra hours need their own row
+ * and their own billing period window. Exact duplicate period ranges are still
+ * prevented by the unique index used by the main upsert workflow.
  */
 export async function dbInsertTimesheet(entry = {}) {
     const user = await getCurrentUser();

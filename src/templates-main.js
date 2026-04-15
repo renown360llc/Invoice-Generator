@@ -33,60 +33,85 @@ function renderTemplates() {
     empty.style.display = 'none'
     grid.style.display = 'grid'
 
-    grid.innerHTML = allTemplates.map(t => {
+    const fragment = document.createDocumentFragment()
+
+    allTemplates.forEach(t => {
         const biz = t.business_info || {}
         const client = t.client_info || {}
         const settings = t.settings || {}
-        const color = settings.brandColor || '#6B7280'
+        const color = safeColor(settings.brandColor, '#6B7280')
         const currency = settings.currency || 'USD'
-        const taxRate = settings.taxRate || 0
+        const taxRate = Number(settings.taxRate || 0)
 
-        return `
-        <div class="template-card" data-id="${t.id}">
-            <div class="template-card__color-bar" style="background: ${color};"></div>
-            <div class="template-card__body">
-                <div class="template-card__name">${escapeHtml(t.name || 'Untitled')}</div>
+        const card = document.createElement('div')
+        card.className = 'template-card'
+        card.dataset.id = t.id
 
-                <div class="template-card__meta">
-                    <div class="template-card__meta-row">
-                        <span class="template-card__meta-label">Business</span>
-                        <span class="template-card__meta-value">${escapeHtml(biz.name || '—')}</span>
-                    </div>
-                    ${client.name ? `
-                    <div class="template-card__meta-row">
-                        <span class="template-card__meta-label">Client</span>
-                        <span class="template-card__meta-value">${escapeHtml(client.name)}</span>
-                    </div>` : ''}
-                    <div class="template-card__meta-row">
-                        <span class="template-card__meta-label">Currency</span>
-                        <span class="template-card__meta-value">${currency}</span>
-                    </div>
-                    ${taxRate > 0 ? `
-                    <div class="template-card__meta-row">
-                        <span class="template-card__meta-label">Tax</span>
-                        <span class="template-card__meta-value">${taxRate}%</span>
-                    </div>` : ''}
-                    ${biz.email ? `
-                    <div class="template-card__meta-row">
-                        <span class="template-card__meta-label">Email</span>
-                        <span class="template-card__meta-value template-card__meta-value--truncate">${escapeHtml(biz.email)}</span>
-                    </div>` : ''}
-                </div>
-            </div>
+        const colorBar = document.createElement('div')
+        colorBar.className = 'template-card__color-bar'
+        colorBar.style.backgroundColor = color
+        card.appendChild(colorBar)
 
-            <div class="template-card__actions">
-                <a href="app.html?template_use=${t.id}" class="btn btn--primary btn--sm">
-                    Use Template
-                </a>
-                <button class="btn btn--sm template-edit-btn" data-id="${t.id}" style="background: var(--surface-alt); color: var(--text-primary);">
-                    Edit
-                </button>
-                <button class="btn btn--sm template-delete-btn" data-id="${t.id}" style="background: #FEE2E2; color: #B91C1C;">
-                    Delete
-                </button>
-            </div>
-        </div>`
-    }).join('')
+        const body = document.createElement('div')
+        body.className = 'template-card__body'
+
+        const name = document.createElement('div')
+        name.className = 'template-card__name'
+        name.textContent = t.name || 'Untitled'
+        body.appendChild(name)
+
+        const meta = document.createElement('div')
+        meta.className = 'template-card__meta'
+
+        meta.appendChild(buildMetaRow('Business', biz.name || '—'))
+
+        if (client.name) {
+            meta.appendChild(buildMetaRow('Client', client.name))
+        }
+
+        meta.appendChild(buildMetaRow('Currency', currency))
+
+        if (taxRate > 0) {
+            meta.appendChild(buildMetaRow('Tax', `${taxRate}%`))
+        }
+
+        if (biz.email) {
+            meta.appendChild(buildMetaRow('Email', biz.email, true))
+        }
+
+        body.appendChild(meta)
+        card.appendChild(body)
+
+        const actions = document.createElement('div')
+        actions.className = 'template-card__actions'
+
+        const useLink = document.createElement('a')
+        useLink.href = `app.html?template_use=${encodeURIComponent(t.id)}`
+        useLink.className = 'btn btn--primary btn--sm'
+        useLink.textContent = 'Use Template'
+        actions.appendChild(useLink)
+
+        const editBtn = document.createElement('button')
+        editBtn.className = 'btn btn--sm template-edit-btn'
+        editBtn.dataset.id = t.id
+        editBtn.style.background = 'var(--surface-alt)'
+        editBtn.style.color = 'var(--text-primary)'
+        editBtn.textContent = 'Edit'
+        actions.appendChild(editBtn)
+
+        const deleteBtn = document.createElement('button')
+        deleteBtn.className = 'btn btn--sm template-delete-btn'
+        deleteBtn.dataset.id = t.id
+        deleteBtn.style.background = '#FEE2E2'
+        deleteBtn.style.color = '#B91C1C'
+        deleteBtn.textContent = 'Delete'
+        actions.appendChild(deleteBtn)
+
+        card.appendChild(actions)
+        fragment.appendChild(card)
+    })
+
+    grid.replaceChildren(fragment)
 
     // Bind action buttons after render
     grid.querySelectorAll('.template-edit-btn').forEach(btn => {
@@ -105,6 +130,31 @@ function escapeHtml(str) {
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#039;')
+}
+
+function safeColor(value, fallback) {
+    const candidate = String(value || '').trim()
+    if (!candidate) return fallback
+    if (window.CSS?.supports?.('color', candidate)) return candidate
+    return fallback
+}
+
+function buildMetaRow(label, value, truncate = false) {
+    const row = document.createElement('div')
+    row.className = 'template-card__meta-row'
+
+    const labelEl = document.createElement('span')
+    labelEl.className = 'template-card__meta-label'
+    labelEl.textContent = label
+
+    const valueEl = document.createElement('span')
+    valueEl.className = 'template-card__meta-value'
+    if (truncate) valueEl.classList.add('template-card__meta-value--truncate')
+    valueEl.textContent = value
+
+    row.appendChild(labelEl)
+    row.appendChild(valueEl)
+    return row
 }
 
 // ── Edit Slide-Over Panel ───────────────────────────────────────────────────
@@ -263,10 +313,16 @@ function updateLogoPreview() {
     const fileNameEl = document.getElementById('editBizLogoFileName')
     
     if (currentBizLogo) {
-        preview.innerHTML = `<img src="${currentBizLogo}" alt="Logo">`
+        const img = document.createElement('img')
+        img.alt = 'Logo'
+        img.src = currentBizLogo
+        preview.replaceChildren(img)
         fileNameEl.textContent = 'Change Logo'
     } else {
-        preview.innerHTML = `<span class="logo-preview-placeholder">No Logo</span>`
+        const placeholder = document.createElement('span')
+        placeholder.className = 'logo-preview-placeholder'
+        placeholder.textContent = 'No Logo'
+        preview.replaceChildren(placeholder)
         fileNameEl.textContent = 'Choose Logo'
     }
 }
@@ -284,4 +340,3 @@ function handleLogoUpload(e) {
 }
 
 init()
-

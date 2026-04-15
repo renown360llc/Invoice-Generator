@@ -427,25 +427,180 @@ export async function deleteInvoicePayment(invoiceId, paymentId) {
     return data
 }
 
-export async function getInvoices(currentUser = null) {
+function normalizeInvoiceQueryOptions(options = {}) {
+    const page = Math.max(1, Number(options.page) || 1)
+    const pageSize = Math.max(1, Number(options.pageSize) || 20)
+    const paginate = options.paginate === true || Number.isFinite(Number(options.page)) || Number.isFinite(Number(options.pageSize))
+
+    return {
+        page,
+        pageSize,
+        paginate,
+        sort: String(options.sort || options.filters?.sort || 'date-desc'),
+        filters: options.filters || {},
+        select: options.select || '*'
+    }
+}
+
+function applyInvoiceFilters(query, filters = {}) {
+    const search = String(filters.search || '').trim()
+    if (search) {
+        const pattern = `%${search.replace(/[%_]/g, '\\$&')}%`
+        query = query.or([
+            `client_info->>name.ilike.${pattern}`,
+            `invoice_number.ilike.${pattern}`,
+            `business_info->>name.ilike.${pattern}`
+        ].join(','))
+    }
+
+    const consultant = String(filters.consultant || 'all')
+    if (consultant && consultant !== 'all') {
+        if (consultant.startsWith('id:')) {
+            const consultantId = consultant.slice(3)
+            if (consultantId) {
+                query = query.contains('items', [{ consultant_id: consultantId }])
+            }
+        } else if (consultant.startsWith('name:')) {
+            const consultantName = consultant.slice(5).trim()
+            if (consultantName) {
+                const pattern = `%${consultantName.replace(/[%_]/g, '\\$&')}%`
+                query = query.ilike('items', pattern)
+            }
+        }
+    }
+
+    const status = String(filters.status || 'all')
+    if (status !== 'all') {
+        query = query.eq('status', status)
+    }
+
+    const currency = String(filters.currency || 'all').toUpperCase()
+    if (currency !== 'ALL' && currency !== 'ALL CURRENCIES' && currency !== 'all') {
+        query = query.eq('invoice_meta->>currency', currency)
+    }
+
+    const due = String(filters.due || 'all')
+    if (due !== 'all') {
+        const today = new Date()
+        const todayIso = new Date(today.getFullYear(), today.getMonth(), today.getDate()).toISOString().slice(0, 10)
+        const plus7 = new Date(today)
+        plus7.setDate(plus7.getDate() + 7)
+        const plus30 = new Date(today)
+        plus30.setDate(plus30.getDate() + 30)
+        const plus7Iso = new Date(plus7.getFullYear(), plus7.getMonth(), plus7.getDate()).toISOString().slice(0, 10)
+        const plus30Iso = new Date(plus30.getFullYear(), plus30.getMonth(), plus30.getDate()).toISOString().slice(0, 10)
+
+        if (due === 'overdue') {
+            query = query.neq('status', 'paid').lt('invoice_meta->>dueDateRaw', todayIso)
+        } else if (due === 'next-7') {
+            query = query.neq('status', 'paid').gte('invoice_meta->>dueDateRaw', todayIso).lte('invoice_meta->>dueDateRaw', plus7Iso)
+        } else if (due === 'next-30') {
+            query = query.neq('status', 'paid').gte('invoice_meta->>dueDateRaw', todayIso).lte('invoice_meta->>dueDateRaw', plus30Iso)
+        } else if (due === 'no-due') {
+            query = query.is('invoice_meta->>dueDateRaw', null)
+        }
+    }
+
+    const amount = String(filters.amount || 'all')
+    if (amount !== 'all') {
+        if (amount === 'under-1000') {
+            query = query.lt('totals->total', 1000)
+        } else if (amount === '1000-5000') {
+            query = query.gte('totals->total', 1000).lte('totals->total', 5000)
+        } else if (amount === '5000-10000') {
+            query = query.gt('totals->total', 5000).lte('totals->total', 10000)
+        } else if (amount === 'over-10000') {
+            query = query.gt('totals->total', 10000)
+        }
+    }
+
+    return query
+}
+
+function applyInvoiceSort(query, sortBy = 'date-desc') {
+    const sort = String(sortBy || 'date-desc')
+
+    if (sort === 'date-desc' || sort === 'date-asc') {
+        return query.order('created_at', { ascending: sort === 'date-asc' })
+    }
+
+    if (sort === 'amount-desc' || sort === 'amount-asc') {
+        return query.order('totals->total', { ascending: sort === 'amount-asc' })
+    }
+
+    if (sort === 'client-asc' || sort === 'client-desc') {
+        return query.order('client_info->>name', { ascending: sort === 'client-asc' })
+    }
+
+    if (sort === 'invoice-asc' || sort === 'invoice-desc') {
+        return query.order('invoice_number', { ascending: sort === 'invoice-asc' })
+    }
+
+    if (sort === 'company-asc' || sort === 'company-desc') {
+        return query.order('business_info->>name', { ascending: sort === 'company-asc' })
+    }
+
+    if (sort === 'status-asc' || sort === 'status-desc') {
+        return query.order('status', { ascending: sort === 'status-asc' })
+    }
+
+    if (sort === 'currency-asc' || sort === 'currency-desc') {
+        return query.order('invoice_meta->>currency', { ascending: sort === 'currency-asc' })
+    }
+
+    if (sort === 'payment-asc' || sort === 'payment-desc') {
+        return query.order('totals->balance_due', { ascending: sort === 'payment-desc' })
+    }
+
+    return query.order('created_at', { ascending: false })
+}
+
+export async function getInvoices(currentUser = null, options = {}) {
     const user = currentUser || await getCurrentUser()
     if (!user) {
         console.warn('getInvoices: No user found');
-        return []
+        return options && (options.paginate === true || Number.isFinite(Number(options.page)) || Number.isFinite(Number(options.pageSize)))
+            ? { data: [], count: 0, page: 1, pageSize: Math.max(1, Number(options.pageSize) || 20), totalPages: 1 }
+            : []
     }
 
-    const { data, error } = await supabase
+    const normalized = normalizeInvoiceQueryOptions(options)
+    let query = supabase
         .from('invoices')
-        .select('*')
+        .select(normalized.select, normalized.paginate ? { count: 'exact' } : undefined)
         .eq('user_id', user.id)
-        .order('created_at', { ascending: false })
+
+    query = applyInvoiceFilters(query, normalized.filters)
+    query = applyInvoiceSort(query, normalized.sort)
+
+    if (normalized.paginate) {
+        const start = (normalized.page - 1) * normalized.pageSize
+        const end = start + normalized.pageSize - 1
+        query = query.range(start, end)
+    }
+
+    const { data, error, count } = await query
 
     if (error) {
         console.error('Get invoices error:', error)
-        return []
+        return normalized.paginate
+            ? { data: [], count: 0, page: normalized.page, pageSize: normalized.pageSize, totalPages: 1 }
+            : []
     }
 
-    return data || []
+    const rows = data || []
+    if (!normalized.paginate) {
+        return rows
+    }
+
+    const total = Number(count) || 0
+    return {
+        data: rows,
+        count: total,
+        page: normalized.page,
+        pageSize: normalized.pageSize,
+        totalPages: Math.max(1, Math.ceil(total / normalized.pageSize))
+    }
 }
 
 export async function getInvoice(invoiceNumber) {

@@ -9,13 +9,14 @@ import './security.js';
 // ── Linked timesheets helper ──────────────────────────────────────────────────
 async function fetchLinkedTimesheets(invoiceId, invoiceNumber) {
     if (!invoiceId && !invoiceNumber) return [];
+    const user = await getCurrentUser();
+    if (!user) return [];
 
-    const ids = new Set();
     const conditions = [];
     if (invoiceId) conditions.push(`invoice_id.eq.${invoiceId}`);
     if (invoiceNumber) conditions.push(`invoice_number.eq.${invoiceNumber}`);
 
-    const { data, error } = await supabase
+    let query = supabase
         .from('timesheets')
         .select(`
             id,
@@ -26,7 +27,13 @@ async function fetchLinkedTimesheets(invoiceId, invoiceNumber) {
             invoice_number,
             consultants ( id, name, client, bill_rate, currency )
         `)
-        .or(conditions.join(','));
+        .eq('user_id', user.id);
+
+    if (conditions.length > 0) {
+        query = query.or(conditions.join(','));
+    }
+
+    const { data, error } = await query;
 
     if (error) {
         console.warn('Could not fetch linked timesheets:', error);
@@ -60,6 +67,9 @@ const state = {
     consultantsById: new Map(),
     filters: loadFilters(),
     currentPage: 1,
+    totalInvoiceCount: 0,
+    totalInvoicePages: 1,
+    loadRequestId: 0,
     invoiceToDelete: null,
     invoiceToPay: null,
     channel: null
@@ -70,9 +80,35 @@ const els = {};
 document.addEventListener('DOMContentLoaded', () => {
     init().catch(err => {
         console.error('[invoices] Fatal init error:', err);
-        document.body.innerHTML += `<div style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#fff8f8;z-index:9999;flex-direction:column;gap:0.75rem;font-family:system-ui;"><span style="font-size:2.5rem">⚠️</span><h2 style="margin:0;color:#dc2626">Failed to load Invoices</h2><p style="margin:0;color:#6b7280;font-size:0.875rem">${err.message}</p><button onclick="location.reload()" style="padding:0.5rem 1.25rem;background:#ef4444;color:#fff;border:none;border-radius:6px;cursor:pointer">Reload</button></div>`;
+        showFatalInitError('Failed to load Invoices', err.message || 'Unknown error');
     });
 });
+
+function showFatalInitError(title, message, reloadLabel = 'Reload') {
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#fff8f8;z-index:9999;flex-direction:column;gap:0.75rem;font-family:system-ui;padding:1.5rem;text-align:center;';
+
+    const icon = document.createElement('span');
+    icon.style.fontSize = '2.5rem';
+    icon.textContent = '⚠️';
+
+    const heading = document.createElement('h2');
+    heading.style.cssText = 'margin:0;color:#dc2626;font-size:1.25rem;';
+    heading.textContent = title;
+
+    const paragraph = document.createElement('p');
+    paragraph.style.cssText = 'margin:0;color:#6b7280;font-size:0.875rem;max-width:32rem;';
+    paragraph.textContent = message || 'Unknown error';
+
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.style.cssText = 'padding:0.5rem 1.25rem;background:#ef4444;color:#fff;border:none;border-radius:6px;cursor:pointer;';
+    button.textContent = reloadLabel;
+    button.addEventListener('click', () => location.reload());
+
+    overlay.append(icon, heading, paragraph, button);
+    document.body.appendChild(overlay);
+}
 
 async function init() {
     state.user = await getCurrentUser();
@@ -100,6 +136,7 @@ function cacheElements() {
 
     els.refreshBtn = document.getElementById('refreshBtn');
     els.exportCsvBtn = document.getElementById('exportCsvBtn');
+    els.sortableHeaders = Array.from(document.querySelectorAll('#invoicesTable th.sortable'));
 
     els.tableBody = document.getElementById('invoicesBody');
     els.invoiceCards = document.getElementById('invoiceCards'); // Mobile accordion container
@@ -250,7 +287,7 @@ function bindEvents() {
     });
 
     els.exportCsvBtn?.addEventListener('click', () => {
-        exportFilteredInvoicesToCSV();
+        void exportFilteredInvoicesToCSV();
     });
 
     const handleInvoiceActions = async (event) => {
@@ -361,36 +398,13 @@ function bindEvents() {
                 if (!contentEl) return;
 
                 if (rows.length === 0) {
-                    contentEl.innerHTML = '<span style="color:#9ca3af;">No linked timesheets for this invoice.</span>';
+                    contentEl.replaceChildren(createInlineStatusMessage('No linked timesheets for this invoice.', '#9ca3af'));
                 } else {
-                    const cols = rows.map(row => {
-                        const c = Array.isArray(row.consultants) ? row.consultants[0] : (row.consultants || {});
-                        const currency = (c.currency || 'USD').toUpperCase();
-                        const rate = Number(c.bill_rate || 0).toFixed(2);
-                        const hours = Number(row.hours_worked || 0).toFixed(2);
-                        const amount = (Number(hours) * Number(c.bill_rate || 0)).toFixed(2);
-                        return `
-                            <div style="display:grid;grid-template-columns:1.5fr 1.5fr 1fr 0.75fr 0.75fr 0.75fr;gap:0.5rem;padding:0.5rem 0;border-bottom:1px solid #f1f5f9;align-items:center;font-size:0.8125rem;">
-                                <span style="font-weight:600;color:#111827;">${escapeHtml(c.name || '—')}</span>
-                                <span style="color:#374151;">${escapeHtml(c.client || '—')}</span>
-                                <span style="color:#6b7280;">${row.period_start || '—'} → ${row.period_end || '—'}</span>
-                                <span style="text-align:right;">${hours} hrs</span>
-                                <span style="text-align:right;">${currency} ${rate}/hr</span>
-                                <span style="text-align:right;font-weight:600;color:#111827;">${currency} ${amount}</span>
-                            </div>`;
-                    }).join('');
-
-                    contentEl.innerHTML = `
-                        <div style="margin-bottom:0.5rem;font-weight:600;color:#374151;font-size:0.75rem;letter-spacing:0.05em;text-transform:uppercase;">Linked Timesheets</div>
-                        <div style="display:grid;grid-template-columns:1.5fr 1.5fr 1fr 0.75fr 0.75fr 0.75fr;gap:0.5rem;padding:0.35rem 0;font-size:0.7rem;font-weight:600;color:#9ca3af;text-transform:uppercase;letter-spacing:0.04em;">
-                            <span>Consultant</span><span>Client</span><span>Period</span><span style="text-align:right;">Hours</span><span style="text-align:right;">Rate</span><span style="text-align:right;">Amount</span>
-                        </div>
-                        ${cols}
-                    `;
+                    contentEl.replaceChildren(renderLinkedTimesheetsPanel(rows));
                 }
                 contentEl.dataset.loaded = '1';
             } catch (err) {
-                if (contentEl) contentEl.innerHTML = '<span style="color:#ef4444;">Failed to load timesheets.</span>';
+                if (contentEl) contentEl.replaceChildren(createInlineStatusMessage('Failed to load timesheets.', '#ef4444'));
             }
             return;
         }
@@ -409,10 +423,8 @@ function bindEvents() {
         if (!Number.isFinite(page) || page < 1) return;
 
         state.currentPage = page;
-        renderTable();
-        renderPagination();
         persistFilters();
-        renderFiltersMeta();
+        void loadInvoices();
     });
 
     els.confirmDeleteBtn?.addEventListener('click', async () => {
@@ -561,24 +573,58 @@ function bindEvents() {
 }
 
 async function loadInvoices() {
+    const requestId = ++state.loadRequestId;
     setLoadingTable();
 
     try {
-        const [invoices, consultants] = await Promise.all([
-            getInvoices(state.user),
-            dbGetConsultants().catch(() => [])
-        ]);
-
-        state.allInvoices = Array.isArray(invoices) ? invoices : [];
+        const consultants = await dbGetConsultants().catch(() => []);
+        if (requestId !== state.loadRequestId) return;
         state.consultantsById = new Map((consultants || []).map((consultant) => [String(consultant.id), consultant]));
+        normalizeConsultantFilterSelection();
+
+        const invoicesResult = await getInvoices(state.user, {
+            page: state.currentPage,
+            pageSize: ITEMS_PER_PAGE,
+            filters: state.filters,
+            sort: state.filters.sort,
+            paginate: true
+        });
+
+        if (requestId !== state.loadRequestId) return;
+
+        const pageInvoices = Array.isArray(invoicesResult)
+            ? invoicesResult
+            : (invoicesResult.data || []);
+        const totalCount = Array.isArray(invoicesResult)
+            ? pageInvoices.length
+            : Number(invoicesResult.count) || 0;
+        const totalPages = Array.isArray(invoicesResult)
+            ? Math.max(1, Math.ceil(pageInvoices.length / ITEMS_PER_PAGE))
+            : Number(invoicesResult.totalPages) || Math.max(1, Math.ceil(totalCount / ITEMS_PER_PAGE));
+
+        if (state.currentPage > totalPages) {
+            state.currentPage = totalPages;
+            persistFilters();
+            return loadInvoices();
+        }
+
+        state.allInvoices = pageInvoices;
+        state.filteredInvoices = pageInvoices;
+        state.totalInvoiceCount = totalCount;
+        state.totalInvoicePages = totalPages;
 
         populateConsultantFilterOptions();
         populateCurrencyFilterOptions();
-        applyFiltersAndRender();
+        renderTable();
+        renderPagination();
+        renderFiltersMeta();
     } catch (err) {
         console.error(err);
+        if (requestId !== state.loadRequestId) return;
         state.allInvoices = [];
         state.filteredInvoices = [];
+        state.totalInvoiceCount = 0;
+        state.totalInvoicePages = 1;
         setEmptyTable('Failed to load invoices. Please refresh.');
         renderPagination();
         renderFiltersMeta();
@@ -631,51 +677,8 @@ function populateCurrencyFilterOptions() {
 }
 
 function applyFiltersAndRender() {
-    const query = state.filters.search.toLowerCase();
-
-    state.filteredInvoices = state.allInvoices.filter((invoice) => {
-        if (query) {
-            const clientName = String(invoice.client_info?.name || '').toLowerCase();
-            const invoiceNumber = String(invoice.invoice_number || '').toLowerCase();
-            if (!clientName.includes(query) && !invoiceNumber.includes(query)) {
-                return false;
-            }
-        }
-
-        const status = getEffectiveStatus(invoice);
-        if (state.filters.status !== 'all' && status !== state.filters.status) {
-            return false;
-        }
-
-        const currency = getInvoiceCurrency(invoice);
-        if (state.filters.currency !== 'all' && currency !== state.filters.currency) {
-            return false;
-        }
-
-        if (!invoiceMatchesDue(invoice, state.filters.due)) {
-            return false;
-        }
-
-        if (!invoiceMatchesAmount(invoice, state.filters.amount)) {
-            return false;
-        }
-
-        if (!invoiceMatchesConsultant(invoice, state.filters.consultant)) {
-            return false;
-        }
-
-        return true;
-    });
-
-    sortInvoices(state.filteredInvoices, state.filters.sort);
-
-    const totalPages = Math.max(1, Math.ceil(state.filteredInvoices.length / ITEMS_PER_PAGE));
-    if (state.currentPage > totalPages) state.currentPage = totalPages;
-    if (state.currentPage < 1) state.currentPage = 1;
-
-    renderTable();
-    renderPagination();
-    renderFiltersMeta();
+    state.currentPage = 1;
+    void loadInvoices();
 }
 
 function sortInvoices(list, sortBy) {
@@ -761,7 +764,7 @@ function renderTable() {
     if (!els.tableBody) return;
 
     // Update Header Sort Icons
-    document.querySelectorAll('#invoicesTable th.sortable').forEach(th => {
+    (els.sortableHeaders || []).forEach(th => {
         const key = th.dataset.sortKey;
         const [activeKey, activeDir] = state.filters.sort.split('-');
         
@@ -777,8 +780,7 @@ function renderTable() {
         return;
     }
 
-    const startIndex = (state.currentPage - 1) * ITEMS_PER_PAGE;
-    const pageInvoices = state.filteredInvoices.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+    const pageInvoices = state.filteredInvoices;
 
     els.tableBody.innerHTML = pageInvoices.map((invoice) => {
         const invoiceDate = formatDate(getInvoiceDateRaw(invoice) || invoice.created_at);
@@ -980,7 +982,7 @@ function renderSecondaryStatusMenuAction(invoice, effectiveStatus) {
 function renderPagination() {
     if (!els.pagination) return;
 
-    const totalPages = Math.ceil(state.filteredInvoices.length / ITEMS_PER_PAGE);
+    const totalPages = state.totalInvoicePages || 1;
     if (totalPages <= 1) {
         els.pagination.innerHTML = '';
         return;
@@ -1027,9 +1029,11 @@ function renderFiltersMeta() {
         state.filters.amount !== 'all' ? state.filters.amount : ''
     ].filter(Boolean).length;
 
-    const totalPages = Math.max(1, Math.ceil(state.filteredInvoices.length / ITEMS_PER_PAGE));
+    const loadedCount = state.filteredInvoices.length;
+    const totalCount = state.totalInvoiceCount || loadedCount;
+    const totalPages = Math.max(1, state.totalInvoicePages || 1);
 
-    els.filtersMeta.textContent = `${appliedFilters} filter${appliedFilters === 1 ? '' : 's'} applied • ${state.filteredInvoices.length}/${state.allInvoices.length} invoices • Page ${state.currentPage}/${totalPages}`;
+    els.filtersMeta.textContent = `${appliedFilters} filter${appliedFilters === 1 ? '' : 's'} applied • ${loadedCount}/${totalCount} invoices • Page ${state.currentPage}/${totalPages}`;
 }
 
 function setLoadingTable() {
@@ -1206,29 +1210,52 @@ function renderPaymentLedger(invoice) {
     const currency = getInvoiceCurrency(invoice);
 
     if (payments.length === 0) {
-        els.paymentLedgerBody.innerHTML = `<tr><td colspan="3" style="text-align:center; padding:1.5rem; color:var(--text-secondary);">No payments recorded yet</td></tr>`;
+        const row = document.createElement('tr');
+        const cell = document.createElement('td');
+        cell.colSpan = 3;
+        cell.style.textAlign = 'center';
+        cell.style.padding = '1.5rem';
+        cell.style.color = 'var(--text-secondary)';
+        cell.textContent = 'No payments recorded yet';
+        row.appendChild(cell);
+        els.paymentLedgerBody.replaceChildren(row);
         return;
     }
 
-    els.paymentLedgerBody.innerHTML = payments.map(p => `
-        <tr>
-            <td>${p.date}</td>
-            <td>
-                <div>${formatMoney(p.amount, currency)}</div>
-                ${p.usdAmount ? `<div style="font-size:0.7rem; color:var(--text-secondary)">USD ${p.usdAmount}</div>` : ''}
-            </td>
-            <td style="text-align:right">
-                <div style="display: flex; gap: 0.5rem; justify-content: flex-end;">
-                    <button class="ledger-edit" data-payment-id="${p.id}" title="Edit payment" style="background:none; border:none; color:var(--text-secondary); cursor:pointer; padding:2px;">
-                        <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
-                    </button>
-                    <button class="ledger-delete" data-payment-id="${p.id}" title="Delete payment" style="background:none; border:none; color:var(--text-secondary); cursor:pointer; padding:2px;">
-                        <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-                    </button>
-                </div>
-            </td>
-        </tr>
-    `).join('');
+    const fragment = document.createDocumentFragment();
+
+    payments.forEach((payment) => {
+        const row = document.createElement('tr');
+
+        const dateCell = document.createElement('td');
+        dateCell.textContent = payment.date || '—';
+
+        const amountCell = document.createElement('td');
+        const amountValue = document.createElement('div');
+        amountValue.textContent = formatMoney(payment.amount, currency);
+        amountCell.appendChild(amountValue);
+
+        if (payment.usdAmount) {
+            const usdLine = document.createElement('div');
+            usdLine.style.fontSize = '0.7rem';
+            usdLine.style.color = 'var(--text-secondary)';
+            usdLine.textContent = `USD ${payment.usdAmount}`;
+            amountCell.appendChild(usdLine);
+        }
+
+        const actionCell = document.createElement('td');
+        actionCell.style.textAlign = 'right';
+        const actionsWrap = document.createElement('div');
+        actionsWrap.style.cssText = 'display:flex; gap:0.5rem; justify-content:flex-end;';
+        actionsWrap.appendChild(createLedgerActionButton('ledger-edit', 'Edit payment', 'M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z', payment.id));
+        actionsWrap.appendChild(createLedgerActionButton('ledger-delete', 'Delete payment', 'M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16', payment.id));
+        actionCell.appendChild(actionsWrap);
+
+        row.append(dateCell, amountCell, actionCell);
+        fragment.appendChild(row);
+    });
+
+    els.paymentLedgerBody.replaceChildren(fragment);
 }
 
 function closePaidModal() {
@@ -1329,32 +1356,35 @@ async function markTimesheetsInvoiced(invoice) {
 }
 
 function extractConsultantOptions() {
-    const map = new Map();
+    const options = Array.from(state.consultantsById.values())
+        .map((consultant) => {
+            const id = String(consultant.id || '').trim();
+            const name = String(consultant.name || '').trim();
+            if (!id || !name) return null;
+            return { value: `id:${id}`, label: name };
+        })
+        .filter(Boolean);
 
-    state.allInvoices.forEach((invoice) => {
-        const items = Array.isArray(invoice.items) ? invoice.items : [];
-        items.forEach((item) => {
-            const consultantId = String(item.consultant_id || '').trim();
-            const consultantName = String(item.consultant || '').trim();
+    return options.sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: 'base' }));
+}
 
-            if (consultantId) {
-                const key = `id:${consultantId}`;
-                const canonicalName = consultantName || state.consultantsById.get(consultantId)?.name || `Consultant ${consultantId.slice(0, 8)}`;
-                if (!map.has(key)) {
-                    map.set(key, { value: key, label: canonicalName });
-                }
-                return;
-            }
+function normalizeConsultantFilterSelection() {
+    const current = String(state.filters.consultant || 'all');
+    if (current === 'all' || current.startsWith('id:')) {
+        return;
+    }
 
-            if (!consultantName) return;
-            const key = `name:${consultantName.toLowerCase()}`;
-            if (!map.has(key)) {
-                map.set(key, { value: key, label: consultantName });
-            }
-        });
-    });
+    if (current.startsWith('name:')) {
+        const target = current.slice(5).trim().toLowerCase();
+        const match = Array.from(state.consultantsById.values()).find((consultant) => String(consultant.name || '').trim().toLowerCase() === target);
+        state.filters.consultant = match ? `id:${match.id}` : 'all';
+        persistFilters();
+        return;
+    }
 
-    return Array.from(map.values()).sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: 'base' }));
+    const match = Array.from(state.consultantsById.values()).find((consultant) => String(consultant.name || '').trim().toLowerCase() === current.trim().toLowerCase());
+    state.filters.consultant = match ? `id:${match.id}` : 'all';
+    persistFilters();
 }
 
 function invoiceMatchesConsultant(invoice, consultantFilter) {
@@ -1505,6 +1535,116 @@ function renderPaymentSummary(invoice, effectiveStatus) {
     `;
 }
 
+function createInlineStatusMessage(message, color) {
+    const span = document.createElement('span');
+    span.style.color = color;
+    span.textContent = message;
+    return span;
+}
+
+function createLedgerIcon(pathD) {
+    const svgNS = 'http://www.w3.org/2000/svg';
+    const svg = document.createElementNS(svgNS, 'svg');
+    svg.setAttribute('width', '14');
+    svg.setAttribute('height', '14');
+    svg.setAttribute('fill', 'none');
+    svg.setAttribute('stroke', 'currentColor');
+    svg.setAttribute('viewBox', '0 0 24 24');
+
+    const path = document.createElementNS(svgNS, 'path');
+    path.setAttribute('stroke-linecap', 'round');
+    path.setAttribute('stroke-linejoin', 'round');
+    path.setAttribute('stroke-width', '2');
+    path.setAttribute('d', pathD);
+    svg.appendChild(path);
+    return svg;
+}
+
+function createLedgerActionButton(className, title, pathD, paymentId) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = className;
+    button.dataset.paymentId = paymentId;
+    button.title = title;
+    button.style.cssText = 'background:none; border:none; color:var(--text-secondary); cursor:pointer; padding:2px;';
+    button.appendChild(createLedgerIcon(pathD));
+    return button;
+}
+
+function createLinkedTimesheetsHeader() {
+    const header = document.createElement('div');
+    header.style.cssText = 'margin-bottom:0.5rem;font-weight:600;color:#374151;font-size:0.75rem;letter-spacing:0.05em;text-transform:uppercase;';
+    header.textContent = 'Linked Timesheets';
+    return header;
+}
+
+function createLinkedTimesheetsGridRow(row, isHeader = false) {
+    const rowEl = document.createElement('div');
+    rowEl.style.cssText = isHeader
+        ? 'display:grid;grid-template-columns:1.5fr 1.5fr 1fr 0.75fr 0.75fr 0.75fr;gap:0.5rem;padding:0.35rem 0;font-size:0.7rem;font-weight:600;color:#9ca3af;text-transform:uppercase;letter-spacing:0.04em;'
+        : 'display:grid;grid-template-columns:1.5fr 1.5fr 1fr 0.75fr 0.75fr 0.75fr;gap:0.5rem;padding:0.5rem 0;border-bottom:1px solid #f1f5f9;align-items:center;font-size:0.8125rem;';
+
+    if (isHeader) {
+        ['Consultant', 'Client', 'Period', 'Hours', 'Rate', 'Amount'].forEach((label, index) => {
+            const span = document.createElement('span');
+            span.textContent = label;
+            if (index >= 3) {
+                span.style.textAlign = 'right';
+            }
+            rowEl.appendChild(span);
+        });
+        return rowEl;
+    }
+
+    const consultant = Array.isArray(row?.consultants) ? row.consultants[0] : (row?.consultants || {});
+    const currency = String(consultant.currency || 'USD').toUpperCase();
+    const rate = Number(consultant.bill_rate || 0).toFixed(2);
+    const hours = Number(row?.hours_worked || 0).toFixed(2);
+    const amount = (Number(hours) * Number(consultant.bill_rate || 0)).toFixed(2);
+
+    const consultantCell = document.createElement('span');
+    consultantCell.style.fontWeight = '600';
+    consultantCell.style.color = '#111827';
+    consultantCell.textContent = consultant.name || '—';
+
+    const clientCell = document.createElement('span');
+    clientCell.style.color = '#374151';
+    clientCell.textContent = consultant.client || '—';
+
+    const periodCell = document.createElement('span');
+    periodCell.style.color = '#6b7280';
+    periodCell.textContent = `${row?.period_start || '—'} → ${row?.period_end || '—'}`;
+
+    const hoursCell = document.createElement('span');
+    hoursCell.style.textAlign = 'right';
+    hoursCell.textContent = `${hours} hrs`;
+
+    const rateCell = document.createElement('span');
+    rateCell.style.textAlign = 'right';
+    rateCell.textContent = `${currency} ${rate}/hr`;
+
+    const amountCell = document.createElement('span');
+    amountCell.style.textAlign = 'right';
+    amountCell.style.fontWeight = '600';
+    amountCell.style.color = '#111827';
+    amountCell.textContent = `${currency} ${amount}`;
+
+    rowEl.append(consultantCell, clientCell, periodCell, hoursCell, rateCell, amountCell);
+    return rowEl;
+}
+
+function renderLinkedTimesheetsPanel(rows) {
+    const fragment = document.createDocumentFragment();
+    fragment.appendChild(createLinkedTimesheetsHeader());
+    fragment.appendChild(createLinkedTimesheetsGridRow(null, true));
+
+    rows.forEach((row) => {
+        fragment.appendChild(createLinkedTimesheetsGridRow(row));
+    });
+
+    return fragment;
+}
+
 function getPaymentReceivedDateDisplay(invoice, effectiveStatus) {
     if (effectiveStatus !== 'paid') return 'null';
 
@@ -1603,8 +1743,13 @@ function setupBroadcastSync() {
     };
 }
 
-function exportFilteredInvoicesToCSV() {
-    if (state.filteredInvoices.length === 0) {
+async function exportFilteredInvoicesToCSV() {
+    const invoices = await getInvoices(state.user, {
+        filters: state.filters
+    });
+
+    const exportRows = Array.isArray(invoices) ? invoices : [];
+    if (exportRows.length === 0) {
         showToast('No invoices to export', 'info');
         return;
     }
@@ -1614,7 +1759,7 @@ function exportFilteredInvoicesToCSV() {
 
     const totalsByCurrency = new Map();
 
-    state.filteredInvoices.forEach(invoice => {
+    exportRows.forEach(invoice => {
         const invNum = String(invoice.invoice_number || '—').replace(/"/g, '""');
         const status = getEffectiveStatus(invoice);
         const clientName = String(invoice.client_info?.name || '—').replace(/"/g, '""');

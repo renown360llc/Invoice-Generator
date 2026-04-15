@@ -170,19 +170,37 @@ function bindModalDismiss(id) {
     });
 }
 
+function showFatalInitError(title, message, reloadLabel = 'Reload page') {
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#fff8f8;z-index:9999;flex-direction:column;gap:0.75rem;font-family:system-ui;padding:1.5rem;text-align:center;';
+
+    const icon = document.createElement('span');
+    icon.style.fontSize = '2.5rem';
+    icon.textContent = '⚠️';
+
+    const heading = document.createElement('h2');
+    heading.style.cssText = 'margin:0;color:#dc2626;font-size:1.25rem;';
+    heading.textContent = title;
+
+    const paragraph = document.createElement('p');
+    paragraph.style.cssText = 'margin:0;color:#6b7280;font-size:0.875rem;max-width:32rem;';
+    paragraph.textContent = message || 'Unknown error';
+
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.style.cssText = 'padding:0.5rem 1.25rem;background:#ef4444;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.875rem;';
+    button.textContent = reloadLabel;
+    button.addEventListener('click', () => location.reload());
+
+    overlay.append(icon, heading, paragraph, button);
+    document.body.appendChild(overlay);
+}
+
 // Initialization
 document.addEventListener('DOMContentLoaded', () => {
     init().catch(err => {
         console.error('Fatal init error:', err);
-        const msg = document.createElement('div');
-        msg.style.cssText = 'position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#fff8f8;z-index:9999;flex-direction:column;gap:0.75rem;font-family:system-ui';
-        msg.innerHTML = `
-            <span style="font-size:2.5rem;">⚠️</span>
-            <h2 style="margin:0;color:#dc2626;font-size:1.25rem;">Something went wrong loading the invoice editor</h2>
-            <p style="margin:0;color:#6b7280;font-size:0.875rem;">${err.message || 'Unknown error'}</p>
-            <button onclick="location.reload()" style="padding:0.5rem 1.25rem;background:#ef4444;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.875rem;">Reload page</button>
-        `;
-        document.body.appendChild(msg);
+        showFatalInitError('Something went wrong loading the invoice editor', err.message || 'Unknown error');
     });
 });
 
@@ -945,10 +963,10 @@ async function loadPendingTimesheetsIntoModal() {
                             <label style="display:flex;align-items:center;"><input type="checkbox" class="ts-include-candidate" data-index="${index}" checked></label>
                             <div>
                                 <div style="font-weight:600;color:#111827;">${escapeHtmlText(entry.consultant_name)}</div>
-                                <div style="font-size:11px;color:#6b7280;">${entry.currency} ${entry.bill_rate.toFixed(2)}/hr • ${entry.timesheet_ids.length} row(s)</div>
+                                <div style="font-size:11px;color:#6b7280;">${escapeHtmlText(entry.currency)} ${Number(entry.bill_rate || 0).toFixed(2)}/hr • ${Number(entry.timesheet_ids.length) || 0} row(s)</div>
                             </div>
                             <div style="font-size:12px;color:#374151;">${escapeHtmlText(entry.client || '—')}</div>
-                            <div style="font-size:12px;color:#374151;">${entry.period_start || '—'} to ${entry.period_end || '—'}</div>
+                            <div style="font-size:12px;color:#374151;">${escapeHtmlText(entry.period_start || '—')} to ${escapeHtmlText(entry.period_end || '—')}</div>
                             <div style="text-align:right;font-weight:600;">${entry.hours.toFixed(2)}</div>
                         </div>
                     `).join('')}
@@ -983,13 +1001,7 @@ async function loadPendingTimesheetsIntoModal() {
                     box.checked = String(pendingTimesheetGroups[Number(box.dataset.index)]?.consultant_id) === String(state.prefillConsultantId);
                 });
                 const matched = pendingTimesheetGroups[matchIndex];
-                // Inject a pre-filter notice above the list
-                const notice = document.createElement('div');
-                notice.style.cssText = 'background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:0.625rem 0.875rem;margin-bottom:0.75rem;font-size:0.8125rem;color:#9a3412;display:flex;justify-content:space-between;align-items:center;gap:0.5rem;';
-                notice.innerHTML = `
-                    <span><strong>${escapeHtmlText(matched.consultant_name)}</strong> — ${matched.hours.toFixed(2)}h pending pre-selected for supplemental invoice. Uncheck to deselect or add other consultants above.</span>
-                    <button type="button" style="background:none;border:none;cursor:pointer;font-size:1rem;color:#9a3412;flex-shrink:0;" title="Dismiss" onclick="this.parentElement.remove()">&#x2715;</button>
-                `;
+                const notice = buildPrefillNotice(matched);
                 listContainer?.insertAdjacentElement('beforebegin', notice);
             } else {
                 showToast('No pending hours found for that consultant in this period. Try adjusting the date range.', 'info');
@@ -1092,4 +1104,26 @@ function escapeHtmlText(value) {
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#039;');
+}
+
+function buildPrefillNotice(matched) {
+    const notice = document.createElement('div');
+    notice.style.cssText = 'background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:0.625rem 0.875rem;margin-bottom:0.75rem;font-size:0.8125rem;color:#9a3412;display:flex;justify-content:space-between;align-items:center;gap:0.5rem;';
+
+    const message = document.createElement('span');
+    const consultantName = document.createElement('strong');
+    consultantName.textContent = matched?.consultant_name || 'Unknown';
+    message.appendChild(consultantName);
+    message.appendChild(document.createTextNode(` — ${Number(matched?.hours || 0).toFixed(2)}h pending pre-selected for supplemental invoice. Uncheck to deselect or add other consultants above.`));
+
+    const dismiss = document.createElement('button');
+    dismiss.type = 'button';
+    dismiss.style.cssText = 'background:none;border:none;cursor:pointer;font-size:1rem;color:#9a3412;flex-shrink:0;';
+    dismiss.title = 'Dismiss';
+    dismiss.innerHTML = '&#x2715;';
+    dismiss.addEventListener('click', () => notice.remove());
+
+    notice.appendChild(message);
+    notice.appendChild(dismiss);
+    return notice;
 }

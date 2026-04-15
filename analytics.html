@@ -701,17 +701,31 @@
             dest.value = src.value || prev;
         }
 
+        function syncMobilePeriodControls() {
+            if (mfsPeriodYear && desktopYear) {
+                const desktopYearValue = desktopYear.value || 'all';
+                mfsPeriodYear.value = desktopYearValue;
+                if (mfsPeriodYear.value !== desktopYearValue && mfsPeriodYear.options.length) {
+                    mfsPeriodYear.value = mfsPeriodYear.options[0].value || 'all';
+                }
+            }
+
+            if (mfsPeriodMonth && desktopMonth) {
+                const desktopMonthValue = desktopMonth.value || 'all';
+                mfsPeriodMonth.value = desktopMonthValue;
+                if (mfsPeriodMonth.value !== desktopMonthValue && mfsPeriodMonth.options.length) {
+                    mfsPeriodMonth.value = mfsPeriodMonth.options[0].value || 'all';
+                }
+            }
+        }
+
         function openSheet() {
             // Sync dynamic dropdowns populated async by analytics-main.js
             copySelectOptions(desktopClient,   mfsClient);
             copySelectOptions(desktopW2,       mfsW2);
             copySelectOptions(desktopCurrency, mfsCurrency);
             copySelectOptions(desktopYear,     mfsPeriodYear);
-
-            // Sync month select
-            if (mfsPeriodMonth && desktopMonth) {
-                mfsPeriodMonth.value = desktopMonth.value || 'all';
-            }
+            syncMobilePeriodControls();
 
             // Sync status chips
             const activeStatus = desktopStatus?.value || 'all';
@@ -850,6 +864,7 @@
                 copySelectOptions(desktopW2,       mfsW2);
                 copySelectOptions(desktopCurrency, mfsCurrency);
                 copySelectOptions(desktopYear,     mfsPeriodYear);
+                syncMobilePeriodControls();
             }
         });
         if (desktopClient)   observer.observe(desktopClient,   { childList: true });

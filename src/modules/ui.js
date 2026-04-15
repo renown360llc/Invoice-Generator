@@ -11,6 +11,23 @@ import { formatCurrency, formatDate, parseDateToInput, showToast } from './utils
 
 // Re-using the logic from app-main.js but cleanly componentized
 
+function escapeHtml(value) {
+    return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+function renderTextLines(text) {
+    return String(text || '')
+        .split('\n')
+        .filter(Boolean)
+        .map(line => `<div>${escapeHtml(line)}</div>`)
+        .join('');
+}
+
 export function gatherFormData() {
     const items = [];
     document.querySelectorAll('.item-card').forEach(card => {
@@ -149,15 +166,27 @@ export function calculateTotals(state) {
 
 function renderPaper(state) {
     const preview = document.getElementById('invoicePreview');
-    const brandColor = document.getElementById('brandColor').value || '#3b82f6';
+    const rawColor = (document.getElementById('brandColor')?.value || '').trim();
+    const brandColor = /^#[0-9a-fA-F]{3,8}$/.test(rawColor) ? rawColor : '#3b82f6';
     const data = gatherFormData();
     const cur = data.invoice_meta.currency;
+    const safeInvoiceNumber = escapeHtml(data.invoice_number);
+    const safeBusinessName = escapeHtml(data.business_info.name || 'Your Company');
+    const safeBusinessEmail = escapeHtml(data.business_info.email || '');
+    const safeBusinessPhone = escapeHtml(data.business_info.phone || '');
+    const safeClientName = escapeHtml(data.client_info.name || '—');
+    const safeClientEmail = escapeHtml(data.client_info.email || '');
+    const safeClientPhone = escapeHtml(data.client_info.phone || '');
+    const safeAddressLines = renderTextLines(data.business_info.address);
+    const safeClientAddressLines = renderTextLines(data.client_info.address);
+    const safeNotes = escapeHtml(data.notes || '');
+    const safePaymentInstructions = escapeHtml(data.payment_instructions || '');
 
     // ── Line items ─────────────────────────────────────────────────────────
     const itemsHTML = data.items.map((item, idx) => `
         <tr class="pv-item-row${idx % 2 === 1 ? ' pv-item-row--alt' : ''}">
             <td class="pv-td pv-td--desc">
-                <div class="pv-item-name">${item.desc || 'Item'}</div>
+                <div class="pv-item-name">${escapeHtml(item.desc || 'Item')}</div>
                 ${renderItemDetails(item)}
             </td>
             <td class="pv-td pv-td--num">${item.qty}</td>
@@ -242,19 +271,19 @@ function renderPaper(state) {
     <div class="pv-header">
         <div class="pv-brand-section">
             <div class="pv-logo-name-row">
-                ${state.logo ? `<img src="${state.logo}" class="pv-logo" alt="Logo">` : ''}
-                <div class="pv-company-name">${data.business_info.name || 'Your Company'}</div>
+                ${state.logo ? `<img src="${escapeHtml(state.logo)}" class="pv-logo" alt="Logo">` : ''}
+                <div class="pv-company-name">${safeBusinessName}</div>
             </div>
             <div class="pv-company-details">
-                ${(data.business_info.address || '').split('\n').filter(Boolean).map(l => `<div>${l}</div>`).join('')}
-                ${data.business_info.email ? `<div>${data.business_info.email}</div>` : ''}
-                ${data.business_info.phone ? `<div>${data.business_info.phone}</div>` : ''}
+                ${safeAddressLines}
+                ${safeBusinessEmail ? `<div>${safeBusinessEmail}</div>` : ''}
+                ${safeBusinessPhone ? `<div>${safeBusinessPhone}</div>` : ''}
             </div>
         </div>
         <div class="pv-badge">
             <div class="pv-invoice-word">Invoice</div>
             <div class="pv-meta">
-                <div class="pv-meta-row"><span class="pv-meta-label">Invoice #</span><span class="pv-meta-value">${data.invoice_number}</span></div>
+                <div class="pv-meta-row"><span class="pv-meta-label">Invoice #</span><span class="pv-meta-value">${safeInvoiceNumber}</span></div>
                 <div class="pv-meta-row"><span class="pv-meta-label">Date</span><span class="pv-meta-value">${data.invoice_meta.date}</span></div>
                 <div class="pv-meta-row"><span class="pv-meta-label">Due Date</span><span class="pv-meta-value">${data.invoice_meta.dueDate}</span></div>
                 <div class="pv-meta-row" style="margin-top:8px"><span class="pv-meta-label">Amount Due</span><span class="pv-meta-value pv-meta-value--total">${data.totals.totalDisplay}</span></div>
@@ -267,11 +296,11 @@ function renderPaper(state) {
     <!-- Bill To -->
     <div class="pv-bill-section">
         <div class="pv-bill-label">Bill To</div>
-        <div class="pv-bill-name">${data.client_info.name || '—'}</div>
+        <div class="pv-bill-name">${safeClientName}</div>
         <div class="pv-bill-details">
-            ${(data.client_info.address || '').split('\n').filter(Boolean).map(l => `<div>${l}</div>`).join('')}
-            ${data.client_info.email ? `<div>${data.client_info.email}</div>` : ''}
-            ${data.client_info.phone ? `<div>${data.client_info.phone}</div>` : ''}
+            ${safeClientAddressLines}
+            ${safeClientEmail ? `<div>${safeClientEmail}</div>` : ''}
+            ${safeClientPhone ? `<div>${safeClientPhone}</div>` : ''}
         </div>
     </div>
 
@@ -291,8 +320,8 @@ function renderPaper(state) {
     <!-- Footer: Notes + Totals -->
     <div class="pv-footer">
         <div class="pv-notes-block">
-            ${data.notes ? `<div class="pv-notes-label">Notes</div><div class="pv-notes-text">${data.notes}</div>` : ''}
-            ${data.payment_instructions ? `<div class="pv-notes-label" style="margin-top:12px">Payment Instructions</div><div class="pv-notes-text">${data.payment_instructions}</div>` : ''}
+            ${safeNotes ? `<div class="pv-notes-label">Notes</div><div class="pv-notes-text">${safeNotes}</div>` : ''}
+            ${safePaymentInstructions ? `<div class="pv-notes-label" style="margin-top:12px">Payment Instructions</div><div class="pv-notes-text">${safePaymentInstructions}</div>` : ''}
         </div>
         <table class="pv-totals-table">${totalsHTML}</table>
     </div>
@@ -301,22 +330,28 @@ function renderPaper(state) {
 
 function renderItemDetails(item) {
     if (!item.client && !item.consultant && !item.period && !item.notes) return '';
+    const safeClient = escapeHtml(item.client || '');
+    const safeConsultant = escapeHtml(item.consultant || '');
+    const safePeriod = escapeHtml(item.period || '');
+    const safeNotes = escapeHtml(item.notes || '');
     return `
         <div class="pv-item-detail">
-            ${item.client ? `<div><strong>Client:</strong> ${item.client}</div>` : ''}
-            ${item.consultant ? `<div><strong>Consultant:</strong> ${item.consultant}</div>` : ''}
-            ${item.period ? `<div><strong>Period:</strong> ${item.period}</div>` : ''}
-            ${item.notes ? `<div>${item.notes}</div>` : ''}
+            ${safeClient ? `<div><strong>Client:</strong> ${safeClient}</div>` : ''}
+            ${safeConsultant ? `<div><strong>Consultant:</strong> ${safeConsultant}</div>` : ''}
+            ${safePeriod ? `<div><strong>Period:</strong> ${safePeriod}</div>` : ''}
+            ${safeNotes ? `<div>${safeNotes}</div>` : ''}
         </div>
     `;
 }
 
 function renderFooterNotes(data) {
     if (!data.notes && !data.payment_instructions) return '';
+    const safeNotes = escapeHtml(data.notes || '');
+    const safePaymentInstructions = escapeHtml(data.payment_instructions || '');
     return `
         <div class="paper-notes-section">
-            ${data.notes ? `<div><div class="paper-notes-label">Notes</div><div class="paper-notes-text">${data.notes}</div></div>` : ''}
-            ${data.payment_instructions ? `<div style="margin-top:10px"><div class="paper-notes-label">Payment Instructions</div><div class="paper-notes-text">${data.payment_instructions}</div></div>` : ''}
+            ${safeNotes ? `<div><div class="paper-notes-label">Notes</div><div class="paper-notes-text">${safeNotes}</div></div>` : ''}
+            ${safePaymentInstructions ? `<div style="margin-top:10px"><div class="paper-notes-label">Payment Instructions</div><div class="paper-notes-text">${safePaymentInstructions}</div></div>` : ''}
         </div>
     `;
 }

@@ -43,9 +43,35 @@ const requestRender = createRenderScheduler(() => renderTable());
 document.addEventListener('DOMContentLoaded', () => {
     init().catch(err => {
         console.error('[consultants] Fatal init error:', err);
-        document.body.innerHTML += `<div style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#fff8f8;z-index:9999;flex-direction:column;gap:0.75rem;font-family:system-ui;"><span style="font-size:2.5rem">⚠️</span><h2 style="margin:0;color:#dc2626">Failed to load Consultants</h2><p style="margin:0;color:#6b7280;font-size:0.875rem">${err.message}</p><button onclick="location.reload()" style="padding:0.5rem 1.25rem;background:#ef4444;color:#fff;border:none;border-radius:6px;cursor:pointer">Reload</button></div>`;
+        showFatalInitError('Failed to load Consultants', err.message || 'Unknown error');
     });
 });
+
+function showFatalInitError(title, message, reloadLabel = 'Reload') {
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#fff8f8;z-index:9999;flex-direction:column;gap:0.75rem;font-family:system-ui;padding:1.5rem;text-align:center;';
+
+    const icon = document.createElement('span');
+    icon.style.fontSize = '2.5rem';
+    icon.textContent = '⚠️';
+
+    const heading = document.createElement('h2');
+    heading.style.cssText = 'margin:0;color:#dc2626;font-size:1.25rem;';
+    heading.textContent = title;
+
+    const paragraph = document.createElement('p');
+    paragraph.style.cssText = 'margin:0;color:#6b7280;font-size:0.875rem;max-width:32rem;';
+    paragraph.textContent = message || 'Unknown error';
+
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.style.cssText = 'padding:0.5rem 1.25rem;background:#ef4444;color:#fff;border:none;border-radius:6px;cursor:pointer;';
+    button.textContent = reloadLabel;
+    button.addEventListener('click', () => location.reload());
+
+    overlay.append(icon, heading, paragraph, button);
+    document.body.appendChild(overlay);
+}
 
 function showToast(message, type = 'info') {
     const container = document.getElementById('toastContainer');

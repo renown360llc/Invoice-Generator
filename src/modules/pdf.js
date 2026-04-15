@@ -3,67 +3,11 @@
  * Handles generating the PDF invoice using jsPDF.
  */
 
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import { hexToRgb, formatCurrency } from './utils.js';
 
-const PDF_LIB_SOURCES = [
-    'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js',
-    'https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js'
-];
-
-let pdfLibrariesPromise = null;
-
-function loadScript(src) {
-    return new Promise((resolve, reject) => {
-        const existing = document.querySelector(`script[src="${src}"]`);
-        if (existing) {
-            if (existing.dataset.loaded === 'true') {
-                resolve();
-                return;
-            }
-            existing.addEventListener('load', () => resolve(), { once: true });
-            existing.addEventListener('error', () => reject(new Error(`Failed to load ${src}`)), { once: true });
-            return;
-        }
-
-        const script = document.createElement('script');
-        script.src = src;
-        script.defer = true;
-        script.addEventListener('load', () => {
-            script.dataset.loaded = 'true';
-            resolve();
-        }, { once: true });
-        script.addEventListener('error', () => reject(new Error(`Failed to load ${src}`)), { once: true });
-        document.head.appendChild(script);
-    });
-}
-
-async function ensurePdfLibraries() {
-    if (window.jspdf) return;
-    if (!pdfLibrariesPromise) {
-        pdfLibrariesPromise = (async () => {
-            for (const src of PDF_LIB_SOURCES) {
-                await loadScript(src);
-            }
-        })().finally(() => {
-            // Keep promise for current tick only; later calls can reuse already loaded globals.
-            pdfLibrariesPromise = null;
-        });
-    }
-    await pdfLibrariesPromise;
-}
-
 export async function generatePDF(data) {
-    if (!window.jspdf) {
-        try {
-            await ensurePdfLibraries();
-        } catch (err) {
-            console.error('jsPDF load failed:', err);
-            alert('PDF library not loaded. Please refresh the page.');
-            return;
-        }
-    }
-
-    const { jsPDF } = window.jspdf;
     const doc = new jsPDF('p', 'mm', 'a4');
 
     // Config
@@ -188,7 +132,7 @@ export async function generatePDF(data) {
 
     // --- Items Table ---
     // Using autoTable plugin
-    if (doc.autoTable) {
+    if (typeof autoTable === 'function') {
         const tableHeaders = ['Item', 'Qty', 'Rate', 'Amount'];
         const tableBody = data.items.map(item => {
             // Build rich description
@@ -212,7 +156,7 @@ export async function generatePDF(data) {
             ];
         });
 
-        doc.autoTable({
+        autoTable(doc, {
             startY: y,
             head: [tableHeaders],
             body: tableBody,

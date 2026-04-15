@@ -57,9 +57,35 @@ const requestRender = createRenderScheduler(() => renderTable());
 document.addEventListener('DOMContentLoaded', () => {
     init().catch(err => {
         console.error('[timesheets] Fatal init error:', err);
-        document.body.innerHTML += `<div style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#fff8f8;z-index:9999;flex-direction:column;gap:0.75rem;font-family:system-ui;"><span style="font-size:2.5rem">⚠️</span><h2 style="margin:0;color:#dc2626">Failed to load Timesheets</h2><p style="margin:0;color:#6b7280;font-size:0.875rem">${err.message}</p><button onclick="location.reload()" style="padding:0.5rem 1.25rem;background:#ef4444;color:#fff;border:none;border-radius:6px;cursor:pointer">Reload</button></div>`;
+        showFatalInitError('Failed to load Timesheets', err.message || 'Unknown error');
     });
 });
+
+function showFatalInitError(title, message, reloadLabel = 'Reload') {
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#fff8f8;z-index:9999;flex-direction:column;gap:0.75rem;font-family:system-ui;padding:1.5rem;text-align:center;';
+
+    const icon = document.createElement('span');
+    icon.style.fontSize = '2.5rem';
+    icon.textContent = '⚠️';
+
+    const heading = document.createElement('h2');
+    heading.style.cssText = 'margin:0;color:#dc2626;font-size:1.25rem;';
+    heading.textContent = title;
+
+    const paragraph = document.createElement('p');
+    paragraph.style.cssText = 'margin:0;color:#6b7280;font-size:0.875rem;max-width:32rem;';
+    paragraph.textContent = message || 'Unknown error';
+
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.style.cssText = 'padding:0.5rem 1.25rem;background:#ef4444;color:#fff;border:none;border-radius:6px;cursor:pointer;';
+    button.textContent = reloadLabel;
+    button.addEventListener('click', () => location.reload());
+
+    overlay.append(icon, heading, paragraph, button);
+    document.body.appendChild(overlay);
+}
 
 async function init() {
     await loadLayout('timesheets');
@@ -93,7 +119,22 @@ function cacheElements() {
     els.deleteViewBtn = document.getElementById('deleteViewBtn');
     els.savedViewMeta = document.getElementById('savedViewMeta');
     els.exportCsvBtn = document.getElementById('exportCsvBtn');
+    els.importCsvBtn = document.getElementById('importCsvBtn');
     els.sortSelect = document.getElementById('sortSelect'); // New Sort Dropdown
+
+    // CSV Import Modal
+    els.csvModal = document.getElementById('csvImportModal');
+    els.csvImportClose = document.getElementById('csvImportClose');
+    els.csvImportBack = document.getElementById('csvImportBack');
+    els.csvParseBtn = document.getElementById('csvParseBtn');
+    els.csvImportBtn = document.getElementById('csvImportBtn');
+    els.csvPasteArea = document.getElementById('csvPasteArea');
+    els.csvFileInput = document.getElementById('csvFileInput');
+    els.csvStep1 = document.getElementById('csvStep1');
+    els.csvStep2 = document.getElementById('csvStep2');
+    els.csvPreviewBody = document.getElementById('csvPreviewBody');
+    els.csvPreviewSummary = document.getElementById('csvPreviewSummary');
+    els.csvDownloadTemplate = document.getElementById('csvDownloadTemplate');
 
     els.tableBody = document.getElementById('timesheetsBody');
     els.periodTitle = document.getElementById('timesheetPeriodTitle');
@@ -124,6 +165,7 @@ function cacheElements() {
         } else if (els.modalEnd) {
             els.modalEnd.removeAttribute('min');
         }
+        updateModalContextWarnings();
     });
 
     els.modalEnd?.addEventListener('change', () => {
@@ -132,6 +174,7 @@ function cacheElements() {
         } else if (els.modalStart) {
             els.modalStart.removeAttribute('max');
         }
+        updateModalContextWarnings();
     });
 }
 
@@ -312,6 +355,7 @@ function bindEvents() {
         requestRender();
     }, 120);
     els.searchInput?.addEventListener('input', handleSearch);
+    window.addEventListener('resize', debounce(() => requestRender(), 120));
 
     els.resetFiltersBtn?.addEventListener('click', () => {
         const fresh = clearSharedFilters({ keepPeriod: false });
@@ -494,17 +538,16 @@ function bindEvents() {
         if (toggleBtn) {
             const isExpanded = toggleBtn.getAttribute('aria-expanded') === 'true';
             const body = toggleBtn.nextElementSibling;
-            
-            // Close all first for accordion behavior
+
             document.querySelectorAll('[data-card-toggle]').forEach(b => {
-                b.setAttribute('aria-expanded', 'false');
-                if (b.nextElementSibling) b.nextElementSibling.hidden = true;
+                if (b === toggleBtn) return;
+                collapseMobileCardDetails(b, b.nextElementSibling);
             });
-            
-            // Toggle clicked
-            if (!isExpanded) {
-                toggleBtn.setAttribute('aria-expanded', 'true');
-                if (body) body.hidden = false;
+
+            if (isExpanded) {
+                collapseMobileCardDetails(toggleBtn, body);
+            } else {
+                expandMobileCardDetails(toggleBtn, body);
             }
             return;
         }
@@ -536,7 +579,254 @@ function bindModalEvents() {
         await deleteTimesheet(modalTimesheetId);
         closeModal();
     });
+
+    // ── CSV Import ──────────────────────────────────────────────────────────
+    els.importCsvBtn?.addEventListener('click', openCsvImportModal);
+    els.csvImportClose?.addEventListener('click', closeCsvImportModal);
+    els.csvImportBack?.addEventListener('click', () => {
+        if (!els.csvStep2?.hidden) {
+            // Go back to step 1
+            els.csvStep1.hidden = false;
+            els.csvStep2.hidden = true;
+            els.csvParseBtn.hidden = false;
+            els.csvImportBtn.hidden = true;
+            els.csvImportBtn.disabled = true;
+        } else {
+            closeCsvImportModal();
+        }
+    });
+    els.csvModal?.addEventListener('click', (e) => {
+        if (e.target === els.csvModal) closeCsvImportModal();
+    });
+    els.csvFileInput?.addEventListener('change', () => {
+        const file = els.csvFileInput.files?.[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            if (els.csvPasteArea) els.csvPasteArea.value = e.target.result;
+        };
+        reader.readAsText(file);
+    });
+    els.csvDownloadTemplate?.addEventListener('click', downloadCsvTemplate);
+    els.csvParseBtn?.addEventListener('click', parseCsvAndPreview);
+    els.csvImportBtn?.addEventListener('click', importValidCsvRows);
 }
+
+// ── CSV Import ────────────────────────────────────────────────────────────────
+
+/** Parsed + validated rows waiting for import. Set by parseCsvAndPreview. */
+let csvParsedRows = [];
+
+function openCsvImportModal() {
+    if (!els.csvModal) return;
+    // Reset to step 1
+    if (els.csvStep1) els.csvStep1.hidden = false;
+    if (els.csvStep2) els.csvStep2.hidden = true;
+    if (els.csvParseBtn) { els.csvParseBtn.hidden = false; els.csvParseBtn.textContent = 'Preview'; }
+    if (els.csvImportBtn) { els.csvImportBtn.hidden = true; els.csvImportBtn.disabled = true; }
+    if (els.csvPasteArea) els.csvPasteArea.value = '';
+    if (els.csvFileInput) els.csvFileInput.value = '';
+    csvParsedRows = [];
+    els.csvModal.classList.add('is-open');
+    document.body.classList.add('modal-open');
+}
+
+function closeCsvImportModal() {
+    els.csvModal?.classList.remove('is-open');
+    document.body.classList.remove('modal-open');
+}
+
+function downloadCsvTemplate() {
+    const header = 'consultant_name,period_start,period_end,hours_worked';
+    const example = 'John Smith,2026-01-01,2026-01-31,160';
+    const blob = new Blob([`${header}\n${example}\n`], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'timesheet_import_template.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+}
+
+/**
+ * Parse a CSV string into an array of row objects.
+ * Handles quoted fields and trims whitespace.
+ */
+function parseCsv(text) {
+    const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+    if (lines.length < 2) return { headers: [], rows: [] };
+
+    const parseRow = (line) => {
+        const fields = [];
+        let current = '';
+        let inQuote = false;
+        for (let i = 0; i < line.length; i++) {
+            const ch = line[i];
+            if (ch === '"') {
+                if (inQuote && line[i + 1] === '"') { current += '"'; i++; }
+                else { inQuote = !inQuote; }
+            } else if (ch === ',' && !inQuote) {
+                fields.push(current.trim());
+                current = '';
+            } else {
+                current += ch;
+            }
+        }
+        fields.push(current.trim());
+        return fields;
+    };
+
+    const headers = parseRow(lines[0]).map(h => h.toLowerCase().replace(/\s+/g, '_'));
+    const rows = lines.slice(1).map((line, idx) => {
+        const values = parseRow(line);
+        const obj = { _lineNumber: idx + 2 };
+        headers.forEach((h, i) => { obj[h] = values[i] ?? ''; });
+        return obj;
+    });
+
+    return { headers, rows };
+}
+
+/** ISO date validation: must be YYYY-MM-DD and a real calendar date. */
+function isValidDate(str) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(str)) return false;
+    const d = new Date(str + 'T00:00:00');
+    return !isNaN(d) && d.toISOString().startsWith(str);
+}
+
+function parseCsvAndPreview() {
+    const raw = els.csvPasteArea?.value?.trim() || '';
+    if (!raw) {
+        showToast('Paste CSV content or upload a file first.', 'error');
+        return;
+    }
+
+    const { headers, rows } = parseCsv(raw);
+    const required = ['consultant_name', 'period_start', 'period_end', 'hours_worked'];
+    const missing = required.filter(c => !headers.includes(c));
+    if (missing.length) {
+        showToast(`Missing columns: ${missing.join(', ')}`, 'error');
+        return;
+    }
+
+    // Build a case-insensitive name → consultant map from loaded consultants
+    const nameMap = new Map(
+        consultants.map(c => [String(c.name || '').trim().toLowerCase(), c])
+    );
+
+    csvParsedRows = rows.map(row => {
+        const errors = [];
+        const name = String(row.consultant_name || '').trim();
+        const start = String(row.period_start || '').trim();
+        const end = String(row.period_end || '').trim();
+        const hoursRaw = String(row.hours_worked || '').trim();
+
+        const consultant = nameMap.get(name.toLowerCase());
+        if (!name) errors.push('Consultant name is required');
+        else if (!consultant) errors.push(`Consultant "${name}" not found`);
+
+        if (!start) errors.push('period_start is required');
+        else if (!isValidDate(start)) errors.push(`Invalid date: ${start}`);
+
+        if (!end) errors.push('period_end is required');
+        else if (!isValidDate(end)) errors.push(`Invalid date: ${end}`);
+
+        if (start && end && isValidDate(start) && isValidDate(end) && start > end) {
+            errors.push('period_start must be before period_end');
+        }
+
+        const hours = parseFloat(hoursRaw);
+        if (!hoursRaw) errors.push('hours_worked is required');
+        else if (isNaN(hours) || hours < 0) errors.push(`Invalid hours: ${hoursRaw}`);
+        else if (hours > 744) errors.push(`Hours ${hours} exceeds max 744 for a period`);
+
+        return {
+            _lineNumber: row._lineNumber,
+            consultant_name: name,
+            consultant_id: consultant?.id || null,
+            period_start: start,
+            period_end: end,
+            hours_worked: isNaN(hours) ? null : hours,
+            errors,
+            valid: errors.length === 0
+        };
+    });
+
+    // Render preview
+    const validCount = csvParsedRows.filter(r => r.valid).length;
+    const errorCount = csvParsedRows.length - validCount;
+
+    if (els.csvPreviewSummary) {
+        const parts = [];
+        if (validCount > 0) parts.push(`<span style="color:#166534;font-weight:700;">${validCount} valid row${validCount !== 1 ? 's' : ''}</span>`);
+        if (errorCount > 0) parts.push(`<span style="color:#b91c1c;font-weight:700;">${errorCount} row${errorCount !== 1 ? 's' : ''} with errors</span>`);
+        els.csvPreviewSummary.innerHTML = parts.join(' · ') + (errorCount > 0 ? ' — fix errors in your CSV and re-paste to correct them.' : '');
+    }
+
+    if (els.csvPreviewBody) {
+        els.csvPreviewBody.innerHTML = csvParsedRows.map(row => {
+            const bg = row.valid ? '' : 'background:#fff8f8;';
+            const statusHtml = row.valid
+                ? '<span style="color:#166534;font-weight:600;">✓ Valid</span>'
+                : `<span style="color:#b91c1c;font-size:0.75rem;">${row.errors.map(e => `<div>${e}</div>`).join('')}</span>`;
+            return `
+                <tr style="${bg}border-bottom:1px solid var(--surface-glass-border);">
+                    <td style="padding:0.4rem 0.75rem;color:var(--text-tertiary);">${row._lineNumber}</td>
+                    <td style="padding:0.4rem 0.75rem;">${escapeHtml(row.consultant_name)}</td>
+                    <td style="padding:0.4rem 0.75rem;">${escapeHtml(row.period_start)}</td>
+                    <td style="padding:0.4rem 0.75rem;">${escapeHtml(row.period_end)}</td>
+                    <td style="padding:0.4rem 0.75rem;text-align:right;">${row.hours_worked ?? '—'}</td>
+                    <td style="padding:0.4rem 0.75rem;">${statusHtml}</td>
+                </tr>`;
+        }).join('');
+    }
+
+    // Switch to step 2
+    if (els.csvStep1) els.csvStep1.hidden = true;
+    if (els.csvStep2) els.csvStep2.hidden = false;
+    if (els.csvParseBtn) els.csvParseBtn.hidden = true;
+    if (els.csvImportBtn) {
+        els.csvImportBtn.hidden = false;
+        els.csvImportBtn.disabled = validCount === 0;
+        els.csvImportBtn.textContent = validCount > 0
+            ? `Import ${validCount} row${validCount !== 1 ? 's' : ''}`
+            : 'No valid rows';
+    }
+}
+
+async function importValidCsvRows() {
+    const valid = csvParsedRows.filter(r => r.valid);
+    if (!valid.length) return;
+
+    if (els.csvImportBtn) {
+        els.csvImportBtn.disabled = true;
+        els.csvImportBtn.textContent = 'Importing…';
+    }
+
+    try {
+        const entries = valid.map(r => ({
+            consultant_id: r.consultant_id,
+            period_start: r.period_start,
+            period_end: r.period_end,
+            hours_worked: r.hours_worked,
+            status: 'pending'
+        }));
+
+        await dbUpsertTimesheets(entries);
+        showToast(`Imported ${valid.length} timesheet${valid.length !== 1 ? 's' : ''} successfully.`, 'success');
+        closeCsvImportModal();
+        await refreshData();
+    } catch (err) {
+        console.error('[csv-import]', err);
+        showToast(`Import failed: ${err?.message || 'Unknown error'}`, 'error');
+        if (els.csvImportBtn) {
+            els.csvImportBtn.disabled = false;
+            els.csvImportBtn.textContent = `Import ${valid.length} row${valid.length !== 1 ? 's' : ''}`;
+        }
+    }
+}
+
+// ── End CSV Import ─────────────────────────────────────────────────────────────
 
 async function refreshData() {
     setMeta('Loading timesheets...');
@@ -788,6 +1078,7 @@ function updateSortingPrefs() {
 
 function renderTable() {
     if (!els.tbody) return;
+    const isMobileView = window.matchMedia('(max-width: 760px)').matches;
 
     // Update Headers
     document.querySelectorAll('#desktopTimesheetTable th.sortable').forEach(th => {
@@ -813,7 +1104,7 @@ function renderTable() {
     updateSummaryMeta(range.label, rows.length, totalHours);
 
     if (rows.length === 0) {
-        els.tbody.innerHTML = `
+        const emptyMarkup = `
             <tr>
                 <td colspan="10" class="table__empty">
                     <div class="empty-state">
@@ -824,10 +1115,21 @@ function renderTable() {
                 </td>
             </tr>
         `;
+        if (els.tbody) els.tbody.innerHTML = emptyMarkup;
+        if (els.cardContainer) {
+            els.cardContainer.innerHTML = isMobileView
+                ? `<div class="empty-state" style="background:#fff;border:1px solid var(--surface-glass-border);border-radius:14px;padding:1.25rem 1rem;text-align:center;">
+                        <span class="empty-state__icon">🧾</span>
+                        <p class="empty-state__text">No data yet for these filters.</p>
+                        <p class="empty-state__text" style="font-size:0.8125rem;">Use <strong>Add</strong> to create timesheets, or generate from New Invoice.</p>
+                   </div>`
+                : '';
+        }
         return;
     }
 
-    els.tbody.innerHTML = rows.flatMap((row) => {
+    if (!isMobileView) {
+        els.tbody.innerHTML = rows.flatMap((row) => {
         const hasEntries  = row.times.length > 0;
         const isInvoiced  = row.status === 'invoiced';
         const isMixed     = row.status === 'mixed';
@@ -850,22 +1152,22 @@ function renderTable() {
         // ── Actions ──────────────────────────────────────────────────────
         let actions;
         if (!hasEntries) {
-            actions = `<button class="btn btn--primary btn--sm ts-add-row" data-consultant="${row.consultant_id}" data-start="${row.period_start}" data-end="${row.period_end}">Add</button>`;
+            actions = `<button class="btn btn--primary btn--sm ts-add-row" data-consultant="${escapeHtml(row.consultant_id)}" data-start="${escapeHtml(row.period_start)}" data-end="${escapeHtml(row.period_end)}">Add</button>`;
         } else if (isMixed) {
             const invoiceUrl = `app.html?consultant_id=${encodeURIComponent(row.consultant_id)}`;
             actions = `
                 <a href="${invoiceUrl}" class="btn btn--primary btn--sm" title="Create invoice for ${pendingHours.toFixed(2)}h pending">Invoice ${pendingHours.toFixed(2)}h</a>
-                ${primaryPending ? `<button class="btn btn--ghost btn--sm ts-edit-row" data-id="${primaryPending.id}" data-consultant="${row.consultant_id}">Edit</button>` : ''}
+                ${primaryPending ? `<button class="btn btn--ghost btn--sm ts-edit-row" data-id="${escapeHtml(primaryPending.id)}" data-consultant="${escapeHtml(row.consultant_id)}">Edit</button>` : ''}
             `;
         } else if (isInvoiced) {
             actions = `
-                <button class="btn btn--ghost btn--sm ts-add-supplemental" data-consultant="${row.consultant_id}" data-start="${row.primary?.period_start || ''}" data-end="${row.primary?.period_end || ''}" title="Add more hours on a separate invoice">+ Supplemental</button>
-                <button class="btn btn--ghost btn--sm ts-edit-row ts-edit-invoiced" data-id="${row.primary.id}" data-consultant="${row.consultant_id}" style="color:#9ca3af;">View</button>
+                <button class="btn btn--ghost btn--sm ts-add-supplemental" data-consultant="${escapeHtml(row.consultant_id)}" data-start="${escapeHtml(row.primary?.period_start || '')}" data-end="${escapeHtml(row.primary?.period_end || '')}" title="Add more hours on a separate invoice">+ Supplemental</button>
+                <button class="btn btn--ghost btn--sm ts-edit-row ts-edit-invoiced" data-id="${escapeHtml(row.primary.id)}" data-consultant="${escapeHtml(row.consultant_id)}" style="color:#9ca3af;">View</button>
             `;
         } else {
             actions = `
-                <button class="btn btn--outline btn--sm ts-edit-row" data-id="${row.primary.id}" data-consultant="${row.consultant_id}">Edit</button>
-                <button class="btn btn--ghost btn--sm ts-delete-row" data-id="${row.primary.id}">Delete</button>
+                <button class="btn btn--outline btn--sm ts-edit-row" data-id="${escapeHtml(row.primary.id)}" data-consultant="${escapeHtml(row.consultant_id)}">Edit</button>
+                <button class="btn btn--ghost btn--sm ts-delete-row" data-id="${escapeHtml(row.primary.id)}">Delete</button>
             `;
         }
 
@@ -885,7 +1187,7 @@ function renderTable() {
 
         // ── Expand chevron (shown only when 2+ timesheet sub-rows exist) ──
         const expandBtn = hasMultiple
-            ? `<button class="ts-expand-btn" data-consultant="${row.consultant_id}" aria-expanded="false"
+            ? `<button class="ts-expand-btn" data-consultant="${escapeHtml(row.consultant_id)}" aria-expanded="false"
                    style="background:transparent;border:none;cursor:pointer;padding:8px;margin-left:-8px;color:#64748b;transition:color 0.2s, transform 0.2s;flex-shrink:0;border-radius:6px;display:flex;align-items:center;justify-content:center;"
                    onmouseover="this.style.color='#0f172a'" onmouseout="this.style.color='#64748b'"
                    title="Show ${row.times.length} individual entries">
@@ -906,25 +1208,25 @@ function renderTable() {
                                 <span>${escapeHtml(row.consultant_name)}</span>
                                 ${renderNoteTooltip(row.notes)}
                             </div>
-                            <div style="font-size:12px;color:var(--text-tertiary);">${row.currency} ${(row.bill_rate || 0).toFixed(2)}/hr</div>
+                            <div style="font-size:12px;color:var(--text-tertiary);">${escapeHtml(row.currency)} ${(row.bill_rate || 0).toFixed(2)}/hr</div>
                         </div>
                     </div>
                 </td>
                 <td>${escapeHtml(row.client)}</td>
                 <td>${escapeHtml(row.w2_company)}</td>
-                <td>${row.period_start || '—'}</td>
-                <td>${row.period_end || '—'}</td>
+                <td>${escapeHtml(row.period_start || '—')}</td>
+                <td>${escapeHtml(row.period_end || '—')}</td>
                 <td>${hoursCell}</td>
                 <td>${renderStatusBadge(row.status)}</td>
                 <td>${invoiceCell}</td>
-                <td>${row.currency}</td>
+                <td>${escapeHtml(row.currency)}</td>
                 <td><div class="ts-inline-controls">${actions}</div></td>
             </tr>
         `;
 
         // ── Sub-rows (one per individual timesheet entry, hidden by default) ─
         const subRowHtml = hasMultiple ? `
-            <tr class="ts-subrows" data-for="${row.consultant_id}" hidden>
+            <tr class="ts-subrows" data-for="${escapeHtml(row.consultant_id)}" hidden>
                 <td colspan="10" style="padding:0;background:#f8fafc;border-top:none;">
                     <table style="width:100%;border-collapse:collapse;">
                         <thead>
@@ -940,12 +1242,12 @@ function renderTable() {
                             ${row.times.map(t => {
                                 const tInvoiced = t.status === 'invoiced';
                                 const subActions = tInvoiced
-                                    ? `<button class="btn btn--ghost btn--sm ts-edit-row ts-edit-invoiced" data-id="${t.id}" data-consultant="${row.consultant_id}" style="color:#9ca3af;font-size:0.72rem;">View</button>`
-                                    : `<button class="btn btn--outline btn--sm ts-edit-row" data-id="${t.id}" data-consultant="${row.consultant_id}" style="font-size:0.72rem;">Edit</button>
-                                       <button class="btn btn--ghost btn--sm ts-delete-row" data-id="${t.id}" style="font-size:0.72rem;color:#ef4444;">Del</button>`;
+                                    ? `<button class="btn btn--ghost btn--sm ts-edit-row ts-edit-invoiced" data-id="${escapeHtml(t.id)}" data-consultant="${escapeHtml(row.consultant_id)}" style="color:#9ca3af;font-size:0.72rem;">View</button>`
+                                    : `<button class="btn btn--outline btn--sm ts-edit-row" data-id="${escapeHtml(t.id)}" data-consultant="${escapeHtml(row.consultant_id)}" style="font-size:0.72rem;">Edit</button>
+                                       <button class="btn btn--ghost btn--sm ts-delete-row" data-id="${escapeHtml(t.id)}" style="font-size:0.72rem;color:#ef4444;">Del</button>`;
                                 return `
-                                    <tr style="border-top:1px solid #e2e8f0;">
-                                        <td style="padding:7px 12px 7px 36px;font-size:0.8125rem;">${t.period_start || '—'} → ${t.period_end || '—'}</td>
+                            <tr style="border-top:1px solid #e2e8f0;">
+                                        <td style="padding:7px 12px 7px 36px;font-size:0.8125rem;">${escapeHtml(t.period_start || '—')} → ${escapeHtml(t.period_end || '—')}</td>
                                         <td style="padding:7px 12px;font-size:0.8125rem;font-weight:600;">${(t.hours || 0).toFixed(2)}</td>
                                         <td style="padding:7px 12px;">${renderStatusBadge(t.status)}</td>
                                         <td style="padding:7px 12px;font-size:0.8125rem;">
@@ -965,10 +1267,13 @@ function renderTable() {
         ` : '';
 
         return [mainRow, subRowHtml];
-    }).join('');
+        }).join('');
+    } else if (els.tbody) {
+        els.tbody.innerHTML = '';
+    }
 
     // ── Mobile card view (accordion) ──
-    if (els.cardContainer) {
+    if (els.cardContainer && isMobileView) {
         els.cardContainer.innerHTML = rows.map((row) => {
             const hasEntries  = row.times.length > 0;
             const isInvoiced  = row.status === 'invoiced';
@@ -986,22 +1291,22 @@ function renderTable() {
 
             let actions;
             if (!hasEntries) {
-                actions = `<button class="btn btn--primary btn--sm ts-add-row" data-consultant="${row.consultant_id}" data-start="${row.period_start}" data-end="${row.period_end}" style="width:100%;">Add Timesheet</button>`;
+                actions = `<button class="btn btn--primary btn--sm ts-add-row" data-consultant="${escapeHtml(row.consultant_id)}" data-start="${escapeHtml(row.period_start)}" data-end="${escapeHtml(row.period_end)}" style="width:100%;">Add Timesheet</button>`;
             } else if (isMixed) {
                 const invoiceUrl = `app.html?consultant_id=${encodeURIComponent(row.consultant_id)}`;
                 actions = `
                     <a href="${invoiceUrl}" class="btn btn--primary btn--sm" style="flex:1;text-align:center;">Invoice ${pendingHours.toFixed(2)}h Pending</a>
-                    ${primaryPending ? `<button class="btn btn--ghost btn--sm ts-edit-row" data-id="${primaryPending.id}" data-consultant="${row.consultant_id}">Edit</button>` : ''}
+                    ${primaryPending ? `<button class="btn btn--ghost btn--sm ts-edit-row" data-id="${escapeHtml(primaryPending.id)}" data-consultant="${escapeHtml(row.consultant_id)}">Edit</button>` : ''}
                 `;
             } else if (isInvoiced) {
                 actions = `
-                    <button class="btn btn--outline btn--sm ts-add-supplemental" data-consultant="${row.consultant_id}" data-start="${row.primary?.period_start || ''}" data-end="${row.primary?.period_end || ''}" style="flex:1;">+ Supplemental</button>
-                    <button class="btn btn--ghost btn--sm ts-edit-row ts-edit-invoiced" data-id="${row.primary.id}" data-consultant="${row.consultant_id}" style="color:#6b7280;">View</button>
+                    <button class="btn btn--outline btn--sm ts-add-supplemental" data-consultant="${escapeHtml(row.consultant_id)}" data-start="${escapeHtml(row.primary?.period_start || '')}" data-end="${escapeHtml(row.primary?.period_end || '')}" style="flex:1;">+ Supplemental</button>
+                    <button class="btn btn--ghost btn--sm ts-edit-row ts-edit-invoiced" data-id="${escapeHtml(row.primary.id)}" data-consultant="${escapeHtml(row.consultant_id)}" style="color:#6b7280;">View</button>
                 `;
             } else {
                 actions = `
-                    <button class="btn btn--outline btn--sm ts-edit-row" data-id="${row.primary.id}" data-consultant="${row.consultant_id}" style="flex:1;">Edit</button>
-                    <button class="btn btn--ghost btn--sm ts-delete-row" data-id="${row.primary.id}" style="color:#ef4444;">Delete</button>
+                    <button class="btn btn--outline btn--sm ts-edit-row" data-id="${escapeHtml(row.primary.id)}" data-consultant="${escapeHtml(row.consultant_id)}" style="flex:1;">Edit</button>
+                    <button class="btn btn--ghost btn--sm ts-delete-row" data-id="${escapeHtml(row.primary.id)}" style="color:#ef4444;">Delete</button>
                 `;
             }
 
@@ -1022,12 +1327,12 @@ function renderTable() {
                         <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #f8fafc;font-size:0.8125rem;">
                             <div>
                                 <div style="font-weight:600;">${(t.hours || 0).toFixed(2)}h ${renderStatusBadge(t.status)}</div>
-                                <div style="font-size:0.75rem;color:#6b7280;">${t.period_start || '—'} → ${t.period_end || '—'}</div>
+                                <div style="font-size:0.75rem;color:#6b7280;">${escapeHtml(t.period_start || '—')} → ${escapeHtml(t.period_end || '—')}</div>
                                 ${t.invoice_number ? `<div style="font-size:0.72rem;color:#0369a1;">${escapeHtml(t.invoice_number)}</div>` : '<div style="font-size:0.72rem;color:#9ca3af;">Unbilled</div>'}
                             </div>
                             ${t.status !== 'invoiced'
-                                ? `<button class="btn btn--ghost btn--sm ts-edit-row" data-id="${t.id}" data-consultant="${row.consultant_id}" style="font-size:0.75rem;">Edit</button>`
-                                : `<button class="btn btn--ghost btn--sm ts-edit-row ts-edit-invoiced" data-id="${t.id}" data-consultant="${row.consultant_id}" style="font-size:0.75rem;color:#9ca3af;">View</button>`}
+                                ? `<button class="btn btn--ghost btn--sm ts-edit-row" data-id="${escapeHtml(t.id)}" data-consultant="${escapeHtml(row.consultant_id)}" style="font-size:0.75rem;">Edit</button>`
+                                : `<button class="btn btn--ghost btn--sm ts-edit-row ts-edit-invoiced" data-id="${escapeHtml(t.id)}" data-consultant="${escapeHtml(row.consultant_id)}" style="font-size:0.75rem;color:#9ca3af;">View</button>`}
                         </div>`).join('')}
                 </div>` : '';
 
@@ -1035,7 +1340,7 @@ function renderTable() {
 
             return `
             <div class="m-card" style="${cardBorder}">
-                <button class="m-card__header" aria-expanded="false" data-card-toggle="${row.consultant_id}">
+                <button class="m-card__header" aria-expanded="false" data-card-toggle="${escapeHtml(row.consultant_id)}">
                     <div class="m-card__title-row">
                         <span class="m-card__title">
                             ${escapeHtml(row.consultant_name)}
@@ -1049,7 +1354,7 @@ function renderTable() {
                         <span>•</span>
                         <span>${escapeHtml(row.client)}</span>
                         <span>•</span>
-                        <span>${row.currency} ${(row.bill_rate || 0).toFixed(2)}/hr</span>
+                        <span>${escapeHtml(row.currency)} ${(row.bill_rate || 0).toFixed(2)}/hr</span>
                     </div>
                     <svg class="m-card__chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" width="18" height="18">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/>
@@ -1058,7 +1363,7 @@ function renderTable() {
                 <div class="m-card__details" hidden>
                     <div class="m-card__detail-row">
                         <span class="m-card__detail-label">Period</span>
-                        <span class="m-card__detail-value">${row.period_start || '—'} to ${row.period_end || '—'}</span>
+                        <span class="m-card__detail-value">${escapeHtml(row.period_start || '—')} to ${escapeHtml(row.period_end || '—')}</span>
                     </div>
                     <div class="m-card__detail-row">
                         <span class="m-card__detail-label">W2 Co.</span>
@@ -1075,6 +1380,8 @@ function renderTable() {
                 </div>
             </div>`;
         }).join('');
+    } else if (els.cardContainer) {
+        els.cardContainer.innerHTML = '';
     }
 }
 
@@ -1098,6 +1405,102 @@ function isConsultantInRange(consultant, range) {
     return start <= range.end && end >= range.start;
 }
 
+function periodsOverlap(startA, endA, startB, endB) {
+    if (!startA || !endA || !startB || !endB) return false;
+    return startA <= endB && endA >= startB;
+}
+
+function getOverlappingInvoicedRows(consultantId, start, end, excludeId = null) {
+    if (!consultantId || !start || !end) return [];
+    return rawRows.filter((row) => {
+        if (row.consultant_id !== consultantId) return false;
+        if (excludeId && row.id === excludeId) return false;
+        const isInvoiced = row.status === 'invoiced' || Boolean(row.invoice_number || row.invoice_id);
+        if (!isInvoiced) return false;
+        return periodsOverlap(start, end, row.period_start, row.period_end);
+    });
+}
+
+function describeOverlapRows(rows) {
+    return rows.slice(0, 3).map((row) => {
+        const invoiceRef = row.invoice_number ? ` (${row.invoice_number})` : '';
+        return `${row.period_start} to ${row.period_end}${invoiceRef}`;
+    }).join(', ');
+}
+
+function getModalSubtitle() {
+    if (modalMode === 'supplemental') {
+        return 'Creates a second independent timesheet row that can be billed on a separate invoice.';
+    }
+    if (modalMode === 'add') {
+        return 'Create a new timesheet entry for the selected consultant.';
+    }
+    return 'Update hours and period. Invoice linkage is managed from the invoice flow.';
+}
+
+function updateModalContextWarnings() {
+    if (!els.modalSubtitle) return;
+    const base = getModalSubtitle();
+    if (modalMode !== 'supplemental') {
+        els.modalSubtitle.textContent = base;
+        return;
+    }
+
+    const overlaps = getOverlappingInvoicedRows(
+        modalConsultantId,
+        els.modalStart?.value || '',
+        els.modalEnd?.value || '',
+        modalTimesheetId
+    );
+
+    if (!overlaps.length) {
+        els.modalSubtitle.textContent = base;
+        return;
+    }
+
+    const overlapSummary = describeOverlapRows(overlaps);
+    const suffix = overlaps.length > 3 ? ` and ${overlaps.length - 3} more` : '';
+    els.modalSubtitle.textContent = `${base} Warning: overlaps existing invoiced time for ${overlapSummary}${suffix}.`;
+}
+
+function expandMobileCardDetails(toggleBtn, body) {
+    if (!(body instanceof HTMLElement)) return;
+    body.hidden = false;
+    body.classList.add('is-open');
+    body.style.maxHeight = '0px';
+    body.style.opacity = '0';
+    body.offsetHeight;
+    body.style.maxHeight = `${body.scrollHeight}px`;
+    body.style.opacity = '1';
+    if (toggleBtn) toggleBtn.setAttribute('aria-expanded', 'true');
+
+    const onEnd = (event) => {
+        if (event.propertyName !== 'max-height') return;
+        body.style.maxHeight = 'none';
+        body.removeEventListener('transitionend', onEnd);
+    };
+    body.addEventListener('transitionend', onEnd);
+}
+
+function collapseMobileCardDetails(toggleBtn, body) {
+    if (!(body instanceof HTMLElement) || body.hidden) return;
+    body.style.maxHeight = `${body.scrollHeight}px`;
+    body.offsetHeight;
+    body.classList.remove('is-open');
+    body.style.maxHeight = '0px';
+    body.style.opacity = '0';
+    if (toggleBtn) toggleBtn.setAttribute('aria-expanded', 'false');
+
+    const onEnd = (event) => {
+        if (event.propertyName !== 'max-height') return;
+        body.hidden = true;
+        body.style.maxHeight = '';
+        body.style.opacity = '';
+        body.removeEventListener('transitionend', onEnd);
+    };
+    body.addEventListener('transitionend', onEnd);
+}
+
 function openModal(data) {
     if (!els.modal) return;
 
@@ -1108,12 +1511,7 @@ function openModal(data) {
                                            'Edit Timesheet';
     }
     if (els.modalSubtitle) {
-        els.modalSubtitle.textContent =
-            modalMode === 'supplemental'
-                ? 'Creates a second independent timesheet row that can be billed on a separate invoice.'
-                : modalMode === 'add'
-                    ? 'Create a new timesheet entry for the selected consultant.'
-                    : 'Update hours and period. Invoice linkage is managed from the invoice flow.';
+        els.modalSubtitle.textContent = getModalSubtitle();
     }
 
     if (els.modalDelete) {
@@ -1143,6 +1541,8 @@ function openModal(data) {
         }
     }
 
+    updateModalContextWarnings();
+
     els.modal.classList.add('is-open');
     document.body.classList.add('modal-open');
 }
@@ -1155,6 +1555,7 @@ function closeModal() {
     modalTimesheetId = null;
     modalConsultantId = null;
     modalDefaultPeriod = { start: '', end: '' };
+    updateModalContextWarnings();
 }
 
 async function saveFromModal() {
@@ -1199,12 +1600,18 @@ async function saveFromModal() {
                 invoice_number: null
             }]);
         } else if (modalMode === 'supplemental') {
-            // Plain INSERT — creates a second independent row for the same consultant.
-            // Requires the unique constraint on (user_id,consultant_id,period_start,period_end)
-            // to have been dropped. See schema migration in schema.sql.
             if (!modalConsultantId) {
                 showToast('Consultant is missing for this action', 'error');
                 return;
+            }
+            const overlappingInvoicedRows = getOverlappingInvoicedRows(modalConsultantId, start, end, modalTimesheetId);
+            if (overlappingInvoicedRows.length) {
+                const overlapSummary = describeOverlapRows(overlappingInvoicedRows);
+                const overlapSuffix = overlappingInvoicedRows.length > 3 ? ` and ${overlappingInvoicedRows.length - 3} more` : '';
+                const shouldContinue = window.confirm(
+                    `This supplemental period overlaps existing invoiced time for ${overlapSummary}${overlapSuffix}. Continue anyway?`
+                );
+                if (!shouldContinue) return;
             }
             await dbInsertTimesheet({
                 consultant_id:  modalConsultantId,
@@ -1229,6 +1636,10 @@ async function saveFromModal() {
         await refreshData();
     } catch (err) {
         console.error(err);
+        if (err?.code === '23505') {
+            showToast('A timesheet already exists for this consultant and exact period. Edit the existing row or choose different dates.', 'error');
+            return;
+        }
         showToast('Failed to save timesheet', 'error');
     }
 }
@@ -1446,15 +1857,6 @@ function normalizeStatusFilter(value) {
     return 'all';
 }
 
-function findLabel(values, normalizedValue) {
-    const hit = values.find((value) => normalizeTextFilter(value) === normalizedValue);
-    return hit || normalizedValue;
-}
-
-function capitalize(value) {
-    const text = String(value || '');
-    return text ? text.charAt(0).toUpperCase() + text.slice(1) : '';
-}
 
 function toIso(date) {
     return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}-${String(date.getUTCDate()).padStart(2, '0')}`;

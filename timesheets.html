@@ -219,6 +219,10 @@
                     <p class="dashboard__subtitle">Edit monthly consultant hours before invoicing, with one consistent CRM filter workflow.</p>
                 </div>
                 <div class="consultants-header__actions" style="display:flex;gap:0.5rem;align-items:center;">
+                    <button id="importCsvBtn" class="btn btn--outline" title="Import Timesheets from CSV">
+                        <svg class="btn-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l4-4m0 0l4 4m-4-4v12"/></svg>
+                        <span class="btn-text">Import CSV</span>
+                    </button>
                     <button id="exportCsvBtn" class="btn btn--outline" title="Export Timesheets to CSV">
                         <svg class="btn-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
                         <span class="btn-text">Export CSV</span>
@@ -678,6 +682,70 @@
         setInterval(updateChips, 600); // Check periodically because timeheet views might change it
     })();
     </script>
+
+    <!-- CSV Import Modal -->
+    <div id="csvImportModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="csvImportTitle">
+        <div class="modal-content" style="max-width:760px;">
+            <div style="padding:1.5rem 1.75rem 1.25rem;border-bottom:1px solid var(--surface-glass-border);display:flex;align-items:flex-start;justify-content:space-between;">
+                <div>
+                    <h2 class="modal-title" id="csvImportTitle">Import Timesheets</h2>
+                    <p class="modal-subtitle">Paste or upload a CSV with consultant name, period, and hours. Each row is validated before saving.</p>
+                </div>
+                <button class="modal-close" id="csvImportClose" aria-label="Close">×</button>
+            </div>
+            <div class="modal-body" id="csvImportBody">
+
+                <!-- Step 1: Input -->
+                <div id="csvStep1">
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.625rem;">
+                        <label class="form-field__label" style="margin:0;">Paste CSV or upload a file</label>
+                        <button type="button" id="csvDownloadTemplate" style="font-size:0.75rem;color:var(--primary);background:none;border:none;cursor:pointer;text-decoration:underline;padding:0;">
+                            Download template
+                        </button>
+                    </div>
+                    <textarea id="csvPasteArea" rows="8"
+                        placeholder="consultant_name,period_start,period_end,hours_worked&#10;John Smith,2026-01-01,2026-01-31,160&#10;Jane Doe,2026-02-01,2026-02-28,80"
+                        style="width:100%;border:1px solid var(--surface-glass-border);border-radius:10px;padding:0.75rem;font-size:0.8125rem;font-family:monospace;resize:vertical;background:#fafafa;box-sizing:border-box;"></textarea>
+                    <div style="display:flex;align-items:center;gap:0.75rem;margin-top:0.75rem;">
+                        <label style="font-size:0.8125rem;color:var(--text-secondary);">Or upload:</label>
+                        <input type="file" id="csvFileInput" accept=".csv,text/csv" style="font-size:0.8125rem;">
+                    </div>
+                    <div style="margin-top:1.25rem;padding:0.75rem;background:#f8fafc;border-radius:8px;font-size:0.78rem;color:var(--text-secondary);line-height:1.6;">
+                        <strong style="color:var(--text-primary);">Required columns</strong> (header row must be first):<br>
+                        <code style="background:#e2e8f0;padding:0.1rem 0.35rem;border-radius:4px;">consultant_name</code> — must match an existing consultant exactly (case-insensitive)<br>
+                        <code style="background:#e2e8f0;padding:0.1rem 0.35rem;border-radius:4px;">period_start</code> and <code style="background:#e2e8f0;padding:0.1rem 0.35rem;border-radius:4px;">period_end</code> — YYYY-MM-DD format<br>
+                        <code style="background:#e2e8f0;padding:0.1rem 0.35rem;border-radius:4px;">hours_worked</code> — positive number (e.g. 80, 160, 37.5)
+                    </div>
+                </div>
+
+                <!-- Step 2: Preview -->
+                <div id="csvStep2" hidden>
+                    <div id="csvPreviewSummary" style="margin-bottom:0.75rem;font-size:0.875rem;"></div>
+                    <div style="overflow-x:auto;max-height:320px;overflow-y:auto;border:1px solid var(--surface-glass-border);border-radius:8px;">
+                        <table style="width:100%;border-collapse:collapse;font-size:0.8rem;">
+                            <thead>
+                                <tr style="background:#f8fafc;position:sticky;top:0;">
+                                    <th style="padding:0.5rem 0.75rem;text-align:left;font-weight:600;color:var(--text-secondary);border-bottom:1px solid var(--surface-glass-border);">#</th>
+                                    <th style="padding:0.5rem 0.75rem;text-align:left;font-weight:600;color:var(--text-secondary);border-bottom:1px solid var(--surface-glass-border);">Consultant</th>
+                                    <th style="padding:0.5rem 0.75rem;text-align:left;font-weight:600;color:var(--text-secondary);border-bottom:1px solid var(--surface-glass-border);">Period Start</th>
+                                    <th style="padding:0.5rem 0.75rem;text-align:left;font-weight:600;color:var(--text-secondary);border-bottom:1px solid var(--surface-glass-border);">Period End</th>
+                                    <th style="padding:0.5rem 0.75rem;text-align:right;font-weight:600;color:var(--text-secondary);border-bottom:1px solid var(--surface-glass-border);">Hours</th>
+                                    <th style="padding:0.5rem 0.75rem;text-align:left;font-weight:600;color:var(--text-secondary);border-bottom:1px solid var(--surface-glass-border);">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="csvPreviewBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+            </div>
+            <div style="padding:1rem 1.75rem;border-top:1px solid var(--surface-glass-border);display:flex;gap:0.75rem;justify-content:flex-end;">
+                <button type="button" class="btn btn--outline" id="csvImportBack">Cancel</button>
+                <button type="button" class="btn btn--outline" id="csvParseBtn">Preview</button>
+                <button type="button" class="btn btn--primary" id="csvImportBtn" hidden disabled>Import</button>
+            </div>
+        </div>
+    </div>
 </body>
 
 </html>

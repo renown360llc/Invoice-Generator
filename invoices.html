@@ -10,9 +10,6 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 
-    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
-
     <link rel="stylesheet" href="styles/variables.css">
     <link rel="stylesheet" href="styles/sidebar.css?v=1">
     <link rel="stylesheet" href="styles/dashboard.css?v=11">
@@ -691,6 +688,7 @@
                         <button class="mfs-chip" data-filter="status" data-value="all">All</button>
                         <button class="mfs-chip" data-filter="status" data-value="draft">Draft</button>
                         <button class="mfs-chip" data-filter="status" data-value="sent">Sent</button>
+                        <button class="mfs-chip" data-filter="status" data-value="partially_paid">Partially Paid</button>
                         <button class="mfs-chip" data-filter="status" data-value="paid">Paid</button>
                         <button class="mfs-chip" data-filter="status" data-value="overdue">Overdue</button>
                     </div>
@@ -831,7 +829,7 @@
 
             const statusVal = desktopStatus?.value;
             if (statusVal && statusVal !== 'all') {
-                const labels = { draft:'Draft', sent:'Sent', paid:'Paid', overdue:'Overdue' };
+                const labels = { draft:'Draft', sent:'Sent', partially_paid:'Partially Paid', paid:'Paid', overdue:'Overdue' };
                 chips.push({ key: 'status', label: labels[statusVal] || statusVal });
             }
             if (desktopConsul?.value && desktopConsul.value !== 'all') {
