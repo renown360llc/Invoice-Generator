@@ -647,7 +647,7 @@ function calculateOperationsData({ consultants = [], timesheets = [], invoices =
         })
     ]
         .sort((a, b) => b.rank - a.rank)
-        .slice(0, 8)
+        .slice(0, 3)
 
     const workflowCards = [
         {
@@ -868,7 +868,7 @@ function renderCollectionsFeed(data) {
         return
     }
 
-    container.innerHTML = filtered.map((item) => `
+    container.innerHTML = filtered.slice(0, 3).map((item) => `
         <article class="collection-item">
             <span class="collection-item__badge collection-item__badge--${escapeHtml(item.type)}">${escapeHtml(item.type.replace('-', ' '))}</span>
             <div>
@@ -906,7 +906,7 @@ function renderRecentActivity(events = []) {
         return
     }
 
-    container.innerHTML = events.slice(0, 8).map((event) => {
+    container.innerHTML = events.slice(0, 3).map((event) => {
         const entityType = String(event.entity_type || '').toLowerCase()
         return `
             <div class="activity-timeline__item">
