@@ -573,9 +573,11 @@ async function handleSave() {
         setDirty(false); // Clear unsaved-changes flag
         showToast('Saved successfully', 'success');
 
-        // Notify other tabs
-        const channel = new BroadcastChannel('app_channel');
+        // Notify other tabs — scoped to this user so other accounts aren't affected
+        const userId = state.user?.id || 'anon';
+        const channel = new BroadcastChannel(`app_channel_${userId}`);
         channel.postMessage({ type: 'invoice_saved' });
+        channel.close();
 
         // Update URL with invoice number
         const url = new URL(window.location);

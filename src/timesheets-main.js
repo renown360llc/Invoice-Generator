@@ -1,4 +1,5 @@
 import { loadLayout } from './components/layout.js';
+import { getCurrentUser } from './config.js';
 import {
     dbGetTimesheetsForYear,
     dbUpdateTimesheet,
@@ -14,9 +15,10 @@ import {
     clearSharedFilters,
     getPagePrefs,
     setPagePrefs,
-    countAppliedFilters
+    countAppliedFilters,
+    initFiltersForUser
 } from './modules/crm-filters.js';
-import { listSavedViews, saveSavedView, deleteSavedView } from './modules/saved-views.js';
+import { listSavedViews, saveSavedView, deleteSavedView, initSavedViewsForUser } from './modules/saved-views.js';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -89,6 +91,11 @@ function showFatalInitError(title, message, reloadLabel = 'Reload') {
 
 async function init() {
     await loadLayout('timesheets');
+    const user = await getCurrentUser();
+    if (user) {
+        initFiltersForUser(user.id);
+        initSavedViewsForUser(user.id);
+    }
     cacheElements();
     setupFilters();
     bindEvents();

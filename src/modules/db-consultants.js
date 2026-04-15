@@ -8,6 +8,7 @@ export async function dbGetConsultants() {
     const { data, error } = await supabase
         .from('consultants')
         .select('*')
+        .eq('user_id', user.id)
         .order('name', { ascending: true });
 
     if (error) {

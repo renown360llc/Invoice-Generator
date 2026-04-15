@@ -1,4 +1,15 @@
-const STORAGE_KEY = 'invoice_pro_saved_views_v1';
+let STORAGE_KEY = 'invoice_pro_saved_views_v1';
+
+/**
+ * Scope the localStorage key to a specific user so saved views
+ * do not bleed between accounts on a shared device.
+ * Call this once after authentication, before any reads/writes.
+ */
+export function initSavedViewsForUser(userId) {
+    if (userId) {
+        STORAGE_KEY = `invoice_pro_saved_views_v1_${String(userId).slice(-12)}`;
+    }
+}
 
 function readStore() {
     try {

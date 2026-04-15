@@ -48,7 +48,7 @@ async function fetchLinkedTimesheets(invoiceId, invoiceNumber) {
     });
 }
 
-const STORAGE_KEY = 'invoice_pro_invoice_filters_v2';
+let STORAGE_KEY = 'invoice_pro_invoice_filters_v2';
 const ITEMS_PER_PAGE = 20;
 const DEFAULT_FILTERS = {
     search: '',
@@ -115,6 +115,9 @@ async function init() {
     if (!state.user) {
         return;
     }
+
+    // Scope localStorage to this user so filter state doesn't bleed between accounts
+    STORAGE_KEY = `invoice_pro_invoice_filters_v2_${String(state.user.id).slice(-12)}`;
 
     cacheElements();
     hydrateFilterControls();
@@ -1735,7 +1738,8 @@ function formatDate(dateString) {
 }
 
 function setupBroadcastSync() {
-    state.channel = new BroadcastChannel('app_channel');
+    const userId = state.user?.id || 'anon';
+    state.channel = new BroadcastChannel(`app_channel_${userId}`);
     state.channel.onmessage = async (event) => {
         if (event.data?.type !== 'invoice_saved') return;
         await loadInvoices();

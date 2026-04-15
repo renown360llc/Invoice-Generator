@@ -3,7 +3,7 @@ import { getInvoices, getInvoice, updateInvoiceStatus, recordInvoicePayment, del
 import { dbGetConsultants } from './modules/db-consultants.js'
 import { dbGetTimesheetsForYear } from './modules/db-timesheets.js'
 import { getRecentAuditEvents } from './modules/audit-trail.js'
-import { setSharedFilters } from './modules/crm-filters.js'
+import { setSharedFilters, initFiltersForUser } from './modules/crm-filters.js'
 import { generatePDF } from './modules/pdf.js'
 import { formatCurrency } from './modules/utils.js'
 import './security.js'
@@ -1419,6 +1419,9 @@ async function initDashboard() {
         const user = await checkAuth()
         if (!user) return
 
+        setupDashboardBroadcast(user.id)
+        initFiltersForUser(user.id)
+
         // Update user name (if these elements still exist)
         const userName = user.user_metadata?.full_name || user.email.split('@')[0]
         const userNameEl = document.getElementById('userName')
@@ -1821,14 +1824,19 @@ document.addEventListener('dashboard:global-search', (event) => {
     }))
 })
 
-// Real-time Sync
-const channel = new BroadcastChannel('app_channel');
-channel.onmessage = (event) => {
-    if (event.data.type === 'invoice_saved') {
-        initDashboard();
-        showToast('Dashboard updated', 'success');
-    }
-};
+// Real-time Sync — scoped to the authenticated user so cross-user tab events
+// on a shared browser session don't trigger data reloads for the wrong account.
+let _dashboardChannel = null;
+function setupDashboardBroadcast(userId) {
+    if (_dashboardChannel) { _dashboardChannel.close(); }
+    _dashboardChannel = new BroadcastChannel(`app_channel_${userId}`);
+    _dashboardChannel.onmessage = (event) => {
+        if (event.data?.type === 'invoice_saved') {
+            initDashboard();
+            showToast('Dashboard updated', 'success');
+        }
+    };
+}
 
 // Refresh Button
 const refreshBtn = document.getElementById('refreshBtn');

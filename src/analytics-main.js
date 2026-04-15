@@ -1,4 +1,5 @@
 import { loadLayout } from './components/layout.js';
+import { getCurrentUser } from './config.js';
 import { showToast, debounce, createRenderScheduler } from './modules/utils.js';
 import { dbGetTimesheetsForYear } from './modules/db-timesheets.js';
 import { dbGetConsultants } from './modules/db-consultants.js';
@@ -9,9 +10,10 @@ import {
     clearSharedFilters,
     getPagePrefs,
     setPagePrefs,
-    countAppliedFilters
+    countAppliedFilters,
+    initFiltersForUser
 } from './modules/crm-filters.js';
-import { listSavedViews, saveSavedView, deleteSavedView } from './modules/saved-views.js';
+import { listSavedViews, saveSavedView, deleteSavedView, initSavedViewsForUser } from './modules/saved-views.js';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const CURRENCY_COLORS = {
@@ -80,6 +82,11 @@ function showFatalInitError(title, message, reloadLabel = 'Reload') {
 
 async function init() {
     await loadLayout('analytics');
+    const user = await getCurrentUser();
+    if (user) {
+        initFiltersForUser(user.id);
+        initSavedViewsForUser(user.id);
+    }
     cacheElements();
     setupFilters();
     bindEvents();

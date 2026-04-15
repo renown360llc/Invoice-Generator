@@ -126,10 +126,14 @@ export async function deleteTemplate(templateId) {
         .eq('user_id', user?.id || '')
         .single()
 
+    if (!user) throw new Error('Not authenticated')
+    if (!existing) throw new Error('Template not found or access denied')
+
     const { error } = await supabase
         .from('templates')
         .delete()
         .eq('id', templateId)
+        .eq('user_id', user.id)
 
     if (error) {
         console.error('Delete template error:', error)
@@ -342,6 +346,7 @@ export async function recordInvoicePayment(invoiceId, paymentData) {
         .from('invoices')
         .update(updatePayload)
         .eq('id', invoiceId)
+        .eq('user_id', user.id)
         .select()
         .single()
 
@@ -409,6 +414,7 @@ export async function deleteInvoicePayment(invoiceId, paymentId) {
         .from('invoices')
         .update(updatePayload)
         .eq('id', invoiceId)
+        .eq('user_id', user.id)
         .select()
         .single()
 

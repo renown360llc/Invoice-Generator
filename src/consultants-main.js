@@ -1,4 +1,5 @@
 import { loadLayout } from './components/layout.js';
+import { getCurrentUser } from './config.js';
 import { dbGetConsultants, dbSaveConsultant, dbDeleteConsultant, dbGetTimesheetsCountForConsultant } from './modules/db-consultants.js';
 import { dbGetTimesheetsForYear } from './modules/db-timesheets.js';
 import { debounce, createRenderScheduler } from './modules/utils.js';
@@ -8,9 +9,10 @@ import {
     clearSharedFilters,
     getPagePrefs,
     setPagePrefs,
-    countAppliedFilters
+    countAppliedFilters,
+    initFiltersForUser
 } from './modules/crm-filters.js';
-import { listSavedViews, saveSavedView, deleteSavedView } from './modules/saved-views.js';
+import { listSavedViews, saveSavedView, deleteSavedView, initSavedViewsForUser } from './modules/saved-views.js';
 
 let consultants = [];
 let yearTimesheets = [];
@@ -1479,6 +1481,11 @@ function closePeriodJumpMenu() {
 
 async function init() {
     await loadLayout('consultants');
+    const user = await getCurrentUser();
+    if (user) {
+        initFiltersForUser(user.id);
+        initSavedViewsForUser(user.id);
+    }
     cacheElements();
     setupPeriodControls();
     bindPageEvents();
