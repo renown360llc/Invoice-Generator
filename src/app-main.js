@@ -27,6 +27,7 @@ import {
     calculateTotals
 } from './modules/ui.js';
 import { generatePDF } from './modules/pdf.js';
+import { getAccessContext, getReadOnlyMessage } from './modules/access-control.js';
 import { showToast, debounce } from './modules/utils.js';
 
 const state = {
@@ -35,6 +36,7 @@ const state = {
     subtotal: 0,
     total: 0,
     currentTemplateName: null,
+    isReadOnlyUser: false,
     isLocked: false,       // true when invoice is paid/sent — form is read-only
     isDirty: false,        // true when there are unsaved changes
     currentStatus: null,   // track the live invoice status
@@ -44,7 +46,8 @@ const state = {
 
 // ── Invoice Lock & Dirty Helpers ────────────────────────────────────────────
 function setLocked(locked, status = 'paid') {
-    state.isLocked = locked;
+    const viewerLocked = state.isReadOnlyUser;
+    state.isLocked = locked || viewerLocked;
     state.currentStatus = status;
 
     const statusBar = document.getElementById('editorStatusBar');
@@ -59,21 +62,29 @@ function setLocked(locked, status = 'paid') {
     const previewTitle = document.querySelector('.preview__title');
     const previewSubtitle = document.getElementById('previewSubtitle');
 
-    if (locked) {
-        const label = status === 'sent' ? 'sent' : 'paid';
+    if (state.isLocked) {
+        const label = viewerLocked ? 'viewer' : (status === 'sent' ? 'sent' : 'paid');
         if (statusBar) statusBar.style.display = 'flex';
         if (modePill) {
-            modePill.textContent = label === 'sent' ? 'Read Only' : 'Paid';
-            modePill.className = `editor-statusbar__pill ${label === 'sent' ? 'editor-statusbar__pill--neutral' : 'editor-statusbar__pill--warning'}`;
+            modePill.textContent = viewerLocked ? 'Viewer' : (label === 'sent' ? 'Read Only' : 'Paid');
+            modePill.className = `editor-statusbar__pill ${viewerLocked ? 'editor-statusbar__pill--neutral' : (label === 'sent' ? 'editor-statusbar__pill--neutral' : 'editor-statusbar__pill--warning')}`;
         }
-        if (statusText) statusText.textContent = `This invoice is ${label}. Editing is locked to protect the billing record.`;
-        if (unlockBtn) unlockBtn.style.display = '';
+        if (statusText) {
+            statusText.textContent = viewerLocked
+                ? getReadOnlyMessage('invoice editing')
+                : `This invoice is ${label}. Editing is locked to protect the billing record.`;
+        }
+        if (unlockBtn) unlockBtn.style.display = viewerLocked ? 'none' : '';
         if (unsavedBadge) unsavedBadge.style.display = 'none';
-        if (saveBtn) { saveBtn.disabled = true; saveBtn.title = 'Unlock the invoice to save changes'; }
-        if (title) title.textContent = 'View Invoice';
-        if (subtitle) subtitle.textContent = 'Review invoice details and unlock only if you need to make a correction.';
+        if (saveBtn) { saveBtn.disabled = true; saveBtn.title = viewerLocked ? getReadOnlyMessage('saving invoices') : 'Unlock the invoice to save changes'; }
+        if (title) title.textContent = viewerLocked ? 'Read-Only Invoice' : 'View Invoice';
+        if (subtitle) subtitle.textContent = viewerLocked
+            ? 'You can review this invoice, download it, and email it, but editing is disabled for your account.'
+            : 'Review invoice details and unlock only if you need to make a correction.';
         if (previewTitle) previewTitle.textContent = 'Invoice Preview';
-        if (previewSubtitle) previewSubtitle.textContent = 'Read-only mode is on to protect the current billing record.';
+        if (previewSubtitle) previewSubtitle.textContent = viewerLocked
+            ? 'Read-only access is active for this account.'
+            : 'Read-only mode is on to protect the current billing record.';
         // Disable all form inputs
         if (form) {
             form.querySelectorAll('input, select, textarea, button').forEach(el => {
@@ -125,6 +136,76 @@ function setLocked(locked, status = 'paid') {
             invNumEl.style.cursor = 'not-allowed';
         }
     }
+}
+
+function applyReadOnlyAccess() {
+    if (!state.isReadOnlyUser) return;
+
+    const banner = document.getElementById('viewerReadOnlyBanner') || document.createElement('div');
+    if (!banner.id) {
+        banner.id = 'viewerReadOnlyBanner';
+        banner.style.cssText = 'display:flex;align-items:flex-start;gap:0.75rem;padding:0.9rem 1rem;margin:0 0 1rem;border:1px solid #fde68a;background:#fffbeb;color:#92400e;border-radius:12px;';
+
+        const icon = document.createElement('span');
+        icon.style.cssText = 'font-size:1.1rem;line-height:1;';
+        icon.textContent = '🔒';
+
+        const textWrap = document.createElement('div');
+        textWrap.style.cssText = 'display:flex;flex-direction:column;gap:0.2rem;min-width:0;';
+
+        const heading = document.createElement('strong');
+        heading.textContent = 'Read-only access';
+
+        const message = document.createElement('span');
+        message.textContent = getReadOnlyMessage('invoice editing');
+
+        textWrap.append(heading, message);
+        banner.append(icon, textWrap);
+    }
+
+    const anchor = document.querySelector('.editor__header');
+    if (anchor && !banner.isConnected) {
+        anchor.insertAdjacentElement('afterend', banner);
+    }
+
+    const disableIds = [
+        'newBtn',
+        'saveBtn',
+        'invoiceUnlockBtn',
+        'saveTemplateBtn',
+        'updateTemplateBtn',
+        'pullTimesheetsBtn',
+        'loadTimesheetsBtn',
+        'generateTimesheetBtn',
+        'addItemBtn'
+    ];
+
+    disableIds.forEach((id) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.disabled = true;
+        el.title = getReadOnlyMessage('editing invoices');
+        el.setAttribute('aria-disabled', 'true');
+    });
+
+    const templateSelect = document.getElementById('templateSelect');
+    if (templateSelect) {
+        templateSelect.disabled = true;
+        templateSelect.title = getReadOnlyMessage('loading templates');
+    }
+
+    const form = document.getElementById('invoiceForm');
+    if (form) {
+        form.querySelectorAll('input, select, textarea').forEach((el) => {
+            el.disabled = true;
+        });
+    }
+}
+
+function blockReadOnlyAction(feature = 'this action') {
+    if (!state.isReadOnlyUser) return false;
+    showToast(getReadOnlyMessage(feature), 'info');
+    return true;
 }
 
 function setDirty(dirty) {
@@ -210,6 +291,12 @@ async function init() {
 
     state.user = await checkAuth();
     if (!state.user) return;
+    const access = await getAccessContext(state.user).catch(() => ({
+        role: 'viewer',
+        isReadOnly: true,
+        profile: null
+    }));
+    state.isReadOnlyUser = Boolean(access?.isReadOnly);
 
     // URL Params
     const urlParams = new URLSearchParams(window.location.search);
@@ -277,6 +364,10 @@ async function init() {
 
     bindEventListeners();
     await updateTemplateDropdown();
+    applyReadOnlyAccess();
+    if (state.isReadOnlyUser && !state.currentInvoiceNumber) {
+        setLocked(false, 'draft');
+    }
 
     // Show/hide paid date field based on status
     const statusSelect = document.getElementById('invoiceStatus')
@@ -329,6 +420,7 @@ function bindEventListeners() {
 
     // Buttons
     document.getElementById('addItemBtn').addEventListener('click', () => {
+        if (blockReadOnlyAction('adding line items')) return;
         addItem();
         updatePreview(state);
     });
@@ -366,6 +458,7 @@ function bindEventListeners() {
     });
 
     document.getElementById('logoUpload').addEventListener('change', (e) => {
+        if (blockReadOnlyAction('changing invoice branding')) return;
         handleLogoUpload(e, (logoBase64) => {
             state.logo = logoBase64;
             if (!state.isLocked) setDirty(true);
@@ -375,6 +468,7 @@ function bindEventListeners() {
 
     // ── New Invoice — show custom modal instead of confirm() ────────────
     document.getElementById('newBtn').addEventListener('click', () => {
+        if (blockReadOnlyAction('starting a new invoice')) return;
         const bodyEl = document.getElementById('newInvoiceModalBody');
         if (bodyEl) {
             bodyEl.textContent = state.isDirty
@@ -385,14 +479,19 @@ function bindEventListeners() {
     });
     document.getElementById('newInvoiceCancelBtn')?.addEventListener('click', () => hideModal('newInvoiceModal'));
     document.getElementById('newInvoiceConfirmBtn')?.addEventListener('click', () => {
+        if (blockReadOnlyAction('starting a new invoice')) return;
         setDirty(false); // Clear flag so beforeunload doesn't fire
         window.location.href = 'app.html';
     });
 
     // ── Unlock Invoice ──────────────────────────────────────────────────
-    document.getElementById('invoiceUnlockBtn')?.addEventListener('click', () => showModal('unlockInvoiceModal'));
+    document.getElementById('invoiceUnlockBtn')?.addEventListener('click', () => {
+        if (blockReadOnlyAction('unlocking invoices')) return;
+        showModal('unlockInvoiceModal');
+    });
     document.getElementById('unlockCancelBtn')?.addEventListener('click', () => hideModal('unlockInvoiceModal'));
     document.getElementById('unlockConfirmBtn')?.addEventListener('click', async () => {
+        if (blockReadOnlyAction('unlocking invoices')) return;
         hideModal('unlockInvoiceModal');
         // Revert invoice to draft in DB
         try {
@@ -462,6 +561,7 @@ function bindEventListeners() {
 }
 
 async function handleUpdateTemplate() {
+    if (blockReadOnlyAction('updating templates')) return;
     if (!state.currentTemplateName) return;
 
     setTimeout(async () => {
@@ -509,6 +609,7 @@ async function initializeInvoiceNumber() {
 
 // Handler functions
 async function handleSave() {
+    if (blockReadOnlyAction('saving invoices')) return;
     if (state.isLocked) {
         showToast('Invoice is locked. Unlock it first to save changes.', 'error');
         return;
@@ -753,6 +854,7 @@ function parsePeriodRange(periodStr, fallbackDateStr) {
 }
 
 async function handleSaveTemplate() {
+    if (blockReadOnlyAction('saving templates')) return;
     // Delay to fix Chrome dialog issue
     setTimeout(async () => {
         const name = prompt('Template Name:', 'New Template');
@@ -788,6 +890,7 @@ async function handleSaveTemplate() {
 }
 
 async function handleLoadTemplate(id) {
+    if (blockReadOnlyAction('loading templates')) return;
     try {
         const templates = await dbGetTemplates();
         console.log('DEBUG: All templates:', templates);
@@ -852,6 +955,7 @@ let pendingTimesheetGroups = [];
 let pendingTimesheetRange = { start: '', end: '' };
 
 async function openTimesheetModal() {
+    if (blockReadOnlyAction('pulling consultant timesheets')) return;
     const modal = document.getElementById('timesheetModal');
     if (!modal) return;
     modal.style.display = 'flex';
@@ -883,6 +987,7 @@ function markTimesheetRangeDirty() {
 }
 
 async function loadPendingTimesheetsIntoModal() {
+    if (blockReadOnlyAction('loading consultant timesheets')) return;
     const listContainer = document.getElementById('timesheetConsultantsList');
     const meta = document.getElementById('timesheetSelectionMeta');
     const startStr = document.getElementById('tsPeriodStart').value;
@@ -1041,6 +1146,7 @@ function updateTimesheetSelectionMeta() {
 }
 
 async function generateTimesheetItems() {
+    if (blockReadOnlyAction('pulling consultant timesheets')) return;
     const startStr = document.getElementById('tsPeriodStart').value;
     const endStr = document.getElementById('tsPeriodEnd').value;
     if (startStr !== pendingTimesheetRange.start || endStr !== pendingTimesheetRange.end) {

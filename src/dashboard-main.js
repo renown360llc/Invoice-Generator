@@ -4,6 +4,7 @@ import { dbGetConsultants } from './modules/db-consultants.js'
 import { dbGetTimesheetsForYear } from './modules/db-timesheets.js'
 import { getRecentAuditEvents } from './modules/audit-trail.js'
 import { setSharedFilters, initFiltersForUser } from './modules/crm-filters.js'
+import { getProfileState } from './modules/user-profile.js'
 import { generatePDF } from './modules/pdf.js'
 import { formatCurrency } from './modules/utils.js'
 import './security.js'
@@ -262,13 +263,17 @@ function calculateStats(invoices) {
     const currentMonth = now.getMonth()
     const currentYear = now.getFullYear()
 
-    // Helper: Sum collected amounts by currency
+    // Helper: Sum collected amounts by currency.
+    // For fully-paid invoices that predate the payment ledger, amount_paid may be
+    // 0 or undefined — fall back to totals.total so legacy records are counted.
     const sumCollected = (list) => {
         const totals = {}
         list.forEach(inv => {
             const curr = getInvoiceCurrency(inv)
-            // Sum actual collected amounts for accurate revenue tracking
-            const amount = Number(inv.totals?.amount_paid || 0)
+            const amountPaid = Number(inv.totals?.amount_paid)
+            const amount = amountPaid > 0
+                ? amountPaid
+                : (String(inv.status || '') === 'paid' ? Number(inv.totals?.total || 0) : 0)
             totals[curr] = (totals[curr] || 0) + amount
         })
         return totals
@@ -390,8 +395,8 @@ function updateStatsCards(stats) {
     document.getElementById('yearlyChange').textContent = 'Paid year to date'
 }
 
-function calculateOperationsData({ consultants = [], timesheets = [], invoices = [] }) {
-    const closeContext = getBillingCloseContext()
+function calculateOperationsData({ consultants = [], timesheets = [], invoices = [] }, approvalBufferDays = 3) {
+    const closeContext = getBillingCloseContext(new Date(), approvalBufferDays)
     const range = closeContext.range
     const activeConsultants = consultants.filter((consultant) => isConsultantActiveForRange(consultant, range))
     const activeConsultantIds = new Set(activeConsultants.map((consultant) => consultant.id))
@@ -1430,7 +1435,7 @@ async function initDashboard() {
         if (userNameDisplayEl) userNameDisplayEl.textContent = userName
 
         const currentYear = new Date().getFullYear()
-        const [invoices, consultants, timesheets, auditEvents] = await Promise.all([
+        const [invoices, consultants, timesheets, auditEvents, profile] = await Promise.all([
             getInvoices(user),
             dbGetConsultants().catch((error) => {
                 console.warn('Could not fetch consultants:', error)
@@ -1443,6 +1448,10 @@ async function initDashboard() {
             getRecentAuditEvents(8).catch((error) => {
                 console.warn('Could not fetch audit trail:', error)
                 return []
+            }),
+            getProfileState(user).catch((error) => {
+                console.warn('Could not fetch profile state:', error)
+                return null
             })
         ])
 
@@ -1452,7 +1461,10 @@ async function initDashboard() {
         const stats = calculateStats(invoices)
         updateStatsCards(stats)
 
-        const operationsData = calculateOperationsData({ consultants, timesheets, invoices })
+        const operationsData = calculateOperationsData(
+            { consultants, timesheets, invoices },
+            Number(profile?.approvalBufferDays) || 3
+        )
         dashboardOperationsCache = operationsData
         renderMonthCloseBanner(operationsData)
         renderWorkflowQueue(operationsData)

@@ -3,6 +3,7 @@ import { getCurrentUser } from './config.js';
 import { dbGetConsultants, dbSaveConsultant, dbDeleteConsultant, dbGetTimesheetsCountForConsultant } from './modules/db-consultants.js';
 import { dbGetTimesheetsForYear } from './modules/db-timesheets.js';
 import { debounce, createRenderScheduler } from './modules/utils.js';
+import { getProfileState } from './modules/user-profile.js';
 import {
     getSharedFilters,
     setSharedFilters,
@@ -38,6 +39,7 @@ let filterCurrency = normalizeCurrency(shared.currency);
 let filterClient = normalizeTextFilter(shared.client);
 let filterW2 = normalizeTextFilter(shared.w2);
 let currentSavedViewId = String(prefs.savedViewId || '');
+let currentAccessRole = '';
 
 const els = {};
 const requestRender = createRenderScheduler(() => renderTable());
@@ -91,6 +93,36 @@ function showToast(message, type = 'info') {
     }, 3000);
 }
 
+function isReadOnlyViewer() {
+    return currentAccessRole === 'viewer';
+}
+
+function readOnlyButtonAttrs() {
+    return 'disabled aria-disabled="true" title="Viewer access is read-only"';
+}
+
+function showReadOnlyNotice() {
+    showToast('Viewer access is read-only. Editing is disabled.', 'error');
+}
+
+function applyViewerRestrictions() {
+    const locked = isReadOnlyViewer();
+    const controls = [
+        els.addConsultantBtn,
+        els.saveBtn,
+        els.deleteBtn,
+        els.saveViewBtn,
+        els.updateViewBtn,
+        els.deleteViewBtn
+    ];
+    controls.forEach((node) => {
+        if (!node) return;
+        node.disabled = locked;
+        node.setAttribute('aria-disabled', String(locked));
+        node.title = locked ? 'Viewer access is read-only' : '';
+    });
+}
+
 function formatMoney(amount, currency) {
     try {
         return new Intl.NumberFormat('en-US', {
@@ -141,6 +173,65 @@ function getRateSummary(consultant) {
         value: '—',
         meta: `Currency: ${currency}`
     };
+}
+
+function handleActionClick(event) {
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) return;
+
+    const cardToggle = target.closest('[data-card-toggle]');
+    if (cardToggle) {
+        const card = cardToggle.closest('.consultant-card');
+        const body = card?.querySelector('.consultant-card__body');
+        if (!body) return;
+        const isOpen = !body.hidden;
+        body.hidden = isOpen;
+        cardToggle.setAttribute('aria-expanded', String(!isOpen));
+        cardToggle.classList.toggle('is-open', !isOpen);
+        return;
+    }
+
+    const editBtn = target.closest('.edit-btn');
+    if (editBtn) {
+        if (isReadOnlyViewer()) {
+            showReadOnlyNotice();
+            return;
+        }
+        const id = editBtn.dataset.id;
+        if (id) openModal(id);
+        return;
+    }
+
+    const deleteBtn = target.closest('.delete-btn');
+    if (deleteBtn) {
+        if (isReadOnlyViewer()) {
+            showReadOnlyNotice();
+            return;
+        }
+        const id = deleteBtn.dataset.id;
+        if (id) {
+            _pendingDeleteId = id;
+            openDeleteModal(id);
+        }
+        return;
+    }
+
+    const addTimesheetLink = target.closest('[data-action="add-timesheet"]');
+    if (addTimesheetLink) {
+        if (isReadOnlyViewer()) {
+            showReadOnlyNotice();
+            return;
+        }
+        const consultantName = addTimesheetLink.getAttribute('data-consultant') || '';
+        setSharedFilters({
+            year: selectedYear,
+            month: selectedMonth,
+            currency: filterCurrency,
+            client: filterClient,
+            w2: filterW2,
+            search: consultantName
+        });
+    }
 }
 
 function isConsultantActive(consultant) {
@@ -299,7 +390,10 @@ function renderTable() {
 
         const coverageAction = hasTimesheet
             ? ''
-            : `<a class="btn btn--outline btn--sm" href="timesheets.html" data-action="add-timesheet" data-consultant="${consultant.name || ''}">Add in Timesheets</a>`;
+            : (isReadOnlyViewer()
+                ? `<button class="btn btn--outline btn--sm" type="button" ${readOnlyButtonAttrs()}>Read only</button>`
+                : `<a class="btn btn--outline btn--sm" href="timesheets.html" data-action="add-timesheet" data-consultant="${consultant.name || ''}">Add in Timesheets</a>`);
+        const actionAttrs = isReadOnlyViewer() ? readOnlyButtonAttrs() : '';
 
         return `
             <tr>
@@ -324,8 +418,8 @@ function renderTable() {
                 <td><span class="status-badge ${statusClass}">${statusText}</span></td>
                 <td>${coverageBadge}</td>
                 <td style="white-space:nowrap;">
-                    <button class="btn btn--outline btn--sm edit-btn" data-id="${consultant.id}">Edit</button>
-                    <button class="btn btn--ghost btn--sm delete-btn" data-id="${consultant.id}">Delete</button>
+                    <button class="btn btn--outline btn--sm edit-btn" data-id="${consultant.id}" ${actionAttrs}>Edit</button>
+                    <button class="btn btn--ghost btn--sm delete-btn" data-id="${consultant.id}" ${actionAttrs}>Delete</button>
                     ${coverageAction}
                 </td>
             </tr>
@@ -392,9 +486,13 @@ function renderTable() {
                         <span class="status-badge ${coverageClass}" style="font-size:0.7rem;padding:2px 8px;">${coverageText}</span>
                     </div>
                     <div class="consultant-card__actions">
-                        <button class="btn btn--outline btn--sm edit-btn" data-id="${consultant.id}">✏️ Edit</button>
-                        ${!hasTimesheet ? `<a class="btn btn--outline btn--sm" href="timesheets.html" style="text-align:center;">+ Timesheet</a>` : ''}
-                        <button class="btn btn--ghost btn--sm delete-btn" data-id="${consultant.id}" style="color:#be123c;min-width:44px;">🗑</button>
+                        <button class="btn btn--outline btn--sm edit-btn" data-id="${consultant.id}" ${actionAttrs}>✏️ Edit</button>
+                        ${!hasTimesheet
+                            ? (isReadOnlyViewer()
+                                ? `<button class="btn btn--outline btn--sm" type="button" ${readOnlyButtonAttrs()} style="text-align:center;">Read only</button>`
+                                : `<a class="btn btn--outline btn--sm" href="timesheets.html" style="text-align:center;">+ Timesheet</a>`)
+                            : ''}
+                        <button class="btn btn--ghost btn--sm delete-btn" data-id="${consultant.id}" ${actionAttrs} style="color:#be123c;min-width:44px;">🗑</button>
                     </div>
                 </div>
             </div>`;
@@ -524,6 +622,10 @@ let _originalBillRate = null;
 let _originalCommissionRate = null;
 
 function openModal(id = null) {
+    if (isReadOnlyViewer()) {
+        showReadOnlyNotice();
+        return;
+    }
     clearFormErrors();
     els.form?.reset();
 
@@ -652,6 +754,10 @@ function validateConsultantForm() {
 
 async function handleSave(event) {
     event.preventDefault();
+    if (isReadOnlyViewer()) {
+        showReadOnlyNotice();
+        return;
+    }
 
     if (!validateConsultantForm()) return;
 
@@ -718,6 +824,10 @@ async function handleSave(event) {
 let _pendingDeleteId = null;
 
 async function openDeleteModal(id) {
+    if (isReadOnlyViewer()) {
+        showReadOnlyNotice();
+        return;
+    }
     const consultant = consultants.find(item => item.id === id);
     if (!consultant) return;
 
@@ -768,6 +878,10 @@ function closeDeleteModal() {
 }
 
 async function deleteConsultant(id) {
+    if (isReadOnlyViewer()) {
+        showReadOnlyNotice();
+        return;
+    }
     const consultant = consultants.find(item => item.id === id);
     if (!consultant) return;
 
@@ -1245,6 +1359,7 @@ function captureSavedViewState() {
 
 function renderSavedViews() {
     const views = listSavedViews('consultants');
+    const locked = isReadOnlyViewer();
     if (els.savedViewSelect) {
         els.savedViewSelect.innerHTML = ['<option value="">Saved Views</option>', ...views.map((view) => (
             `<option value="${escapeHtml(view.id)}">${escapeHtml(view.name)}</option>`
@@ -1266,8 +1381,9 @@ function renderSavedViews() {
             ? `Active: ${activeView.name} • ${totalText}`
             : totalText;
     }
-    if (els.updateViewBtn) els.updateViewBtn.disabled = !activeView;
-    if (els.deleteViewBtn) els.deleteViewBtn.disabled = !activeView;
+    if (els.updateViewBtn) els.updateViewBtn.disabled = locked || !activeView;
+    if (els.deleteViewBtn) els.deleteViewBtn.disabled = locked || !activeView;
+    if (els.saveViewBtn) els.saveViewBtn.disabled = locked;
 }
 
 async function applySavedView(view) {
@@ -1485,9 +1601,12 @@ async function init() {
     if (user) {
         initFiltersForUser(user.id);
         initSavedViewsForUser(user.id);
+        const profile = await getProfileState(user).catch(() => null);
+        currentAccessRole = profile?.accessRole || '';
     }
     cacheElements();
     setupPeriodControls();
+    applyViewerRestrictions();
     bindPageEvents();
 
     if (els.statusFilter) els.statusFilter.value = currentFilter;

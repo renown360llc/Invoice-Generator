@@ -1,5 +1,21 @@
 import { supabase, getCurrentUser } from '../config.js';
 
+function isMissingAuditTableError(error = {}) {
+    const code = error.code || '';
+    const message = String(error.message || '').toLowerCase();
+    return code === '42P01' || code === 'PGRST205' || message.includes('does not exist');
+}
+
+function reportAuditError(operation, error, details = {}) {
+    console.error(`[audit-trail] ${operation} failed`, {
+        message: error?.message || String(error),
+        code: error?.code || null,
+        details: error?.details || null,
+        hint: error?.hint || null,
+        ...details
+    });
+}
+
 function compactInvoice(record = {}) {
     return {
         id: record.id || null,
@@ -88,11 +104,16 @@ export async function logAuditEvent({
         .single();
 
     if (error) {
-        if (error.code === '42P01') {
+        if (isMissingAuditTableError(error)) {
             console.warn('Audit trail table does not exist yet.');
             return null;
         }
-        console.warn('Failed to write audit event:', error.message || error);
+        reportAuditError('write audit event', error, {
+            entityType,
+            entityId,
+            entityKey,
+            action
+        });
         return null;
     }
 
@@ -111,11 +132,11 @@ export async function getRecentAuditEvents(limit = 8) {
         .limit(limit);
 
     if (error) {
-        if (error.code === '42P01') {
+        if (isMissingAuditTableError(error)) {
             console.warn('Audit trail table does not exist yet.');
             return [];
         }
-        console.warn('Failed to load audit trail:', error.message || error);
+        reportAuditError('load recent audit events', error, { limit });
         return [];
     }
 

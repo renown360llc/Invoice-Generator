@@ -4,16 +4,29 @@
  */
 
 import { getCurrentUser, signOut } from '../auth.js';
+import { escapeHtml } from '../utils.js';
+import { getProfileState } from '../modules/user-profile.js';
 
 function getInitials(name) {
     if (!name) return '?';
-    return name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
+    return String(name)
+        .replace(/[^a-zA-Z0-9 ]+/g, ' ')
+        .split(/\s+/)
+        .filter(Boolean)
+        .map((w) => w[0])
+        .join('')
+        .toUpperCase()
+        .slice(0, 2) || '?';
 }
 
 export async function loadLayout(activeLink = '') {
     const user = await getCurrentUser();
-    const displayName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'User';
-    const initials = getInitials(displayName);
+    const profile = user ? await getProfileState(user).catch(() => null) : null;
+    const rawDisplayName = profile?.displayName || user?.email?.split('@')[0] || 'User';
+    const rawRoleDisplay = profile?.roleLabel || 'Member';
+    const displayName = escapeHtml(rawDisplayName);
+    const roleDisplay = escapeHtml(rawRoleDisplay);
+    const initials = getInitials(rawDisplayName);
 
     const sidebarHTML = `
     <div class="app-shell">
@@ -141,7 +154,7 @@ export async function loadLayout(activeLink = '') {
                         <div class="top-header__avatar">${initials}</div>
                         <div class="top-header__user-info">
                             <span class="top-header__user-name">${displayName}</span>
-                            <span class="top-header__user-role">Admin</span>
+                            <span class="top-header__user-role">${roleDisplay}</span>
                         </div>
                         <div class="user-menu" id="userMenu">
                             <a href="profile.html" class="user-menu__item">

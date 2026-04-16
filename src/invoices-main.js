@@ -3,6 +3,7 @@ import { getInvoices, updateInvoiceStatus, recordInvoicePayment, deleteInvoicePa
 import { supabase } from './config.js';
 import { generatePDF } from './modules/pdf.js';
 import { dbGetConsultants } from './modules/db-consultants.js';
+import { getAccessContext, getReadOnlyMessage } from './modules/access-control.js';
 import { debounce, showToast } from './modules/utils.js';
 import './security.js';
 
@@ -72,7 +73,8 @@ const state = {
     loadRequestId: 0,
     invoiceToDelete: null,
     invoiceToPay: null,
-    channel: null
+    channel: null,
+    isReadOnlyUser: false
 };
 
 const els = {};
@@ -115,11 +117,18 @@ async function init() {
     if (!state.user) {
         return;
     }
+    const access = await getAccessContext(state.user).catch(() => ({
+        role: 'viewer',
+        isReadOnly: true,
+        profile: null
+    }));
+    state.isReadOnlyUser = Boolean(access?.isReadOnly);
 
     // Scope localStorage to this user so filter state doesn't bleed between accounts
     STORAGE_KEY = `invoice_pro_invoice_filters_v2_${String(state.user.id).slice(-12)}`;
 
     cacheElements();
+    applyAccessRestrictions();
     hydrateFilterControls();
     bindEvents();
     await loadInvoices();
@@ -170,6 +179,101 @@ function closeAllRowMenus() {
     document.querySelectorAll('[data-action="toggle-menu"][aria-expanded="true"]').forEach((button) => {
         button.setAttribute('aria-expanded', 'false');
     });
+}
+
+function blockReadOnlyAction(feature = 'this action') {
+    if (!state.isReadOnlyUser) return false;
+    showToast(getReadOnlyMessage(feature), 'info');
+    return true;
+}
+
+function ensureReadOnlyBanner() {
+    const existing = document.getElementById('invoiceReadOnlyBanner');
+    if (!state.isReadOnlyUser) {
+        existing?.remove();
+        return;
+    }
+
+    let banner = existing;
+    if (!banner) {
+        banner = document.createElement('div');
+        banner.id = 'invoiceReadOnlyBanner';
+        banner.style.cssText = 'display:flex;align-items:flex-start;gap:0.75rem;padding:0.9rem 1rem;margin:0 0 1rem;border:1px solid #fde68a;background:#fffbeb;color:#92400e;border-radius:12px;';
+
+        const icon = document.createElement('span');
+        icon.style.cssText = 'font-size:1.1rem;line-height:1;';
+        icon.textContent = '🔒';
+
+        const content = document.createElement('div');
+        content.style.cssText = 'display:flex;flex-direction:column;gap:0.2rem;min-width:0;';
+
+        const heading = document.createElement('strong');
+        heading.textContent = 'Read-only access';
+
+        const message = document.createElement('span');
+        message.textContent = getReadOnlyMessage('invoice management');
+
+        content.append(heading, message);
+        banner.append(icon, content);
+    }
+
+    const anchor = document.querySelector('.invoices-filters-grid') || document.getElementById('filtersMeta');
+    if (anchor && !banner.isConnected) {
+        anchor.parentElement?.insertBefore(banner, anchor);
+    }
+}
+
+function applyAccessRestrictions() {
+    if (!state.isReadOnlyUser) return;
+
+    ensureReadOnlyBanner();
+
+    const disableIds = [
+        'saveStatusBtn',
+        'addPaymentBtn',
+        'confirmDelete',
+        'editPaymentBtn',
+        'saveBtn',
+        'invoiceUnlockBtn'
+    ];
+
+    disableIds.forEach((id) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.disabled = true;
+        el.setAttribute('aria-disabled', 'true');
+        el.title = getReadOnlyMessage('editing invoices');
+    });
+
+    const paymentInputs = [
+        'newPaymentDate',
+        'newPaymentAmount',
+        'newPaymentUsd',
+        'newPaymentNote',
+        'modalStatusInput'
+    ];
+    paymentInputs.forEach((id) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.disabled = true;
+    });
+
+    const paymentModal = document.getElementById('paymentInfoModal');
+    if (paymentModal) {
+        paymentModal.querySelectorAll('button, input, select, textarea').forEach((el) => {
+            if (el.id === 'cancelPaymentBtn' || el.id === 'closePaymentModal') return;
+            if (el.id === 'downloadPdfBtn' || el.id === 'emailBtn') return;
+            el.disabled = true;
+        });
+    }
+
+    const deleteModal = document.getElementById('deleteModal');
+    if (deleteModal) {
+        deleteModal.querySelectorAll('button').forEach((el) => {
+            if (el.id === 'cancelDelete') return;
+            el.disabled = true;
+        });
+    }
 }
 
 function toggleRowMenu(invoiceId, button) {
@@ -339,6 +443,11 @@ function bindEvents() {
         const invoiceId = button.dataset.id;
         if (!action || !invoiceId) return;
 
+        if (state.isReadOnlyUser && ['delete', 'mark-sent', 'mark-paid', 'edit-payment-info', 'edit-paid-date', 'reopen'].includes(action)) {
+            showToast(getReadOnlyMessage('invoice editing'), 'info');
+            return;
+        }
+
         if (action === 'toggle-menu') {
             event.stopPropagation();
             toggleRowMenu(invoiceId, button);
@@ -431,6 +540,10 @@ function bindEvents() {
     });
 
     els.confirmDeleteBtn?.addEventListener('click', async () => {
+        if (state.isReadOnlyUser) {
+            showToast(getReadOnlyMessage('invoice deletion'), 'info');
+            return;
+        }
         if (!state.invoiceToDelete) return;
 
         const invoice = state.invoiceToDelete;
@@ -466,6 +579,10 @@ function bindEvents() {
 
     // Save Status ONLY (Manual override)
     els.saveStatusBtn?.addEventListener('click', async () => {
+        if (state.isReadOnlyUser) {
+            showToast(getReadOnlyMessage('invoice status changes'), 'info');
+            return;
+        }
         if (!state.invoiceToPay) return;
         const nextStatus = els.modalStatusInput?.value || 'sent';
         els.saveStatusBtn.disabled = true;
@@ -489,6 +606,10 @@ function bindEvents() {
 
     // Add/Update Payment Installment
     els.addPaymentBtn?.addEventListener('click', async () => {
+        if (state.isReadOnlyUser) {
+            showToast(getReadOnlyMessage('payment changes'), 'info');
+            return;
+        }
         if (!state.invoiceToPay) return;
         
         const date = document.getElementById('newPaymentDate')?.value;
@@ -535,6 +656,10 @@ function bindEvents() {
         const deleteBtn = e.target.closest('.ledger-delete');
         const editBtn = e.target.closest('.ledger-edit');
         if (!state.invoiceToPay) return;
+        if (state.isReadOnlyUser) {
+            showToast(getReadOnlyMessage('payment changes'), 'info');
+            return;
+        }
 
         if (deleteBtn) {
             const paymentId = deleteBtn.dataset.paymentId;
@@ -867,13 +992,15 @@ function renderTable() {
                         </button>
                         <div id="invoice-menu-${invoice.id}" class="dropdown-menu invoice-row-menu">
                             <div class="dropdown-label">Invoice Actions</div>
-                            <button class="dropdown-item" data-action="edit" data-id="${invoice.id}">View/Edit invoice</button>
+                            <button class="dropdown-item" data-action="edit" data-id="${invoice.id}">${state.isReadOnlyUser ? 'View invoice' : 'View/Edit invoice'}</button>
                             <button class="dropdown-item" data-action="download" data-id="${invoice.id}">Download PDF</button>
                             <button class="dropdown-item" data-action="email" data-id="${invoice.id}">Send by email</button>
                             <button class="dropdown-item" data-action="expand-ts" data-id="${invoice.id}" data-inv-number="${escapeHtml(invoice.invoice_number || '')}">Linked timesheets</button>
                             ${renderSecondaryStatusMenuAction(invoice, status)}
+                            ${state.isReadOnlyUser ? '' : `
                             <div class="dropdown-divider"></div>
                             <button class="dropdown-item dropdown-item--danger" data-action="delete" data-id="${invoice.id}">Delete invoice</button>
+                            `}
                         </div>
                     </div>
                 </td>
@@ -918,9 +1045,11 @@ function renderTable() {
             // Setup primary and secondary actions
             const primaryAction = renderPrimaryAction(invoice, status).replace('class="action-btn invoice-primary-action"', 'class="btn btn--primary btn--sm" style="flex:1"');
             const secondaryActionsHTML = [];
-            secondaryActionsHTML.push(`<button class="btn btn--outline btn--sm" data-action="edit" data-id="${invoice.id}" style="flex:1">Edit</button>`);
-            secondaryActionsHTML.push(`<button class="btn btn--outline btn--sm" data-action="edit-payment-info" data-id="${invoice.id}" style="flex:1">Status/Payment</button>`);
-            secondaryActionsHTML.push(`<button class="btn btn--ghost btn--sm" data-action="delete" data-id="${invoice.id}" style="color:#ef4444; width:100%">Delete</button>`);
+            secondaryActionsHTML.push(`<button class="btn btn--outline btn--sm" data-action="edit" data-id="${invoice.id}" style="flex:1">${state.isReadOnlyUser ? 'View' : 'Edit'}</button>`);
+            if (!state.isReadOnlyUser) {
+                secondaryActionsHTML.push(`<button class="btn btn--outline btn--sm" data-action="edit-payment-info" data-id="${invoice.id}" style="flex:1">Status/Payment</button>`);
+                secondaryActionsHTML.push(`<button class="btn btn--ghost btn--sm" data-action="delete" data-id="${invoice.id}" style="color:#ef4444; width:100%">Delete</button>`);
+            }
 
             return `
             <div class="m-card">
@@ -963,6 +1092,13 @@ function renderTable() {
 }
 
 function renderPrimaryAction(invoice, effectiveStatus) {
+    if (state.isReadOnlyUser) {
+        if (effectiveStatus === 'paid') {
+            return `<button class="action-btn action-btn--primary invoice-primary-action" data-action="download" data-id="${invoice.id}">PDF</button>`;
+        }
+        return `<button class="action-btn action-btn--primary invoice-primary-action" data-action="edit" data-id="${invoice.id}">View</button>`;
+    }
+
     if (effectiveStatus === 'draft') {
         return `<button class="action-btn action-btn--primary invoice-primary-action" data-action="mark-sent" data-id="${invoice.id}">Mark Sent</button>`;
     }
@@ -975,6 +1111,8 @@ function renderPrimaryAction(invoice, effectiveStatus) {
 }
 
 function renderSecondaryStatusMenuAction(invoice, effectiveStatus) {
+    if (state.isReadOnlyUser) return '';
+
     return `
         <div class="dropdown-divider"></div>
         <div class="dropdown-label">Lifecycle</div>
@@ -1071,6 +1209,10 @@ function setEmptyTable(message) {
 }
 
 function openDeleteModal(invoice) {
+    if (state.isReadOnlyUser) {
+        showToast(getReadOnlyMessage('invoice deletion'), 'info');
+        return;
+    }
     state.invoiceToDelete = invoice;
     if (els.deleteInvoiceMeta) {
         els.deleteInvoiceMeta.textContent = `Invoice ${invoice.invoice_number || '—'} • Client ${invoice.client_info?.name || 'N/A'}`;
@@ -1117,6 +1259,10 @@ function ensureReconciled(invoice) {
 }
 
 function openPaymentInfoModal(invoiceRaw) {
+    if (state.isReadOnlyUser) {
+        showToast(getReadOnlyMessage('payment changes'), 'info');
+        return;
+    }
     const invoice = ensureReconciled(invoiceRaw);
     state.invoiceToPay = invoice;
     const totals = invoice.totals || {};
@@ -1269,6 +1415,10 @@ function closePaidModal() {
 }
 
 async function updateStatus(invoice, nextStatus) {
+    if (state.isReadOnlyUser) {
+        showToast(getReadOnlyMessage('invoice status changes'), 'info');
+        return;
+    }
     try {
         await updateInvoiceStatus(invoice.id, nextStatus);
 
@@ -1300,6 +1450,10 @@ function handleEmailInvoice(invoice) {
 }
 
 async function unlinkTimesheetsForInvoice(invoice) {
+    if (state.isReadOnlyUser) {
+        showToast(getReadOnlyMessage('invoice deletion'), 'info');
+        return;
+    }
     const patch = {
         invoice_id: null,
         invoice_number: null,
@@ -1330,6 +1484,10 @@ async function unlinkTimesheetsForInvoice(invoice) {
 }
 
 async function markTimesheetsInvoiced(invoice) {
+    if (state.isReadOnlyUser) {
+        showToast(getReadOnlyMessage('invoice status changes'), 'info');
+        return;
+    }
     const patch = {
         status: 'invoiced',
         invoice_number: invoice.invoice_number

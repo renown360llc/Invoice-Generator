@@ -1,144 +1,162 @@
 import { getCurrentUser, signOut } from './auth.js';
 import { showToast } from './utils.js';
-import { supabase } from './config.js';
+import {
+    DEFAULT_APPROVAL_BUFFER_DAYS,
+    getProfileState,
+    saveProfileState
+} from './modules/user-profile.js';
 import './security.js';
 
+function getInitials(name) {
+    if (!name) return '?';
+    return name.split(' ').map((word) => word[0]).join('').toUpperCase().slice(0, 2);
+}
+
+function syncAvatar(name) {
+    const avatarImg = document.getElementById('avatarImage');
+    if (!avatarImg) return;
+    avatarImg.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(name || 'User')}&background=F37021&color=fff&size=128`;
+}
+
+function syncSummary(profile) {
+    const roleBadge = document.getElementById('profileRoleBadge');
+    const displaySummary = document.getElementById('profileDisplaySummary');
+    const roleSummary = document.getElementById('profileRoleSummary');
+    const bufferSummary = document.getElementById('profileBufferSummary');
+    const workspaceSummary = document.getElementById('profileWorkspaceSummary');
+    const tableStatus = document.getElementById('profileTableStatus');
+
+    if (roleBadge) roleBadge.textContent = profile.roleLabel || 'Viewer';
+    if (displaySummary) displaySummary.textContent = profile.displayName || 'User';
+    if (roleSummary) roleSummary.textContent = profile.roleLabel || 'Viewer';
+    if (bufferSummary) bufferSummary.textContent = `${profile.approvalBufferDays ?? DEFAULT_APPROVAL_BUFFER_DAYS} Days`;
+    if (workspaceSummary) workspaceSummary.textContent = profile.workspaceName || 'Not set';
+    if (tableStatus) tableStatus.textContent = profile.hasProfilesTable ? 'Live' : 'Metadata Fallback';
+}
+
+function syncHeaderProfile(profile) {
+    const nameEl = document.querySelector('.top-header__user-name');
+    const roleEl = document.querySelector('.top-header__user-role');
+    const avatarEl = document.querySelector('.top-header__avatar');
+
+    if (nameEl) nameEl.textContent = profile.displayName || 'User';
+    if (roleEl) roleEl.textContent = profile.roleLabel || 'Viewer';
+    if (avatarEl) avatarEl.textContent = getInitials(profile.displayName || 'User');
+}
+
+function populateForm(profile) {
+    const displayNameInput = document.getElementById('displayName');
+    const accessRoleInput = document.getElementById('accessRole');
+    const approvalBufferDaysInput = document.getElementById('approvalBufferDays');
+    const emailInput = document.getElementById('email');
+    const workspaceNameInput = document.getElementById('workspaceName');
+    const phoneNumberInput = document.getElementById('phoneNumber');
+
+    if (displayNameInput) displayNameInput.value = profile.displayName || '';
+    if (accessRoleInput) accessRoleInput.value = profile.roleLabel || 'Viewer';
+    if (approvalBufferDaysInput) approvalBufferDaysInput.value = String(profile.approvalBufferDays ?? DEFAULT_APPROVAL_BUFFER_DAYS);
+    if (emailInput) emailInput.value = profile.email || '';
+    if (workspaceNameInput) workspaceNameInput.value = profile.workspaceName || '';
+    if (phoneNumberInput) phoneNumberInput.value = profile.phoneNumber || '';
+}
+
+function readFormProfile() {
+    return {
+        displayName: String(document.getElementById('displayName')?.value || '').trim(),
+        workspaceName: String(document.getElementById('workspaceName')?.value || '').trim(),
+        phoneNumber: String(document.getElementById('phoneNumber')?.value || '').trim(),
+        approvalBufferDays: document.getElementById('approvalBufferDays')?.value || DEFAULT_APPROVAL_BUFFER_DAYS
+    };
+}
+
+function wireTabs() {
+    const tabs = document.querySelectorAll('.profile-nav__link[data-tab]');
+    const sections = document.querySelectorAll('.profile-section');
+
+    const showTab = (targetId) => {
+        tabs.forEach((t) => t.classList.toggle('active', t.dataset.tab === targetId));
+        sections.forEach((section) => {
+            const isActive = section.id === targetId;
+            section.style.display = isActive ? 'block' : 'none';
+            section.classList.toggle('active', isActive);
+        });
+    };
+
+    tabs.forEach((tab) => {
+        tab.addEventListener('click', (e) => {
+            e.preventDefault();
+            showTab(tab.dataset.tab);
+        });
+    });
+
+    if (tabs.length > 0) {
+        showTab(tabs[0].dataset.tab);
+    }
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
-    // 1. Check Auth & Load User Data
     const user = await getCurrentUser();
     if (!user) {
         window.location.href = 'login.html';
         return;
     }
 
-    const meta = user.user_metadata || {};
-
-    // Populate user data
-    const emailInput = document.getElementById('email');
-    if (emailInput) emailInput.value = user.email || '';
-
-    const fullNameInput = document.getElementById('fullName');
-    const name = meta.full_name || user.email?.split('@')[0] || 'User';
-    if (fullNameInput) fullNameInput.value = name;
-
-    const jobTitleInput = document.getElementById('jobTitle');
-    if (jobTitleInput) jobTitleInput.value = meta.job_title || '';
-
-    const companyNameInput = document.getElementById('companyName');
-    if (companyNameInput) companyNameInput.value = meta.company_name || '';
-
-    const phoneNumberInput = document.getElementById('phoneNumber');
-    if (phoneNumberInput) phoneNumberInput.value = meta.phone_number || '';
-
-    // Update Avatar
-    const avatarImg = document.getElementById('avatarImage');
-    if (avatarImg) {
-        const avatarUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=F37021&color=fff&size=128`;
-        avatarImg.src = avatarUrl;
+    let currentProfile = await getProfileState(user);
+    if (!currentProfile) {
+        showToast('Unable to load profile.', 'error');
+        return;
     }
 
-    // 2. Tab Switching Logic
-    const tabs = document.querySelectorAll('.profile-nav__link[data-tab]');
-    const sections = document.querySelectorAll('.profile-section');
+    populateForm(currentProfile);
+    syncSummary(currentProfile);
+    syncHeaderProfile(currentProfile);
+    syncAvatar(currentProfile.displayName);
+    wireTabs();
 
-    tabs.forEach(tab => {
-        tab.addEventListener('click', (e) => {
-            e.preventDefault();
-            const targetId = tab.dataset.tab;
-
-            tabs.forEach(t => t.classList.remove('active'));
-            tab.classList.add('active');
-
-            sections.forEach(section => {
-                section.style.display = 'none';
-                section.classList.remove('active');
-
-                if (section.id === targetId) {
-                    section.style.display = 'block';
-                    setTimeout(() => section.classList.add('active'), 10);
-                }
-            });
-        });
-    });
-
-    // Initialize first tab
-    if (tabs.length > 0) {
-        const firstTab = tabs[0];
-        const targetId = firstTab.dataset.tab;
-
-        firstTab.classList.add('active');
-        sections.forEach(section => {
-            if (section.id === targetId) {
-                section.style.display = 'block';
-                section.classList.add('active');
-            } else {
-                section.style.display = 'none';
-                section.classList.remove('active');
-            }
-        });
-    }
-
-    // 3. Handle Form Save — writes to Supabase user_metadata
     const form = document.getElementById('profileForm');
     const saveBtn = form?.querySelector('button[type="submit"]');
-    if (form) {
-        form.addEventListener('submit', async (e) => {
-            e.preventDefault();
-
-            const updatedName = fullNameInput?.value.trim() || '';
-            const updatedJobTitle = jobTitleInput?.value.trim() || '';
-            const updatedCompany = companyNameInput?.value.trim() || '';
-            const updatedPhone = phoneNumberInput?.value.trim() || '';
-
-            if (!updatedName) {
-                showToast('Full name is required.', 'error');
-                return;
-            }
-
-            if (saveBtn) {
-                saveBtn.disabled = true;
-                saveBtn.textContent = 'Saving…';
-            }
-
-            try {
-                const { error } = await supabase.auth.updateUser({
-                    data: {
-                        full_name: updatedName,
-                        job_title: updatedJobTitle,
-                        company_name: updatedCompany,
-                        phone_number: updatedPhone
-                    }
-                });
-
-                if (error) {
-                    console.error('Profile update error:', error);
-                    showToast(`Failed to save: ${error.message}`, 'error');
-                } else {
-                    showToast('Profile updated successfully!', 'success');
-
-                    // Update avatar to reflect new name
-                    if (avatarImg) {
-                        avatarImg.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(updatedName)}&background=F37021&color=fff&size=128`;
-                    }
-                }
-            } catch (err) {
-                console.error('Profile save error:', err);
-                showToast('An unexpected error occurred.', 'error');
-            } finally {
-                if (saveBtn) {
-                    saveBtn.disabled = false;
-                    saveBtn.textContent = 'Save Changes';
-                }
-            }
-        });
-    }
-
-    // 4. Handle Sign Out from Sidebar
+    const resetBtn = document.getElementById('profileResetBtn');
     const signOutBtn = document.getElementById('signOutBtnSide');
-    if (signOutBtn) {
-        signOutBtn.addEventListener('click', async (e) => {
-            e.preventDefault();
-            await signOut();
-        });
-    }
+
+    resetBtn?.addEventListener('click', () => {
+        populateForm(currentProfile);
+    });
+
+    form?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const nextProfile = readFormProfile();
+        if (!nextProfile.displayName) {
+            showToast('Display name is required.', 'error');
+            return;
+        }
+
+        if (saveBtn) {
+            saveBtn.disabled = true;
+            saveBtn.textContent = 'Saving…';
+        }
+
+        try {
+            const savedProfile = await saveProfileState(nextProfile, user);
+            currentProfile = savedProfile || currentProfile;
+            populateForm(currentProfile);
+            syncSummary(currentProfile);
+            syncHeaderProfile(currentProfile);
+            syncAvatar(currentProfile.displayName);
+            showToast('Profile updated successfully.', 'success');
+        } catch (err) {
+            console.error('Profile save error:', err);
+            showToast(`Failed to save: ${err.message || 'Unable to update profile.'}`, 'error');
+        } finally {
+            if (saveBtn) {
+                saveBtn.disabled = false;
+                saveBtn.textContent = 'Save Changes';
+            }
+        }
+    });
+
+    signOutBtn?.addEventListener('click', async (e) => {
+        e.preventDefault();
+        await signOut();
+    });
 });

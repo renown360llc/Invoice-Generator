@@ -20,6 +20,99 @@
         body {
             display: none;
         }
+
+        .profile-summary-card {
+            margin-bottom: 1.5rem;
+            padding: 1.25rem;
+            border: 1px solid var(--surface-glass-border);
+            border-radius: var(--radius-md);
+            background: var(--surface-app);
+        }
+
+        .profile-summary-card__header {
+            display: flex;
+            justify-content: space-between;
+            gap: 1rem;
+            align-items: flex-start;
+            margin-bottom: 1rem;
+        }
+
+        .profile-summary-card__title {
+            font-size: 0.875rem;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .profile-summary-card__desc {
+            margin-top: 0.25rem;
+            font-size: 0.8125rem;
+            color: var(--text-secondary);
+        }
+
+        .profile-summary-card__badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 0.375rem 0.7rem;
+            border-radius: 999px;
+            background: rgba(243, 112, 33, 0.12);
+            color: var(--primary);
+            font-size: 0.75rem;
+            font-weight: 700;
+            white-space: nowrap;
+        }
+
+        .profile-summary-grid {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 0.75rem;
+        }
+
+        .profile-summary-item {
+            padding: 0.875rem;
+            border-radius: var(--radius-sm);
+            background: white;
+            border: 1px solid var(--surface-border-subtle);
+        }
+
+        .profile-summary-item span {
+            display: block;
+            font-size: 0.6875rem;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--text-tertiary);
+        }
+
+        .profile-summary-item strong {
+            display: block;
+            margin-top: 0.375rem;
+            font-size: 0.875rem;
+            color: var(--text-primary);
+            font-weight: 700;
+        }
+
+        .form-help {
+            margin-top: 0.35rem;
+            font-size: 0.6875rem;
+            color: var(--text-tertiary);
+            line-height: 1.4;
+        }
+
+        @media (max-width: 768px) {
+            .profile-summary-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+        }
+
+        @media (max-width: 520px) {
+            .profile-summary-card__header {
+                flex-direction: column;
+            }
+
+            .profile-summary-grid {
+                grid-template-columns: 1fr;
+            }
+        }
     </style>
     <script type="module">
         import { requireAuth } from './src/auth.js';
@@ -90,15 +183,53 @@
                         </div>
                     </div>
 
+                    <div class="profile-summary-card">
+                        <div class="profile-summary-card__header">
+                            <div>
+                                <h3 class="profile-summary-card__title">Workspace Settings</h3>
+                                <p class="profile-summary-card__desc">Role-facing details shown across the app and used for month-close timing.</p>
+                            </div>
+                            <span id="profileRoleBadge" class="profile-summary-card__badge">Member</span>
+                        </div>
+                        <div class="profile-summary-grid">
+                            <div class="profile-summary-item">
+                                <span>Display Name</span>
+                                <strong id="profileDisplaySummary">User</strong>
+                            </div>
+                            <div class="profile-summary-item">
+                                <span>Role Display</span>
+                                <strong id="profileRoleSummary">Member</strong>
+                            </div>
+                            <div class="profile-summary-item">
+                                <span>Approval Buffer</span>
+                                <strong id="profileBufferSummary">3 Days</strong>
+                            </div>
+                            <div class="profile-summary-item">
+                                <span>Workspace</span>
+                                <strong id="profileWorkspaceSummary">Not set</strong>
+                            </div>
+                            <div class="profile-summary-item">
+                                <span>Profile Source</span>
+                                <strong id="profileTableStatus">Metadata Fallback</strong>
+                            </div>
+                        </div>
+                    </div>
+
                     <form id="profileForm">
                         <div class="form-grid">
                             <div class="form-group">
-                                <label class="form-label">Full Name</label>
-                                <input type="text" class="form-input" id="fullName" placeholder="Your Name">
+                                <label class="form-label">Display Name</label>
+                                <input type="text" class="form-input" id="displayName" placeholder="Your Name">
                             </div>
                             <div class="form-group">
-                                <label class="form-label">Job Title</label>
-                                <input type="text" class="form-input" id="jobTitle" placeholder="e.g. Freelancer">
+                                <label class="form-label">Access Role</label>
+                                <input type="text" class="form-input" id="accessRole" readonly>
+                                <p class="form-help">Permissions come from the workspace profile and are not editable from this screen.</p>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Approval Buffer Days</label>
+                                <input type="number" class="form-input" id="approvalBufferDays" min="0" max="31" step="1" placeholder="3">
+                                <p class="form-help">Used for month-close reminders and exception timing.</p>
                             </div>
                             <div class="form-group form-group--full">
                                 <label class="form-label">Email Address</label>
@@ -107,8 +238,8 @@
                                     the Security tab.</p>
                             </div>
                             <div class="form-group">
-                                <label class="form-label">Company Name</label>
-                                <input type="text" class="form-input" id="companyName" placeholder="Your Company">
+                                <label class="form-label">Workspace Name</label>
+                                <input type="text" class="form-input" id="workspaceName" placeholder="Your Company or Team">
                             </div>
                             <div class="form-group">
                                 <label class="form-label">Phone Number</label>
@@ -116,7 +247,7 @@
                             </div>
                         </div>
                         <div class="form-actions">
-                            <button type="button" class="btn btn--outline">Cancel</button>
+                            <button type="button" class="btn btn--outline" id="profileResetBtn">Cancel</button>
                             <button type="submit" class="btn btn--primary">Save Changes</button>
                         </div>
                     </form>

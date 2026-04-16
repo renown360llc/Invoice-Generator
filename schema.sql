@@ -12,10 +12,62 @@ CREATE TABLE IF NOT EXISTS public.invoices (
     notes TEXT DEFAULT '',
     payment_instructions TEXT DEFAULT '',
     totals JSONB NOT NULL DEFAULT '{}'::jsonb,
-    status TEXT DEFAULT 'draft' CHECK (status IN ('draft', 'sent', 'paid')),
+    status TEXT NOT NULL DEFAULT 'draft' CONSTRAINT invoices_status_check CHECK (status IN ('draft', 'sent', 'partially_paid', 'paid')),
     paid_date DATE,
     UNIQUE(user_id, invoice_number)
 );
+
+-- Profiles Table
+CREATE TABLE IF NOT EXISTS public.profiles (
+    user_id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+    role TEXT NOT NULL DEFAULT 'viewer' CHECK (role IN ('viewer', 'ops', 'finance', 'admin')),
+    approval_buffer_days INTEGER NOT NULL DEFAULT 3 CHECK (approval_buffer_days BETWEEN 0 AND 30)
+);
+
+ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Users can read their own profile" ON public.profiles;
+CREATE POLICY "Users can read their own profile"
+    ON public.profiles
+    FOR SELECT
+    USING (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Users can create their own profile" ON public.profiles;
+CREATE POLICY "Users can create their own profile"
+    ON public.profiles
+    FOR INSERT
+    WITH CHECK (auth.uid() = user_id AND role = 'viewer');
+
+DROP POLICY IF EXISTS "Users can update their own profile" ON public.profiles;
+CREATE POLICY "Users can update their own profile"
+    ON public.profiles
+    FOR UPDATE
+    USING (auth.uid() = user_id)
+    WITH CHECK (auth.uid() = user_id);
+
+CREATE OR REPLACE FUNCTION public.prevent_profile_role_changes()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    IF NEW.user_id IS DISTINCT FROM OLD.user_id THEN
+        RAISE EXCEPTION 'profiles.user_id cannot be changed';
+    END IF;
+
+    IF NEW.role IS DISTINCT FROM OLD.role THEN
+        RAISE EXCEPTION 'profiles.role cannot be changed from the application surface';
+    END IF;
+
+    RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS profiles_prevent_role_changes ON public.profiles;
+CREATE TRIGGER profiles_prevent_role_changes
+    BEFORE UPDATE ON public.profiles
+    FOR EACH ROW
+    EXECUTE FUNCTION public.prevent_profile_role_changes();
 
 -- Row Level Security (RLS) for Invoices
 ALTER TABLE public.invoices ENABLE ROW LEVEL SECURITY;
@@ -128,22 +180,19 @@ CREATE TABLE IF NOT EXISTS public.audit_events (
 
 ALTER TABLE public.audit_events ENABLE ROW LEVEL SECURITY;
 
-DO $$
-BEGIN
-    IF NOT EXISTS (
-        SELECT 1
-        FROM pg_policies
-        WHERE schemaname = 'public'
-          AND tablename = 'audit_events'
-          AND policyname = 'Users can manage their own audit events'
-    ) THEN
-        CREATE POLICY "Users can manage their own audit events"
-            ON public.audit_events
-            FOR ALL
-            USING (auth.uid() = user_id)
-            WITH CHECK (auth.uid() = user_id);
-    END IF;
-END$$;
+DROP POLICY IF EXISTS "Users can manage their own audit events" ON public.audit_events;
+DROP POLICY IF EXISTS "Users can read their own audit events" ON public.audit_events;
+DROP POLICY IF EXISTS "Users can insert their own audit events" ON public.audit_events;
+
+CREATE POLICY "Users can read their own audit events"
+    ON public.audit_events
+    FOR SELECT
+    USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can insert their own audit events"
+    ON public.audit_events
+    FOR INSERT
+    WITH CHECK (auth.uid() = user_id);
 
 CREATE INDEX IF NOT EXISTS audit_events_user_created_idx
     ON public.audit_events(user_id, created_at DESC);

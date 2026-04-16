@@ -9,6 +9,7 @@ import {
 } from './modules/db-timesheets.js';
 import { dbGetConsultants } from './modules/db-consultants.js';
 import { showToast, debounce, createRenderScheduler } from './modules/utils.js';
+import { getProfileState } from './modules/user-profile.js';
 import {
     getSharedFilters,
     setSharedFilters,
@@ -52,6 +53,7 @@ let modalMode = 'add';
 let modalTimesheetId = null;
 let modalConsultantId = null;
 let modalDefaultPeriod = { start: '', end: '' };
+let currentAccessRole = '';
 
 const els = {};
 const requestRender = createRenderScheduler(() => renderTable());
@@ -89,15 +91,56 @@ function showFatalInitError(title, message, reloadLabel = 'Reload') {
     document.body.appendChild(overlay);
 }
 
+function isReadOnlyViewer() {
+    return currentAccessRole === 'viewer';
+}
+
+function readOnlyActionAttrs() {
+    return 'disabled aria-disabled="true" title="Viewer access is read-only"';
+}
+
+function showReadOnlyNotice() {
+    showToast('Viewer access is read-only. Editing is disabled.', 'error');
+}
+
+function renderReadOnlyButton(label = 'Read only', className = 'btn btn--outline btn--sm', style = '') {
+    const styleAttr = style ? ` style="${style}"` : '';
+    return `<button class="${className}" type="button" ${readOnlyActionAttrs()}${styleAttr}>${escapeHtml(label)}</button>`;
+}
+
+function applyViewerRestrictions() {
+    const locked = isReadOnlyViewer();
+    const nodes = [
+        els.importCsvBtn,
+        els.modalSave,
+        els.modalDelete,
+        els.csvParseBtn,
+        els.csvImportBtn,
+        els.saveViewBtn,
+        els.updateViewBtn,
+        els.deleteViewBtn
+    ];
+
+    nodes.forEach((node) => {
+        if (!node) return;
+        node.disabled = locked;
+        node.setAttribute('aria-disabled', String(locked));
+        node.title = locked ? 'Viewer access is read-only' : '';
+    });
+}
+
 async function init() {
     await loadLayout('timesheets');
     const user = await getCurrentUser();
     if (user) {
         initFiltersForUser(user.id);
         initSavedViewsForUser(user.id);
+        const profile = await getProfileState(user).catch(() => null);
+        currentAccessRole = profile?.accessRole || '';
     }
     cacheElements();
     setupFilters();
+    applyViewerRestrictions();
     bindEvents();
     bindModalEvents();
     await refreshData();
@@ -447,6 +490,10 @@ function bindEvents() {
 
         const deleteBtn = target.closest('.ts-delete-row');
         if (deleteBtn) {
+            if (isReadOnlyViewer()) {
+                showReadOnlyNotice();
+                return;
+            }
             const id = deleteBtn.getAttribute('data-id');
             if (!id) return;
             if (!confirm('Delete this timesheet?')) return;
@@ -456,6 +503,10 @@ function bindEvents() {
 
         const addBtn = target.closest('.ts-add-row');
         if (addBtn) {
+            if (isReadOnlyViewer()) {
+                showReadOnlyNotice();
+                return;
+            }
             modalMode = 'add';
             modalTimesheetId = null;
             modalConsultantId = addBtn.getAttribute('data-consultant');
@@ -479,6 +530,10 @@ function bindEvents() {
         // an already-invoiced one for the same consultant.
         const suppBtn = target.closest('.ts-add-supplemental');
         if (suppBtn) {
+            if (isReadOnlyViewer()) {
+                showReadOnlyNotice();
+                return;
+            }
             modalMode = 'supplemental';
             modalTimesheetId = null;
             modalConsultantId = suppBtn.getAttribute('data-consultant');
@@ -513,6 +568,10 @@ function bindEvents() {
 
         const editBtn = target.closest('.ts-edit-row');
         if (editBtn) {
+            if (isReadOnlyViewer()) {
+                showReadOnlyNotice();
+                return;
+            }
             const id = editBtn.getAttribute('data-id');
             const consultantId = editBtn.getAttribute('data-consultant');
             const ts = rawRows.find(r => r.id === id);
@@ -581,6 +640,10 @@ function bindModalEvents() {
 
     els.modalSave?.addEventListener('click', saveFromModal);
     els.modalDelete?.addEventListener('click', async () => {
+        if (isReadOnlyViewer()) {
+            showReadOnlyNotice();
+            return;
+        }
         if (!modalTimesheetId) return;
         if (!confirm('Delete this timesheet?')) return;
         await deleteTimesheet(modalTimesheetId);
@@ -588,7 +651,13 @@ function bindModalEvents() {
     });
 
     // ── CSV Import ──────────────────────────────────────────────────────────
-    els.importCsvBtn?.addEventListener('click', openCsvImportModal);
+    els.importCsvBtn?.addEventListener('click', () => {
+        if (isReadOnlyViewer()) {
+            showReadOnlyNotice();
+            return;
+        }
+        openCsvImportModal();
+    });
     els.csvImportClose?.addEventListener('click', closeCsvImportModal);
     els.csvImportBack?.addEventListener('click', () => {
         if (!els.csvStep2?.hidden) {
@@ -626,6 +695,10 @@ let csvParsedRows = [];
 
 function openCsvImportModal() {
     if (!els.csvModal) return;
+    if (isReadOnlyViewer()) {
+        showReadOnlyNotice();
+        return;
+    }
     // Reset to step 1
     if (els.csvStep1) els.csvStep1.hidden = false;
     if (els.csvStep2) els.csvStep2.hidden = true;
@@ -702,6 +775,10 @@ function isValidDate(str) {
 }
 
 function parseCsvAndPreview() {
+    if (isReadOnlyViewer()) {
+        showReadOnlyNotice();
+        return;
+    }
     const raw = els.csvPasteArea?.value?.trim() || '';
     if (!raw) {
         showToast('Paste CSV content or upload a file first.', 'error');
@@ -802,6 +879,10 @@ function parseCsvAndPreview() {
 }
 
 async function importValidCsvRows() {
+    if (isReadOnlyViewer()) {
+        showReadOnlyNotice();
+        return;
+    }
     const valid = csvParsedRows.filter(r => r.valid);
     if (!valid.length) return;
 
@@ -1150,6 +1231,7 @@ function renderTable() {
         const primaryPending = pendingTimes.length
             ? [...pendingTimes].sort((a, b) => String(b.period_start || '').localeCompare(String(a.period_start || '')))[0]
             : null;
+        const readOnly = isReadOnlyViewer();
 
         // All unique invoice numbers for this consultant in the period
         const allInvoiceNums = Array.from(new Set(
@@ -1159,20 +1241,28 @@ function renderTable() {
         // ── Actions ──────────────────────────────────────────────────────
         let actions;
         if (!hasEntries) {
-            actions = `<button class="btn btn--primary btn--sm ts-add-row" data-consultant="${escapeHtml(row.consultant_id)}" data-start="${escapeHtml(row.period_start)}" data-end="${escapeHtml(row.period_end)}">Add</button>`;
+            actions = readOnly
+                ? renderReadOnlyButton('Add')
+                : `<button class="btn btn--primary btn--sm ts-add-row" data-consultant="${escapeHtml(row.consultant_id)}" data-start="${escapeHtml(row.period_start)}" data-end="${escapeHtml(row.period_end)}">Add</button>`;
         } else if (isMixed) {
             const invoiceUrl = `app.html?consultant_id=${encodeURIComponent(row.consultant_id)}`;
-            actions = `
+            actions = readOnly
+                ? renderReadOnlyButton(`Invoice ${pendingHours.toFixed(2)}h`)
+                : `
                 <a href="${invoiceUrl}" class="btn btn--primary btn--sm" title="Create invoice for ${pendingHours.toFixed(2)}h pending">Invoice ${pendingHours.toFixed(2)}h</a>
                 ${primaryPending ? `<button class="btn btn--ghost btn--sm ts-edit-row" data-id="${escapeHtml(primaryPending.id)}" data-consultant="${escapeHtml(row.consultant_id)}">Edit</button>` : ''}
             `;
         } else if (isInvoiced) {
-            actions = `
+            actions = readOnly
+                ? renderReadOnlyButton('+ Supplemental')
+                : `
                 <button class="btn btn--ghost btn--sm ts-add-supplemental" data-consultant="${escapeHtml(row.consultant_id)}" data-start="${escapeHtml(row.primary?.period_start || '')}" data-end="${escapeHtml(row.primary?.period_end || '')}" title="Add more hours on a separate invoice">+ Supplemental</button>
                 <button class="btn btn--ghost btn--sm ts-edit-row ts-edit-invoiced" data-id="${escapeHtml(row.primary.id)}" data-consultant="${escapeHtml(row.consultant_id)}" style="color:#9ca3af;">View</button>
             `;
         } else {
-            actions = `
+            actions = readOnly
+                ? renderReadOnlyButton('Edit')
+                : `
                 <button class="btn btn--outline btn--sm ts-edit-row" data-id="${escapeHtml(row.primary.id)}" data-consultant="${escapeHtml(row.consultant_id)}">Edit</button>
                 <button class="btn btn--ghost btn--sm ts-delete-row" data-id="${escapeHtml(row.primary.id)}">Delete</button>
             `;
@@ -1248,10 +1338,12 @@ function renderTable() {
                         <tbody>
                             ${row.times.map(t => {
                                 const tInvoiced = t.status === 'invoiced';
-                                const subActions = tInvoiced
-                                    ? `<button class="btn btn--ghost btn--sm ts-edit-row ts-edit-invoiced" data-id="${escapeHtml(t.id)}" data-consultant="${escapeHtml(row.consultant_id)}" style="color:#9ca3af;font-size:0.72rem;">View</button>`
-                                    : `<button class="btn btn--outline btn--sm ts-edit-row" data-id="${escapeHtml(t.id)}" data-consultant="${escapeHtml(row.consultant_id)}" style="font-size:0.72rem;">Edit</button>
-                                       <button class="btn btn--ghost btn--sm ts-delete-row" data-id="${escapeHtml(t.id)}" style="font-size:0.72rem;color:#ef4444;">Del</button>`;
+                                const subActions = isReadOnlyViewer()
+                                    ? renderReadOnlyButton('Read only', 'btn btn--ghost btn--sm', 'font-size:0.72rem;')
+                                    : (tInvoiced
+                                        ? `<button class="btn btn--ghost btn--sm ts-edit-row ts-edit-invoiced" data-id="${escapeHtml(t.id)}" data-consultant="${escapeHtml(row.consultant_id)}" style="color:#9ca3af;font-size:0.72rem;">View</button>`
+                                        : `<button class="btn btn--outline btn--sm ts-edit-row" data-id="${escapeHtml(t.id)}" data-consultant="${escapeHtml(row.consultant_id)}" style="font-size:0.72rem;">Edit</button>
+                                       <button class="btn btn--ghost btn--sm ts-delete-row" data-id="${escapeHtml(t.id)}" style="font-size:0.72rem;color:#ef4444;">Del</button>`);
                                 return `
                             <tr style="border-top:1px solid #e2e8f0;">
                                         <td style="padding:7px 12px 7px 36px;font-size:0.8125rem;">${escapeHtml(t.period_start || '—')} → ${escapeHtml(t.period_end || '—')}</td>
@@ -1286,6 +1378,7 @@ function renderTable() {
             const isInvoiced  = row.status === 'invoiced';
             const isMixed     = row.status === 'mixed';
             const hasMultiple = row.times.length > 1;
+            const readOnly = isReadOnlyViewer();
 
             const pendingTimes  = row.times.filter(t => t.status === 'pending');
             const invoicedTimes = row.times.filter(t => t.status === 'invoiced');
@@ -1298,20 +1391,28 @@ function renderTable() {
 
             let actions;
             if (!hasEntries) {
-                actions = `<button class="btn btn--primary btn--sm ts-add-row" data-consultant="${escapeHtml(row.consultant_id)}" data-start="${escapeHtml(row.period_start)}" data-end="${escapeHtml(row.period_end)}" style="width:100%;">Add Timesheet</button>`;
+                actions = readOnly
+                    ? renderReadOnlyButton('Add Timesheet', 'btn btn--primary btn--sm', 'width:100%;')
+                    : `<button class="btn btn--primary btn--sm ts-add-row" data-consultant="${escapeHtml(row.consultant_id)}" data-start="${escapeHtml(row.period_start)}" data-end="${escapeHtml(row.period_end)}" style="width:100%;">Add Timesheet</button>`;
             } else if (isMixed) {
                 const invoiceUrl = `app.html?consultant_id=${encodeURIComponent(row.consultant_id)}`;
-                actions = `
+                actions = readOnly
+                    ? renderReadOnlyButton(`Invoice ${pendingHours.toFixed(2)}h Pending`, 'btn btn--primary btn--sm', 'flex:1;text-align:center;')
+                    : `
                     <a href="${invoiceUrl}" class="btn btn--primary btn--sm" style="flex:1;text-align:center;">Invoice ${pendingHours.toFixed(2)}h Pending</a>
                     ${primaryPending ? `<button class="btn btn--ghost btn--sm ts-edit-row" data-id="${escapeHtml(primaryPending.id)}" data-consultant="${escapeHtml(row.consultant_id)}">Edit</button>` : ''}
                 `;
             } else if (isInvoiced) {
-                actions = `
+                actions = readOnly
+                    ? renderReadOnlyButton('+ Supplemental', 'btn btn--outline btn--sm', 'flex:1;')
+                    : `
                     <button class="btn btn--outline btn--sm ts-add-supplemental" data-consultant="${escapeHtml(row.consultant_id)}" data-start="${escapeHtml(row.primary?.period_start || '')}" data-end="${escapeHtml(row.primary?.period_end || '')}" style="flex:1;">+ Supplemental</button>
                     <button class="btn btn--ghost btn--sm ts-edit-row ts-edit-invoiced" data-id="${escapeHtml(row.primary.id)}" data-consultant="${escapeHtml(row.consultant_id)}" style="color:#6b7280;">View</button>
                 `;
             } else {
-                actions = `
+                actions = readOnly
+                    ? renderReadOnlyButton('Edit', 'btn btn--outline btn--sm', 'flex:1;')
+                    : `
                     <button class="btn btn--outline btn--sm ts-edit-row" data-id="${escapeHtml(row.primary.id)}" data-consultant="${escapeHtml(row.consultant_id)}" style="flex:1;">Edit</button>
                     <button class="btn btn--ghost btn--sm ts-delete-row" data-id="${escapeHtml(row.primary.id)}" style="color:#ef4444;">Delete</button>
                 `;
@@ -1337,9 +1438,11 @@ function renderTable() {
                                 <div style="font-size:0.75rem;color:#6b7280;">${escapeHtml(t.period_start || '—')} → ${escapeHtml(t.period_end || '—')}</div>
                                 ${t.invoice_number ? `<div style="font-size:0.72rem;color:#0369a1;">${escapeHtml(t.invoice_number)}</div>` : '<div style="font-size:0.72rem;color:#9ca3af;">Unbilled</div>'}
                             </div>
-                            ${t.status !== 'invoiced'
-                                ? `<button class="btn btn--ghost btn--sm ts-edit-row" data-id="${escapeHtml(t.id)}" data-consultant="${escapeHtml(row.consultant_id)}" style="font-size:0.75rem;">Edit</button>`
-                                : `<button class="btn btn--ghost btn--sm ts-edit-row ts-edit-invoiced" data-id="${escapeHtml(t.id)}" data-consultant="${escapeHtml(row.consultant_id)}" style="font-size:0.75rem;color:#9ca3af;">View</button>`}
+                            ${isReadOnlyViewer()
+                                ? renderReadOnlyButton('Read only', 'btn btn--ghost btn--sm', 'font-size:0.75rem;')
+                                : (t.status !== 'invoiced'
+                                    ? `<button class="btn btn--ghost btn--sm ts-edit-row" data-id="${escapeHtml(t.id)}" data-consultant="${escapeHtml(row.consultant_id)}" style="font-size:0.75rem;">Edit</button>`
+                                    : `<button class="btn btn--ghost btn--sm ts-edit-row ts-edit-invoiced" data-id="${escapeHtml(t.id)}" data-consultant="${escapeHtml(row.consultant_id)}" style="font-size:0.75rem;color:#9ca3af;">View</button>`)}
                         </div>`).join('')}
                 </div>` : '';
 
@@ -1510,6 +1613,10 @@ function collapseMobileCardDetails(toggleBtn, body) {
 
 function openModal(data) {
     if (!els.modal) return;
+    if (isReadOnlyViewer()) {
+        showReadOnlyNotice();
+        return;
+    }
 
     if (els.modalTitle) {
         els.modalTitle.textContent =
@@ -1566,6 +1673,10 @@ function closeModal() {
 }
 
 async function saveFromModal() {
+    if (isReadOnlyViewer()) {
+        showReadOnlyNotice();
+        return;
+    }
     const start = els.modalStart?.value || '';
     const end = els.modalEnd?.value || '';
     const hours = Number(els.modalHours?.value);
@@ -1652,6 +1763,10 @@ async function saveFromModal() {
 }
 
 async function deleteTimesheet(id) {
+    if (isReadOnlyViewer()) {
+        showReadOnlyNotice();
+        return;
+    }
     try {
         await dbDeleteTimesheet(id);
         showToast('Timesheet deleted', 'success');
@@ -1796,6 +1911,7 @@ function captureSavedViewState() {
 
 function renderSavedViews() {
     const views = listSavedViews('timesheets');
+    const locked = isReadOnlyViewer();
     if (els.savedViewSelect) {
         els.savedViewSelect.innerHTML = ['<option value="">Saved Views</option>', ...views.map((view) => (
             `<option value="${escapeHtml(view.id)}">${escapeHtml(view.name)}</option>`
@@ -1817,8 +1933,9 @@ function renderSavedViews() {
             ? `Active: ${activeView.name} • ${totalText}`
             : totalText;
     }
-    if (els.updateViewBtn) els.updateViewBtn.disabled = !activeView;
-    if (els.deleteViewBtn) els.deleteViewBtn.disabled = !activeView;
+    if (els.updateViewBtn) els.updateViewBtn.disabled = locked || !activeView;
+    if (els.deleteViewBtn) els.deleteViewBtn.disabled = locked || !activeView;
+    if (els.saveViewBtn) els.saveViewBtn.disabled = locked;
 }
 
 async function applySavedView(view) {
