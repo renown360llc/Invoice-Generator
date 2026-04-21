@@ -226,6 +226,13 @@ function cacheElements() {
         }
         updateModalContextWarnings();
     });
+
+    // Auto-flip status when invoice number is entered/cleared manually
+    els.modalInvoice?.addEventListener('input', () => {
+        if (!els.modalStatus) return;
+        const hasInvoice = Boolean(els.modalInvoice.value.trim());
+        els.modalStatus.value = hasInvoice ? 'invoiced' : 'pending';
+    });
 }
 
 function setupFilters() {
@@ -1637,22 +1644,17 @@ function openModal(data) {
     if (els.modalEnd) els.modalEnd.value = data.end || '';
     if (els.modalHours) els.modalHours.value = typeof data.hours === 'number' ? data.hours : 0;
     if (els.modalStatus) els.modalStatus.value = normalizeStatusFilter(data.status || 'pending');
-    if (els.modalInvoice) els.modalInvoice.value = data.invoice || '';
-    const hasInvoiceLink = Boolean((data.invoice || '').trim());
-    const invoicedOption = els.modalStatus?.querySelector('option[value="invoiced"]');
-    if (els.modalStatus) {
-        if (hasInvoiceLink) {
-            els.modalStatus.value = 'invoiced';
-            els.modalStatus.disabled = true;
-        } else {
-            els.modalStatus.disabled = false;
-        }
+    if (els.modalInvoice) {
+        els.modalInvoice.value = data.invoice || '';
+        els.modalInvoice.readOnly = false;
+        els.modalInvoice.removeAttribute('readonly');
     }
-    if (invoicedOption) {
-        invoicedOption.disabled = !hasInvoiceLink;
-        if (!hasInvoiceLink && els.modalStatus?.value === 'invoiced') {
-            els.modalStatus.value = 'pending';
-        }
+    const hasInvoiceLink = Boolean((data.invoice || '').trim());
+    if (els.modalStatus) {
+        els.modalStatus.disabled = false;
+        const invoicedOption = els.modalStatus.querySelector('option[value="invoiced"]');
+        if (invoicedOption) invoicedOption.disabled = false;
+        els.modalStatus.value = hasInvoiceLink ? 'invoiced' : normalizeStatusFilter(data.status || 'pending');
     }
 
     updateModalContextWarnings();
@@ -1698,8 +1700,8 @@ async function saveFromModal() {
         return;
     }
 
-    if (!invoice && status === 'invoiced') {
-        showToast('Invoiced status is set automatically when an invoice is saved.', 'error');
+    if (status === 'invoiced' && !invoice) {
+        showToast('Enter an invoice number to mark this timesheet as invoiced.', 'error');
         return;
     }
 

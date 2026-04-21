@@ -1017,9 +1017,9 @@ async function loadPendingTimesheetsIntoModal() {
             if (row.invoice_number) return;
             if (!row.consultant_id) return;
 
-            const key = String(row.consultant_id);
+            const key = `${row.consultant_id}__${row.period_start}__${row.period_end}`;
             const existing = grouped.get(key) || {
-                consultant_id: key,
+                consultant_id: String(row.consultant_id),
                 consultant_name: consultant.name || 'Unknown',
                 client: consultant.client || '',
                 bill_rate: Number(consultant.bill_rate) || 0,
@@ -1032,12 +1032,6 @@ async function loadPendingTimesheetsIntoModal() {
 
             existing.hours += Number(row.hours_worked) || 0;
             existing.timesheet_ids.push(row.id);
-            if (row.period_start && (!existing.period_start || row.period_start < existing.period_start)) {
-                existing.period_start = row.period_start;
-            }
-            if (row.period_end && (!existing.period_end || row.period_end > existing.period_end)) {
-                existing.period_end = row.period_end;
-            }
 
             grouped.set(key, existing);
         });
@@ -1142,7 +1136,7 @@ function updateTimesheetSelectionMeta() {
         .filter(Boolean);
 
     const hours = selected.reduce((sum, entry) => sum + (entry.hours || 0), 0);
-    meta.textContent = `${selected.length} consultants selected • ${hours.toFixed(2)} hours`;
+    meta.textContent = `${selected.length} line item${selected.length !== 1 ? 's' : ''} selected • ${hours.toFixed(2)} hours`;
 }
 
 async function generateTimesheetItems() {
