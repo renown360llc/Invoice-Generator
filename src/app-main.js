@@ -1172,11 +1172,9 @@ async function generateTimesheetItems() {
         });
     });
 
-    // Clear existing items but safely
     const container = document.getElementById('itemsContainer');
-    container.innerHTML = '';
 
-    // Add new items
+    // Append new items without clearing existing ones
     itemsToAdd.forEach(data => {
         addItem();
         const lastCard = container.lastElementChild;
