@@ -599,10 +599,9 @@ function bindEvents() {
                 consultant: getConsultantName(consultantId),
                 start: ts.period_start,
                 end: ts.period_end,
-                hours: ts.hours,
+                hours: Number(ts.hours_worked ?? ts.hours ?? 0),
                 status: ts.status,
-                invoice: ts.invoice_number || '',
-                locked: isInvoiced // passed to openModal to show a warning
+                invoice: ts.invoice_number || ''
             });
             return;
         }
@@ -1732,7 +1731,11 @@ async function saveFromModal() {
                 status:         'pending',
                 invoice_number: null
             });
-        } else if (modalMode === 'edit' && modalTimesheetId) {
+        } else if (modalMode === 'edit') {
+            if (!modalTimesheetId) {
+                showToast('Cannot save: timesheet ID is missing.', 'error');
+                return;
+            }
             await dbUpdateTimesheet(modalTimesheetId, {
                 period_start: start,
                 period_end: end,
@@ -1740,6 +1743,9 @@ async function saveFromModal() {
                 status,
                 invoice_number: invoice || null
             });
+        } else {
+            showToast('Cannot save: unexpected modal state.', 'error');
+            return;
         }
 
         showToast('Timesheet saved', 'success');
@@ -1751,7 +1757,7 @@ async function saveFromModal() {
             showToast('A timesheet already exists for this consultant and exact period. Edit the existing row or choose different dates.', 'error');
             return;
         }
-        showToast('Failed to save timesheet', 'error');
+        showToast(`Failed to save timesheet${err?.message ? ': ' + err.message : ''}`, 'error');
     }
 }
 
