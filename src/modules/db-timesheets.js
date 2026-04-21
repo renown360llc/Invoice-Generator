@@ -46,26 +46,56 @@ export async function dbUpsertTimesheets(entries = []) {
         ]));
     }
 
-    const payload = entries.map(entry => ({
-        user_id: user.id,
-        consultant_id: entry.consultant_id,
-        invoice_id: entry.invoice_id || null,
-        invoice_number: entry.invoice_number || null,
-        period_start: entry.period_start,
-        period_end: entry.period_end,
-        hours_worked: entry.hours_worked,
-        status: entry.status || 'pending'
-    }));
+    // Split into new rows (insert) vs existing rows (update) using the map
+    // already fetched above — avoids relying on a DB unique constraint for upsert.
+    const toInsert = [];
+    const toUpdate = [];
+    for (const entry of entries) {
+        const key = `${entry.consultant_id}__${entry.period_start}__${entry.period_end}`;
+        const existing = existingMap.get(key);
+        if (existing) {
+            toUpdate.push({ id: existing.id, entry });
+        } else {
+            toInsert.push(entry);
+        }
+    }
 
-    const { data, error } = await supabase
-        .from('timesheets')
-        .upsert(payload, {
-            onConflict: 'user_id,consultant_id,period_start,period_end'
-        })
-        .select();
+    const savedRows = [];
 
-    if (error) throw error;
-    const savedRows = data || [];
+    if (toInsert.length) {
+        const { data, error } = await supabase
+            .from('timesheets')
+            .insert(toInsert.map(entry => ({
+                user_id:        user.id,
+                consultant_id:  entry.consultant_id,
+                invoice_id:     entry.invoice_id     || null,
+                invoice_number: entry.invoice_number || null,
+                period_start:   entry.period_start,
+                period_end:     entry.period_end,
+                hours_worked:   entry.hours_worked,
+                status:         entry.status || 'pending'
+            })))
+            .select();
+        if (error) throw error;
+        savedRows.push(...(data || []));
+    }
+
+    for (const { id, entry } of toUpdate) {
+        const { data, error } = await supabase
+            .from('timesheets')
+            .update({
+                hours_worked:   entry.hours_worked,
+                status:         entry.status || 'pending',
+                invoice_id:     entry.invoice_id     || null,
+                invoice_number: entry.invoice_number || null,
+            })
+            .eq('id', id)
+            .eq('user_id', user.id)
+            .select()
+            .single();
+        if (error) throw error;
+        if (data) savedRows.push(data);
+    }
 
     await Promise.all(savedRows.map((row) => {
         const source = entries.find((entry) => (

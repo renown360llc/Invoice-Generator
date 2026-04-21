@@ -1,0 +1,667 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#0ea5e9">
+    <title>Onboarding Hub - Invoice Pro</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <link rel="stylesheet" href="styles/variables.css">
+    <link rel="stylesheet" href="styles/sidebar.css?v=1">
+    <link rel="stylesheet" href="styles/dashboard.css?v=11">
+    <link rel="stylesheet" href="styles/mobile.css?v=2">
+
+    <style>
+        /* ── Shared helpers ─────────────────────────────── */
+        .skeleton {
+            background: linear-gradient(90deg, rgba(0,0,0,.06), rgba(0,0,0,.12), rgba(0,0,0,.06));
+            background-size: 200% 100%;
+            animation: shimmer 1.2s infinite;
+        }
+        @keyframes shimmer {
+            0%   { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+
+        /* ── Track Tabs ─────────────────────────────────── */
+        .ob-tabs {
+            display: flex;
+            gap: 0;
+            border-bottom: 2px solid var(--surface-glass-border);
+            margin-bottom: 1.5rem;
+        }
+        .ob-tab {
+            padding: 0.625rem 1.25rem;
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            background: none;
+            border: none;
+            border-bottom: 2px solid transparent;
+            margin-bottom: -2px;
+            cursor: pointer;
+            transition: color .15s, border-color .15s;
+        }
+        .ob-tab:hover { color: var(--text-primary); }
+        .ob-tab.active {
+            color: var(--primary);
+            border-bottom-color: var(--primary);
+        }
+
+        /* ── Section label ──────────────────────────────── */
+        .ob-section-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 1rem;
+        }
+        .ob-section-title {
+            font-size: 0.75rem;
+            font-weight: 700;
+            letter-spacing: .06em;
+            text-transform: uppercase;
+            color: var(--text-tertiary);
+        }
+
+        /* ── Onboarding Cards ───────────────────────────── */
+        .ob-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+        .ob-card {
+            background: var(--surface-glass);
+            border: 1px solid var(--surface-glass-border);
+            border-radius: var(--radius-lg);
+            padding: 1rem 1.125rem;
+            cursor: pointer;
+            transition: box-shadow .15s, border-color .15s;
+            position: relative;
+        }
+        .ob-card:hover {
+            box-shadow: var(--shadow-paper);
+            border-color: var(--primary);
+        }
+        .ob-card__top {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 0.5rem;
+            margin-bottom: 0.75rem;
+        }
+        .ob-card__name {
+            font-size: 0.9375rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            line-height: 1.3;
+        }
+        .ob-card__badge {
+            font-size: 0.6875rem;
+            font-weight: 700;
+            padding: 0.2rem 0.5rem;
+            border-radius: var(--radius-full);
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+        .ob-card__badge--company   { background: #EFF6FF; color: #2563EB; }
+        .ob-card__badge--referral  { background: #FFF7ED; color: #C2410C; }
+        .ob-card__badge--candidate { background: #F5F3FF; color: #7C3AED; }
+        .ob-card__stage {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            margin-bottom: 0.625rem;
+        }
+        .ob-card__progress-bar {
+            width: 100%;
+            height: 5px;
+            background: var(--surface-glass-border);
+            border-radius: var(--radius-full);
+            overflow: hidden;
+            margin-bottom: 0.5rem;
+        }
+        .ob-card__progress-fill {
+            height: 100%;
+            border-radius: var(--radius-full);
+            background: var(--primary);
+            transition: width .3s;
+        }
+        .ob-card__progress-fill--complete { background: var(--accent-green); }
+        .ob-card__meta {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.7rem;
+            color: var(--text-tertiary);
+        }
+        .ob-card__delete {
+            position: absolute;
+            top: 0.625rem;
+            right: 0.625rem;
+            opacity: 0;
+            background: none;
+            border: none;
+            color: var(--text-tertiary);
+            cursor: pointer;
+            font-size: 0.75rem;
+            padding: 2px 5px;
+            border-radius: 4px;
+            transition: opacity .15s, background .15s, color .15s;
+        }
+        .ob-card:hover .ob-card__delete { opacity: 1; }
+        .ob-card__delete:hover { background: #FEE2E2; color: #DC2626; }
+        .ob-card__top { padding-right: 1.5rem; }
+
+        .ob-empty {
+            text-align: center;
+            padding: 2rem 1rem;
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+        }
+        .ob-empty svg { margin-bottom: 0.5rem; color: var(--text-tertiary); }
+
+        /* ── Reference Guide ────────────────────────────── */
+        .ob-guide { margin-top: 0.5rem; }
+        .ob-guide__stage {
+            border: 1px solid var(--surface-glass-border);
+            border-radius: var(--radius-lg);
+            background: var(--surface-glass);
+            margin-bottom: 0.75rem;
+            overflow: hidden;
+        }
+        .ob-guide__stage-header {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.875rem 1.125rem;
+            cursor: pointer;
+            user-select: none;
+        }
+        .ob-guide__stage-header:hover { background: var(--surface-border-subtle); }
+        .ob-guide__num {
+            width: 1.75rem;
+            height: 1.75rem;
+            border-radius: var(--radius-full);
+            background: var(--primary-light);
+            color: var(--primary);
+            font-size: 0.75rem;
+            font-weight: 800;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+        .ob-guide__stage-name {
+            font-size: 0.875rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            flex: 1;
+        }
+        .ob-guide__stage-desc {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            flex: 2;
+            display: none;
+        }
+        .ob-guide__chevron {
+            width: 1rem;
+            height: 1rem;
+            color: var(--text-tertiary);
+            transition: transform .2s;
+            flex-shrink: 0;
+        }
+        .ob-guide__stage.is-open .ob-guide__chevron { transform: rotate(180deg); }
+        .ob-guide__items {
+            display: none;
+            padding: 0 1.125rem 1rem;
+            border-top: 1px solid var(--surface-border-subtle);
+        }
+        .ob-guide__stage.is-open .ob-guide__items { display: block; }
+        .ob-guide__item {
+            display: flex;
+            align-items: flex-start;
+            gap: 0.625rem;
+            padding: 0.5rem 0;
+            border-bottom: 1px solid var(--surface-border-subtle);
+            font-size: 0.8125rem;
+            color: var(--text-primary);
+        }
+        .ob-guide__item:last-child { border-bottom: none; }
+        .ob-guide__dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--primary);
+            flex-shrink: 0;
+            margin-top: 0.35rem;
+        }
+        .ob-guide__tag {
+            font-size: 0.65rem;
+            font-weight: 700;
+            padding: 0.15rem 0.4rem;
+            border-radius: 4px;
+            white-space: nowrap;
+            flex-shrink: 0;
+            margin-top: 0.05rem;
+        }
+        .ob-guide__tag--doc  { background: #DBEAFE; color: #1D4ED8; }
+        .ob-guide__tag--sign { background: #FEF3C7; color: #B45309; }
+        .ob-guide__tag--task { background: #F0FDF4; color: #166534; }
+        .ob-guide__tag--info { background: #F5F3FF; color: #6D28D9; }
+
+        /* ── Slide-over panel (checklist) ───────────────── */
+        .ob-panel-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,.35);
+            z-index: 200;
+        }
+        .ob-panel-overlay.is-open { display: block; }
+        .ob-panel {
+            position: fixed;
+            top: 0;
+            right: -480px;
+            width: 100%;
+            max-width: 480px;
+            height: 100%;
+            background: var(--surface-glass);
+            box-shadow: -4px 0 32px rgba(0,0,0,.12);
+            z-index: 201;
+            display: flex;
+            flex-direction: column;
+            transition: right .3s cubic-bezier(.4,0,.2,1);
+            overflow: hidden;
+        }
+        .ob-panel.is-open { right: 0; }
+        .ob-panel__header {
+            padding: 1.25rem 1.5rem 1rem;
+            border-bottom: 1px solid var(--surface-glass-border);
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            flex-shrink: 0;
+        }
+        .ob-panel__close {
+            background: none;
+            border: none;
+            font-size: 1.125rem;
+            color: var(--text-tertiary);
+            cursor: pointer;
+            padding: 2px 6px;
+            border-radius: 4px;
+            line-height: 1;
+        }
+        .ob-panel__close:hover { background: var(--surface-border-subtle); color: var(--text-primary); }
+        .ob-panel__title {
+            font-size: 1.0625rem;
+            font-weight: 800;
+            color: var(--text-primary);
+        }
+        .ob-panel__subtitle {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            margin-top: 2px;
+        }
+        .ob-panel__progress {
+            padding: 0.75rem 1.5rem;
+            border-bottom: 1px solid var(--surface-glass-border);
+            flex-shrink: 0;
+        }
+        .ob-panel__progress-text {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            margin-bottom: 0.375rem;
+            font-weight: 600;
+        }
+        .ob-panel__progress-bar {
+            height: 6px;
+            background: var(--surface-glass-border);
+            border-radius: var(--radius-full);
+            overflow: hidden;
+        }
+        .ob-panel__progress-fill {
+            height: 100%;
+            background: var(--primary);
+            border-radius: var(--radius-full);
+            transition: width .3s;
+        }
+        .ob-panel__body {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1rem 1.5rem;
+        }
+        .ob-panel__stage {
+            margin-bottom: 1.25rem;
+        }
+        .ob-panel__stage-label {
+            font-size: 0.7rem;
+            font-weight: 700;
+            letter-spacing: .06em;
+            text-transform: uppercase;
+            color: var(--text-tertiary);
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .ob-panel__stage-check {
+            font-size: 0.65rem;
+            background: var(--accent-green);
+            color: #fff;
+            padding: 0.1rem 0.4rem;
+            border-radius: var(--radius-full);
+            font-weight: 700;
+        }
+        .ob-panel__checklist {
+            background: var(--surface-glass);
+            border: 1px solid var(--surface-glass-border);
+            border-radius: var(--radius-md);
+            overflow: hidden;
+        }
+        .ob-check-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 0.625rem;
+            padding: 0.625rem 0.875rem;
+            border-bottom: 1px solid var(--surface-border-subtle);
+            cursor: pointer;
+            transition: background .1s;
+        }
+        .ob-check-item:last-child { border-bottom: none; }
+        .ob-check-item:hover { background: var(--surface-border-subtle); }
+        .ob-check-item input[type="checkbox"] {
+            margin-top: 2px;
+            width: 15px;
+            height: 15px;
+            accent-color: var(--primary);
+            cursor: pointer;
+            flex-shrink: 0;
+        }
+        .ob-check-item__label {
+            font-size: 0.8125rem;
+            color: var(--text-primary);
+            line-height: 1.4;
+            flex: 1;
+        }
+        .ob-check-item.checked .ob-check-item__label {
+            text-decoration: line-through;
+            color: var(--text-tertiary);
+        }
+        .ob-check-item__tag {
+            font-size: 0.6rem;
+            font-weight: 700;
+            padding: 0.1rem 0.35rem;
+            border-radius: 4px;
+            white-space: nowrap;
+            flex-shrink: 0;
+            margin-top: 0.15rem;
+        }
+        .ob-check-item__tag--doc  { background: #DBEAFE; color: #1D4ED8; }
+        .ob-check-item__tag--sign { background: #FEF3C7; color: #B45309; }
+        .ob-check-item__tag--task { background: #F0FDF4; color: #166534; }
+        .ob-check-item__tag--info { background: #F5F3FF; color: #6D28D9; }
+
+        .ob-panel__notes {
+            margin-top: 1rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--surface-glass-border);
+        }
+        .ob-panel__notes-label {
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: var(--text-secondary);
+            margin-bottom: 0.375rem;
+        }
+        .ob-panel__notes textarea {
+            width: 100%;
+            border: 1px solid var(--surface-glass-border);
+            border-radius: var(--radius-sm);
+            padding: 0.625rem 0.75rem;
+            font-size: 0.8125rem;
+            font-family: var(--font-sans);
+            resize: vertical;
+            color: var(--text-primary);
+            background: var(--surface-glass);
+            box-sizing: border-box;
+        }
+        .ob-panel__notes textarea:focus { outline: none; border-color: var(--primary); }
+
+        /* ── New Onboarding Modal ───────────────────────── */
+        .ob-modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,.4);
+            z-index: 300;
+            align-items: center;
+            justify-content: center;
+        }
+        .ob-modal-overlay.is-open { display: flex; }
+        .ob-modal {
+            background: var(--surface-glass);
+            border-radius: var(--radius-xl);
+            padding: 1.75rem;
+            width: 100%;
+            max-width: 440px;
+            box-shadow: var(--shadow-paper);
+        }
+        .ob-modal__title {
+            font-size: 1.125rem;
+            font-weight: 800;
+            color: var(--text-primary);
+            margin-bottom: 0.25rem;
+        }
+        .ob-modal__subtitle {
+            font-size: 0.8125rem;
+            color: var(--text-secondary);
+            margin-bottom: 1.25rem;
+        }
+        .ob-modal .form-field { margin-bottom: 1rem; }
+        .ob-modal .form-field__label {
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: var(--text-secondary);
+            display: block;
+            margin-bottom: 0.375rem;
+        }
+        .ob-modal .form-field__input,
+        .ob-modal .form-field__select {
+            width: 100%;
+            box-sizing: border-box;
+            border: 1px solid var(--surface-glass-border);
+            border-radius: var(--radius-sm);
+            padding: 0.5rem 0.75rem;
+            font-size: 0.875rem;
+            font-family: var(--font-sans);
+            color: var(--text-primary);
+            background: var(--surface-glass);
+        }
+        .ob-modal .form-field__input:focus,
+        .ob-modal .form-field__select:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+        .ob-modal__actions {
+            display: flex;
+            gap: 0.625rem;
+            justify-content: flex-end;
+            margin-top: 1.25rem;
+        }
+
+        /* ── Delete confirm modal ───────────────────────── */
+        .ob-confirm-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,.4);
+            z-index: 400;
+            align-items: center;
+            justify-content: center;
+        }
+        .ob-confirm-overlay.is-open { display: flex; }
+        .ob-confirm {
+            background: var(--surface-glass);
+            border-radius: var(--radius-xl);
+            padding: 1.5rem;
+            max-width: 360px;
+            width: 100%;
+            box-shadow: var(--shadow-paper);
+            text-align: center;
+        }
+        .ob-confirm h3 { font-size: 1rem; font-weight: 700; margin-bottom: 0.5rem; }
+        .ob-confirm p  { font-size: 0.8125rem; color: var(--text-secondary); margin-bottom: 1.25rem; }
+        .ob-confirm__actions { display: flex; gap: 0.5rem; justify-content: center; }
+
+        /* ── Toast ──────────────────────────────────────── */
+        .toast {
+            position: fixed;
+            bottom: 1.5rem;
+            left: 50%;
+            transform: translateX(-50%) translateY(20px);
+            background: #111;
+            color: #fff;
+            padding: 0.625rem 1.125rem;
+            border-radius: var(--radius-full);
+            font-size: 0.875rem;
+            font-weight: 500;
+            z-index: 500;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity .2s, transform .2s;
+            white-space: nowrap;
+        }
+        .toast.show {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+
+        @media (max-width: 640px) {
+            .ob-cards { grid-template-columns: 1fr; }
+            .ob-guide__stage-desc { display: none; }
+            .ob-panel { max-width: 100%; }
+        }
+    </style>
+</head>
+
+<body>
+    <main class="dashboard">
+        <div class="dashboard__container">
+
+            <!-- Header -->
+            <div class="dashboard__header invoice-header">
+                <div class="invoice-header__content">
+                    <h1 class="dashboard__title">Onboarding Hub</h1>
+                    <p class="dashboard__subtitle">Track company setups and W2 candidate onboardings end-to-end</p>
+                </div>
+                <div class="invoice-header__actions">
+                    <button id="newOnboardingBtn" class="btn btn--primary">
+                        <svg class="btn-icon" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd"/>
+                        </svg>
+                        <span class="btn-text">New Onboarding</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Track Tabs -->
+            <div class="ob-tabs">
+                <button class="ob-tab active" data-track="company">Company</button>
+                <button class="ob-tab" data-track="referral">Referral (Pass-Through)</button>
+                <button class="ob-tab" data-track="candidate">W2 Candidate</button>
+            </div>
+
+            <!-- Active Onboardings Section -->
+            <div class="ob-section-header">
+                <span class="ob-section-title">Active Onboardings</span>
+            </div>
+            <div id="obCards" class="ob-cards">
+                <!-- rendered by JS -->
+            </div>
+
+            <!-- Reference Guide Section -->
+            <div class="ob-section-header" style="margin-top: 1rem;">
+                <span class="ob-section-title">Reference Guide</span>
+            </div>
+            <div id="obGuide" class="ob-guide">
+                <!-- rendered by JS -->
+            </div>
+
+        </div>
+    </main>
+
+    <!-- ── Slide-over: Onboarding Checklist ───────────────── -->
+    <div id="obPanelOverlay" class="ob-panel-overlay"></div>
+    <aside id="obPanel" class="ob-panel">
+        <div class="ob-panel__header">
+            <div>
+                <div style="font-size:0.65rem;text-transform:uppercase;letter-spacing:.05em;color:var(--text-tertiary);margin-bottom:2px;">Onboarding Tracker</div>
+                <div class="ob-panel__title" id="panelTitle">—</div>
+                <div class="ob-panel__subtitle" id="panelSubtitle">—</div>
+            </div>
+            <button class="ob-panel__close" id="obPanelClose">✕</button>
+        </div>
+        <div class="ob-panel__progress">
+            <div class="ob-panel__progress-text">
+                <span id="panelProgressLabel">Progress</span>
+                <span id="panelProgressPct">0%</span>
+            </div>
+            <div class="ob-panel__progress-bar">
+                <div class="ob-panel__progress-fill" id="panelProgressFill" style="width:0%"></div>
+            </div>
+        </div>
+        <div class="ob-panel__body" id="panelBody">
+            <!-- checklist rendered by JS -->
+        </div>
+    </aside>
+
+    <!-- ── New Onboarding Modal ──────────────────────────── -->
+    <div id="newOnboardingModal" class="ob-modal-overlay">
+        <div class="ob-modal">
+            <div class="ob-modal__title">Start New Onboarding</div>
+            <div class="ob-modal__subtitle">Create a checklist to track this onboarding end-to-end.</div>
+
+            <div class="form-field">
+                <label class="form-field__label">Name *</label>
+                <input type="text" id="newObName" class="form-field__input" placeholder="e.g. Acme Corp or John Smith">
+            </div>
+            <div class="form-field">
+                <label class="form-field__label">Type *</label>
+                <select id="newObType" class="form-field__select">
+                    <option value="company">Company (Client)</option>
+                    <option value="referral">Referral / Pass-Through</option>
+                    <option value="candidate">W2 Candidate (You as employer)</option>
+                </select>
+            </div>
+
+            <div class="ob-modal__actions">
+                <button class="btn btn--outline" id="cancelNewObBtn">Cancel</button>
+                <button class="btn btn--primary" id="createObBtn">Create Onboarding</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Delete Confirm ────────────────────────────────── -->
+    <div id="obConfirmOverlay" class="ob-confirm-overlay">
+        <div class="ob-confirm">
+            <h3>Delete Onboarding?</h3>
+            <p id="obConfirmMsg">This will remove all progress. This cannot be undone.</p>
+            <div class="ob-confirm__actions">
+                <button class="btn btn--outline" id="cancelDeleteBtn">Cancel</button>
+                <button class="btn btn--primary" id="confirmDeleteBtn" style="background:#DC2626;border-color:#DC2626;">Delete</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast" class="toast"></div>
+
+    <script type="module" src="src/onboarding-main.js"></script>
+</body>
+
+</html>

@@ -37,8 +37,8 @@ export async function loadLayout(activeLink = '') {
         <!-- Sidebar -->
         <aside class="sidebar" id="sidebar">
             <div class="sidebar__brand">
-                <div class="sidebar__logo">⚡</div>
-                <span class="sidebar__name">Invoice Pro</span>
+                <img src="assets/logo-sm.png" alt="Renown360" style="height:36px;width:36px;object-fit:contain;border-radius:6px;flex-shrink:0;">
+                <span class="sidebar__name">Renown360</span>
             </div>
 
             <nav class="sidebar__nav">
@@ -49,6 +49,22 @@ export async function loadLayout(activeLink = '') {
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0a1 1 0 01-1-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 01-1 1h-2z"/>
                     </svg>
                     Dashboard
+                </a>
+
+                <div class="sidebar__section-label">Operations</div>
+
+                <a href="doc-templates.html" class="sidebar__link ${activeLink === 'doc-templates' ? 'sidebar__link--active' : ''}">
+                    <svg class="sidebar__icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
+                    </svg>
+                    Document Templates
+                </a>
+
+                <a href="onboarding.html" class="sidebar__link ${activeLink === 'onboarding' ? 'sidebar__link--active' : ''}">
+                    <svg class="sidebar__icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/>
+                    </svg>
+                    Onboarding Hub
                 </a>
 
                 <div class="sidebar__section-label">CRM</div>
@@ -329,6 +345,8 @@ function getPageTitle(activeLink) {
         'analytics': 'Analytics',
         'timesheets': 'Timesheets',
         'profile': 'Profile',
+        'onboarding': 'Onboarding Hub',
+        'doc-templates': 'Document Templates',
         '': 'Welcome'
     };
     return titles[activeLink] || 'Invoice Pro';
