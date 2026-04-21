@@ -1722,15 +1722,6 @@ async function saveFromModal() {
                 showToast('Consultant is missing for this action', 'error');
                 return;
             }
-            const overlappingInvoicedRows = getOverlappingInvoicedRows(modalConsultantId, start, end, modalTimesheetId);
-            if (overlappingInvoicedRows.length) {
-                const overlapSummary = describeOverlapRows(overlappingInvoicedRows);
-                const overlapSuffix = overlappingInvoicedRows.length > 3 ? ` and ${overlappingInvoicedRows.length - 3} more` : '';
-                const shouldContinue = window.confirm(
-                    `This supplemental period overlaps existing invoiced time for ${overlapSummary}${overlapSuffix}. Continue anyway?`
-                );
-                if (!shouldContinue) return;
-            }
             await dbInsertTimesheet({
                 consultant_id:  modalConsultantId,
                 period_start:   start || modalDefaultPeriod.start,
