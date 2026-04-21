@@ -3391,9 +3391,9 @@ canvas#revenueChart {
 /* Name cell — sticky left */
 .pivot-cell--name {
     padding: 0.5rem 0.75rem;
-    min-width: 100px;
-    max-width: 145px;
-    width: 145px;
+    min-width: 90px;
+    max-width: 120px;
+    width: 110px;
     position: sticky;
     left: 0;
     background: white;
@@ -3530,10 +3530,10 @@ canvas#revenueChart {
     font-weight: 700;
     color: var(--text-secondary);
     border-top: 2px solid var(--surface-glass-border);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 90px;
+    white-space: normal;
+    word-break: break-word;
+    line-height: 1.35;
+    padding: 0.4rem 0.25rem;
 }
 
 .pivot-footer__grand {
@@ -3545,6 +3545,9 @@ canvas#revenueChart {
     border-left: 1px solid var(--surface-glass-border);
     border-top: 2px solid var(--surface-glass-border);
     background: #e2e8f0;
+    white-space: normal;
+    word-break: break-word;
+    line-height: 1.35;
 }
 
 

@@ -536,8 +536,13 @@ async function refreshData() {
             getInvoices(),
             dbGetConsultants()
         ]);
-        rawRows = normalizeRows(rows);
         rawInvoices = invoices || [];
+        const paidInvoiceNums = new Set(
+            rawInvoices
+                .filter(inv => inv.status === 'paid' && inv.invoice_number)
+                .map(inv => String(inv.invoice_number).trim())
+        );
+        rawRows = normalizeRows(rows, paidInvoiceNums);
         rawConsultants = consultants || [];
         populateFilterOptions();
         requestRender();
@@ -551,12 +556,15 @@ async function refreshData() {
     }
 }
 
-function normalizeRows(rows) {
+function normalizeRows(rows, paidInvoiceNums = new Set()) {
     return (rows || []).map((row) => {
         const consultant = Array.isArray(row.consultants) ? row.consultants[0] : (row.consultants || {});
         const hours = Number(row.hours_worked) || 0;
         const billRate = Number(consultant.bill_rate) || 0;
         const currency = normalizeCurrency(consultant.currency || 'USD');
+        const invNum = String(row.invoice_number || '').trim();
+        const baseStatus = normalizeStatusFilter(row.status || (invNum ? 'invoiced' : 'pending'));
+        const status = invNum && paidInvoiceNums.has(invNum) ? 'paid' : baseStatus;
 
         return {
             id: row.id,
@@ -572,8 +580,8 @@ function normalizeRows(rows) {
             projected: hours * billRate,
             period_start: row.period_start || '',
             month_key: String(row.period_start || '').slice(0, 7),
-            status: normalizeStatusFilter(row.status || (row.invoice_number ? 'invoiced' : 'pending')),
-            invoice_number: String(row.invoice_number || '').trim()
+            status,
+            invoice_number: invNum
         };
     });
 }
@@ -724,7 +732,10 @@ function renderKpis(monthRows) {
     const consultants = activePool.length;
     const byCurrency = aggregateByCurrency(monthRows);
     const invoicedHours = monthRows
-        .filter(row => row.status === 'invoiced')
+        .filter(row => row.status === 'invoiced' || row.status === 'paid')
+        .reduce((sum, row) => sum + row.hours, 0);
+    const paidHours = monthRows
+        .filter(row => row.status === 'paid')
         .reduce((sum, row) => sum + row.hours, 0);
     const coveragePct = totalHours > 0 ? (invoicedHours / totalHours) * 100 : 0;
 
@@ -735,7 +746,8 @@ function renderKpis(monthRows) {
     if (els.consultantsLabelMeta) els.consultantsLabelMeta.textContent = `(Active ${getSelectedPeriodShortLabel()})`;
     if (els.billingCoverageLabelMeta) els.billingCoverageLabelMeta.textContent = `(${getSelectedPeriodShortLabel()})`;
     if (els.billingCoverageSub) {
-        els.billingCoverageSub.textContent = `${invoicedHours.toFixed(2)} invoiced hrs of ${totalHours.toFixed(2)} total`;
+        const paidStr = paidHours > 0 ? ` (${paidHours.toFixed(2)} paid)` : '';
+        els.billingCoverageSub.textContent = `${invoicedHours.toFixed(2)} invoiced hrs${paidStr} of ${totalHours.toFixed(2)} total`;
     }
     if (els.projectedRevenueLabelMeta) {
         els.projectedRevenueLabelMeta.textContent = `(${getSelectedPeriodShortLabel()})`;
@@ -875,9 +887,9 @@ function renderPivot(rows) {
 
     // Build header: Consultant | Jan..Dec | Total
     els.pivotHeadRow.innerHTML = `
-        <th style="width:20%;">Consultant</th>
-        ${shortMonths.map((m, i) => `<th class="pivot-col-month" title="${MONTHS[i]}">${m}</th>`).join('')}
-        <th class="pivot-col-total">Total</th>
+        <th style="width:12%;min-width:100px;">Consultant</th>
+        ${shortMonths.map((m, i) => `<th class="pivot-col-month" style="width:6.5%;min-width:68px;" title="${MONTHS[i]}">${m}</th>`).join('')}
+        <th class="pivot-col-total" style="width:9%;min-width:84px;">Total</th>
     `;
 
     // Aggregate rows by consultant+currency
@@ -963,10 +975,11 @@ function renderPivot(rows) {
                 : `${cell.hours.toFixed(2)} hours`;
 
             const statuses = Array.from(cell.statuses);
-            const allInvoiced = statuses.every(s => s === 'invoiced');
+            const allPaid = statuses.every(s => s === 'paid');
+            const allInvoicedOrPaid = statuses.every(s => s === 'invoiced' || s === 'paid');
             const anyPending = statuses.some(s => s === 'pending');
-            const dotColor = allInvoiced ? '#22c55e' : anyPending ? '#f97316' : '#94a3b8';
-            const dotTitle = allInvoiced ? 'Invoiced' : anyPending ? 'Pending' : 'Mixed';
+            const dotColor = allPaid ? '#9333ea' : allInvoicedOrPaid ? '#22c55e' : anyPending ? '#f97316' : '#94a3b8';
+            const dotTitle = allPaid ? 'Paid' : allInvoicedOrPaid ? 'Invoiced' : anyPending ? 'Pending' : 'Mixed';
 
             return `<td class="pivot-cell pivot-cell--data" style="background:${bg};color:${textColor};" title="${dotTitle}: ${fullVal}">
                 <span class="pivot-cell__dot" style="background:${dotColor};"></span>
@@ -2375,7 +2388,7 @@ function normalizeTextFilter(value) {
 
 function normalizeStatusFilter(value) {
     const input = String(value || 'all').trim().toLowerCase();
-    if (input === 'pending' || input === 'invoiced') return input;
+    if (input === 'pending' || input === 'invoiced' || input === 'paid') return input;
     return 'all';
 }
 
@@ -2457,6 +2470,7 @@ function buildStatusDistributionTitle(status, row) {
 function renderStatusBadge(status) {
     if (status === 'invoiced') return '<span class="status-badge status-invoiced">Invoiced</span>';
     if (status === 'pending') return '<span class="status-badge status-pending">Pending</span>';
+    if (status === 'paid') return '<span class="status-badge status-paid">Paid</span>';
     return '<span class="status-badge status-mixed">Mixed</span>';
 }
 

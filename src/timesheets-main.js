@@ -1511,6 +1511,9 @@ function renderStatusBadge(status) {
     if (status === 'mixed') {
         return '<span class="status-badge status-mixed">Mixed</span>';
     }
+    if (status === 'paid') {
+        return '<span class="status-badge status-paid">Paid</span>';
+    }
     return '<span style="color:var(--text-tertiary);">—</span>';
 }
 
