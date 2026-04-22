@@ -165,6 +165,7 @@ function cacheElements() {
     els.actualRevenueCard = document.getElementById('actualRevenueCard');
     els.actualRevenueSub = document.getElementById('actualRevenueSub');
     els.cashFlowCard = document.getElementById('cashFlowCard');
+    els.cashFlowUsdSub = document.getElementById('cashFlowUsdSub');
     els.totalHoursLabelMeta = document.getElementById('totalHoursLabelMeta');
     els.actualRevenueLabelMeta = document.getElementById('actualRevenueLabelMeta');
     els.cashFlowLabelMeta = document.getElementById('cashFlowLabelMeta');
@@ -775,6 +776,14 @@ function renderInsights(monthRows) {
 function renderClientBreakdown(rows) {
     if (!els.clientBreakdownBody) return;
 
+    // Build invoice → usd_received_amount lookup
+    const invUsdMap = new Map();
+    rawInvoices.forEach(inv => {
+        const num = String(inv.invoice_number || '').trim();
+        const usd = Number(inv.totals?.usd_received_amount) || 0;
+        if (num && usd > 0) invUsdMap.set(num, usd);
+    });
+
     // Aggregate by client first, then consultant within client
     const clientMap = new Map();
 
@@ -794,13 +803,21 @@ function renderClientBreakdown(rows) {
             bill_rate: row.bill_rate,
             hours: 0,
             projected: 0,
+            usdReceived: 0,
             statuses: new Set(),
             invoices: new Set()
         };
         existing.hours += row.hours;
         existing.projected += row.projected;
         existing.statuses.add(row.status);
-        if (row.invoice_number) existing.invoices.add(row.invoice_number);
+        if (row.invoice_number) {
+            existing.invoices.add(row.invoice_number);
+            if (!existing._seenInvUsd) existing._seenInvUsd = new Set();
+            if (!existing._seenInvUsd.has(row.invoice_number)) {
+                existing._seenInvUsd.add(row.invoice_number);
+                existing.usdReceived += invUsdMap.get(row.invoice_number) || 0;
+            }
+        }
         clientEntry.consultants.set(cKey, existing);
 
         // Roll up to client total by currency
@@ -869,7 +886,10 @@ function renderClientBreakdown(rows) {
                     </td>
                     <td>${renderStatusBadge(status)}</td>
                     <td style="font-weight:600;">${c.hours.toFixed(2)}h</td>
-                    <td style="font-weight:700;">${formatMoney(c.projected, c.currency)}</td>
+                    <td style="font-weight:700;">
+                        ${formatMoney(c.projected, c.currency)}
+                        ${c.usdReceived > 0 && c.currency !== 'USD' ? `<div style="font-size:0.72rem;font-weight:500;color:var(--text-secondary);margin-top:1px;">≈ ${formatMoney(c.usdReceived, 'USD')} received</div>` : ''}
+                    </td>
                     <td>${invoiceLink}</td>
                 </tr>`;
         }).join('');
@@ -1485,6 +1505,8 @@ function renderCashFlowKPI() {
 
     const paidInvoices = rawInvoices.filter(inv => String(inv.status || '').toLowerCase() === 'paid');
     const byCurrency = {};
+    let totalUsdInBank = 0;
+    let hasNonUsdPaid = false;
 
     paidInvoices.forEach(inv => {
         const paidTs = String(inv.paid_date || inv.invoice_meta?.dateRaw || inv.created_at || '').trim();
@@ -1504,6 +1526,12 @@ function renderCashFlowKPI() {
 
         const curr = String(inv.invoice_meta?.currency || 'USD').toUpperCase();
         byCurrency[curr] = (byCurrency[curr] || 0) + (inv.totals?.total || 0);
+        if (curr === 'USD') {
+            totalUsdInBank += (inv.totals?.total || 0);
+        } else {
+            hasNonUsdPaid = true;
+            totalUsdInBank += Number(inv.totals?.usd_received_amount) || 0;
+        }
     });
 
     const entries = Object.entries(byCurrency).sort((a, b) => a[0].localeCompare(b[0]));
@@ -1515,6 +1543,15 @@ function renderCashFlowKPI() {
         els.cashFlowCard.innerHTML = `<div class="kpi-card__stack">${entries
             .map(([c, a]) => `<div class="kpi-card__stack-item">${formatMoney(a, c)}</div>`)
             .join('')}</div>`;
+    }
+
+    if (els.cashFlowUsdSub) {
+        if (hasNonUsdPaid && totalUsdInBank > 0) {
+            els.cashFlowUsdSub.textContent = `= ${formatMoney(totalUsdInBank, 'USD')} total in bank`;
+            els.cashFlowUsdSub.style.display = '';
+        } else {
+            els.cashFlowUsdSub.style.display = 'none';
+        }
     }
 }
 
