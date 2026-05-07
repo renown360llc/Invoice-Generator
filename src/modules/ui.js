@@ -271,7 +271,6 @@ function renderPaper(state) {
     <div class="pv-header">
         <div class="pv-brand-section">
             <div class="pv-logo-name-row">
-                ${state.logo ? `<img src="${escapeHtml(state.logo)}" class="pv-logo" alt="Logo">` : ''}
                 <div class="pv-company-name">${safeBusinessName}</div>
             </div>
             <div class="pv-company-details">

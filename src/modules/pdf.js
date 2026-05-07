@@ -20,31 +20,14 @@ export async function generatePDF(data) {
     const brandColor = data.settings.brandColor || '#3b82f6';
     const rgb = hexToRgb(brandColor);
 
-    // --- Header (Logo & Company Name Row) ---
-    let brandRowHeight = 0;
-    const hasLogo = !!data.business_info.logo;
-
-    if (hasLogo) {
-        try {
-            // Render Logo (25x12mm scale - refined)
-            doc.addImage(data.business_info.logo, 'JPEG', margin, y, 25, 12);
-            brandRowHeight = 12;
-        } catch (e) {
-            console.warn('PDF Logo error:', e);
-        }
-    }
-
-    // Company Name (Placed next to logo if exists - refined size)
+    // --- Header (Company Name Row) ---
     doc.setFontSize(15);
     doc.setTextColor(rgb.r, rgb.g, rgb.b);
     doc.setFont('helvetica', 'bold');
-    
-    const nameX = hasLogo ? margin + 30 : margin;
-    const nameY = hasLogo ? y + 8 : y + 5; 
-    doc.text(data.business_info.name || 'Company Name', nameX, nameY);
-    
+    doc.text(data.business_info.name || 'Company Name', margin, y + 5);
+
     // Prepare for details (Row 2 - Below branding)
-    y += Math.max(brandRowHeight, 10) + 8;
+    y += 18;
 
     // Business Details (Below Logo/Name)
     doc.setFontSize(10);
