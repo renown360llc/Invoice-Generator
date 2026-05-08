@@ -24,6 +24,10 @@
         {
             "source": "/signup",
             "destination": "/auth.html?mode=signup"
+        },
+        {
+            "source": "/invoices/:path*",
+            "destination": "/:path*"
         }
     ],
     "headers": [
