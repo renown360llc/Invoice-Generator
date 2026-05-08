@@ -387,7 +387,7 @@ async function checkAuth() {
         const path = window.location.pathname;
         // Don't redirect if already on login (though this script is for app)
         if (!path.includes('login.html')) {
-            window.location.href = '/login.html';
+            window.location.href = '/invoices/login.html';
         }
         return null;
     }

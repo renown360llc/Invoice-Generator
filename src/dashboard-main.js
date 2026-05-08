@@ -201,7 +201,7 @@ function setHtml(id, value) {
 async function checkAuth() {
     const user = await getCurrentUser()
     if (!user) {
-        window.location.href = '/login.html'
+        window.location.href = '/invoices/login.html'
         return null
     }
     return user

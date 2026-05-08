@@ -43,7 +43,7 @@ export async function signInWithGoogle() {
     const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-            redirectTo: window.location.origin + '/dashboard.html'
+            redirectTo: window.location.origin + '/invoices/dashboard.html'
         }
     })
 
@@ -57,7 +57,7 @@ export async function signOut() {
     if (error) {
         console.error('Signout error:', error.message)
     }
-    window.location.href = '/index.html'
+    window.location.href = '/invoices/index.html'
 }
 
 // Get current user
