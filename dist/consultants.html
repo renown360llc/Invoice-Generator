@@ -1,0 +1,1048 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Consultants - Invoice Generator Pro</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+
+    <style>
+        body {
+            display: none;
+        }
+
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 4px 10px;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            line-height: 1;
+        }
+
+        .status-active {
+            background: #dcfce7;
+            color: #166534;
+        }
+
+        .status-inactive {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .status-missing {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .status-pending {
+            background: #eff6ff;
+            color: #1d4ed8;
+            border: 1px solid #bfdbfe;
+        }
+
+        .filters-meta {
+            margin-top: 0.65rem;
+            font-size: 0.8125rem;
+            color: var(--text-secondary);
+        }
+
+        .consultants-page {
+            padding-inline: 1.5rem;
+        }
+
+        .consultants-page__container {
+            max-width: 1680px;
+        }
+
+        .consultants-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            gap: 1rem;
+        }
+
+        .consultants-header__content {
+            min-width: 0;
+        }
+
+        .consultants-header__actions {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 0.5rem;
+            flex-shrink: 0;
+        }
+
+        .period-controls {
+            display: inline-flex;
+            gap: 0.5rem;
+            align-items: center;
+        }
+
+        .form-field__error {
+            min-height: 1rem;
+            font-size: 0.75rem;
+            color: #dc2626;
+            line-height: 1.2;
+        }
+
+        body.modal-open {
+            overflow: hidden;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.45);
+            backdrop-filter: blur(4px);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+            padding: 1.5rem;
+            animation: modalOverlayIn 0.2s ease-out;
+        }
+
+        .modal.is-open {
+            display: flex;
+        }
+
+        .modal-content {
+            width: min(860px, 100%);
+            max-height: min(92vh, 760px);
+            background: #ffffff;
+            border: 1px solid var(--surface-glass-border);
+            border-radius: 20px;
+            box-shadow: 0 24px 70px rgba(15, 23, 42, 0.2);
+            overflow: hidden;
+            transform: translateY(16px) scale(0.98);
+            opacity: 0;
+            transition: transform 0.2s ease, opacity 0.2s ease;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .modal.is-open .modal-content {
+            transform: translateY(0) scale(1);
+            opacity: 1;
+        }
+
+        .modal-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 1rem;
+            padding: 1.5rem 1.75rem 1.125rem;
+            border-bottom: 1px solid var(--surface-border-subtle);
+            background: linear-gradient(180deg, #fff8f6 0%, #ffffff 100%);
+        }
+
+        .modal-title {
+            font-size: 1.625rem;
+            line-height: 1.15;
+            font-weight: 800;
+            color: var(--text-primary);
+            letter-spacing: -0.02em;
+        }
+
+        .modal-subtitle {
+            margin-top: 0.25rem;
+            font-size: 0.8125rem;
+            color: var(--text-secondary);
+        }
+
+        .modal-close {
+            width: 38px;
+            height: 38px;
+            border-radius: 999px;
+            border: 1px solid var(--surface-glass-border);
+            background: #ffffff;
+            font-size: 1.75rem;
+            line-height: 1;
+            cursor: pointer;
+            color: var(--text-secondary);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.15s ease;
+        }
+
+        .modal-close:hover {
+            color: var(--text-primary);
+            border-color: #d1d5db;
+            background: #f9fafb;
+        }
+
+        .modal-body {
+            padding: 1.5rem 1.75rem 1.625rem;
+            overflow-y: auto;
+            max-height: calc(92vh - 110px);
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 1rem 1.125rem;
+        }
+
+        .form-grid-full {
+            grid-column: 1 / -1;
+        }
+
+        .form-field {
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 0.45rem;
+        }
+
+        .form-field__label {
+            font-size: 0.8125rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            letter-spacing: 0.01em;
+        }
+
+        .form-field__required {
+            color: var(--primary);
+        }
+
+        .form-field__input {
+            width: 100%;
+            height: 42px;
+            border: 1px solid var(--surface-glass-border);
+            border-radius: 10px;
+            background: #ffffff;
+            padding: 0 0.875rem;
+            font-size: 0.875rem;
+            color: var(--text-primary);
+            font-family: var(--font-sans);
+            transition: border-color 0.15s ease, box-shadow 0.15s ease;
+        }
+
+        .form-field__input:hover {
+            border-color: #d1d5db;
+        }
+
+        .form-field__input:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(255, 107, 74, 0.12);
+        }
+
+        .form-field__input::placeholder {
+            color: var(--text-tertiary);
+        }
+
+        .form-field__hint {
+            font-size: 0.75rem;
+            color: var(--text-tertiary);
+            line-height: 1.35;
+        }
+
+        .modal-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 0.75rem;
+            margin-top: 1.375rem;
+            padding-top: 1.125rem;
+            border-top: 1px solid var(--surface-border-subtle);
+        }
+
+        .modal-actions .btn {
+            height: 42px;
+            min-width: 138px;
+            font-size: 0.875rem;
+            font-weight: 600;
+        }
+
+        .modal-actions .btn--outline {
+            min-width: 112px;
+        }
+
+        .note-tooltip-container {
+            position: relative;
+            display: inline-block;
+            cursor: pointer;
+            margin-left: 0.35rem;
+            vertical-align: middle;
+        }
+
+        .note-tooltip {
+            visibility: hidden;
+            width: 260px;
+            background-color: #fef9c3;
+            color: #422006;
+            text-align: left;
+            border-radius: 6px;
+            padding: 10px 14px;
+            position: absolute;
+            z-index: 100;
+            top: 50%;
+            left: calc(100% + 12px);
+            transform: translateY(-50%);
+            opacity: 0;
+            transition: opacity 0.2s, visibility 0.2s;
+            border: 1px solid #fde047;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            font-size: 0.75rem;
+            font-weight: 500;
+            white-space: pre-wrap;
+            line-height: 1.4;
+            pointer-events: none;
+        }
+
+        .note-tooltip::after {
+            content: "";
+            position: absolute;
+            top: 50%;
+            right: 100%;
+            margin-top: -6px;
+            border-width: 6px;
+            border-style: solid;
+            border-color: transparent #fde047 transparent transparent;
+        }
+
+        .note-tooltip-container:hover .note-tooltip {
+            visibility: visible;
+            opacity: 1;
+        }
+
+        #consultantForm {
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            flex: 1;
+        }
+
+        @keyframes modalOverlayIn {
+            from {
+                opacity: 0;
+            }
+
+            to {
+                opacity: 1;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .consultants-page {
+                padding-inline: 1.25rem;
+            }
+
+            .consultants-header {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .consultants-header__actions {
+                justify-content: flex-start;
+                flex-wrap: wrap;
+            }
+
+            .modal {
+                padding: 0.75rem;
+            }
+
+            .modal-content {
+                max-height: calc(100vh - 1.5rem);
+                border-radius: 16px;
+            }
+
+            .modal-header {
+                padding: 1.125rem 1rem 0.875rem;
+            }
+
+            .modal-title {
+                font-size: 1.25rem;
+            }
+
+            .modal-body {
+                padding: 1rem;
+                max-height: calc(100vh - 132px);
+            }
+
+            .form-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .modal-actions {
+                flex-direction: column-reverse;
+            }
+
+            .modal-actions .btn {
+                width: 100%;
+            }
+        }
+
+        /* Sorting */
+        .table th[data-sort] {
+            padding: 0;
+        }
+
+        .sort-button {
+            width: 100%;
+            height: 100%;
+            padding: 0.875rem 1.25rem;
+            border: none;
+            background: transparent;
+            display: flex;
+            align-items: center;
+            gap: 0.35rem;
+            font: inherit;
+            color: inherit;
+            cursor: pointer;
+        }
+
+        .sort-button:hover {
+            background: #f9fafb;
+        }
+
+        .sort-icon {
+            font-size: 0.75rem;
+            color: var(--text-tertiary);
+        }
+
+        .sort-button.is-active .sort-icon {
+            color: var(--primary);
+        }
+    </style>
+  <script type="module" crossorigin src="/invoices/assets/consultants-DPxD4fgt.js"></script>
+  <link rel="modulepreload" crossorigin href="/invoices/assets/config-c-jMUxvT.js">
+  <link rel="modulepreload" crossorigin href="/invoices/assets/auth-De7W24vl.js">
+  <link rel="modulepreload" crossorigin href="/invoices/assets/utils-C_5o-oWL.js">
+  <link rel="modulepreload" crossorigin href="/invoices/assets/layout-BbfQceRr.js">
+  <link rel="modulepreload" crossorigin href="/invoices/assets/preload-helper-CON-e7xv.js">
+  <link rel="modulepreload" crossorigin href="/invoices/assets/audit-trail-D0qCF0dr.js">
+  <link rel="modulepreload" crossorigin href="/invoices/assets/utils-DcZaKD3w.js">
+  <link rel="modulepreload" crossorigin href="/invoices/assets/db-timesheets-CCgcNFbQ.js">
+  <link rel="modulepreload" crossorigin href="/invoices/assets/crm-filters-B0ueEEPp.js">
+  <link rel="modulepreload" crossorigin href="/invoices/assets/saved-views-DboOTZfB.js">
+  <link rel="stylesheet" crossorigin href="/invoices/assets/layout-D8RJuYgk.css">
+  <link rel="stylesheet" crossorigin href="/invoices/assets/consultants-RQyqJNrw.css">
+  <link rel="stylesheet" crossorigin href="/invoices/assets/dashboard-CTLGdJqp.css">
+</head>
+
+<body>
+    <!-- Main Content -->
+    <main class="dashboard consultants-page">
+        <div class="dashboard__container consultants-page__container">
+            <!-- Header -->
+            <div class="dashboard__header consultants-header">
+                <div class="consultants-header__content">
+                    <h1 class="dashboard__title">Consultants</h1>
+                    <p class="dashboard__subtitle">Manage consultant profiles, rates, and billing attributes used across
+                        CRM and invoicing.</p>
+                </div>
+                <div class="consultants-header__actions" style="display:flex;gap:0.5rem;align-items:center;">
+                    <button id="exportCsvBtn" class="btn btn--outline" title="Export Consultants to CSV">
+                        <svg class="btn-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                        <span class="btn-text">Export CSV</span>
+                    </button>
+                    <button id="addConsultantBtn" class="btn btn--primary">
+                        <svg class="btn-icon" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd" />
+                        </svg>
+                        <span class="btn-text">Add Consultant</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Compact CRM Toolbar — desktop only on mobile -->
+            <div class="crm-toolbar" id="crmToolbar">
+                <div class="crm-toolbar__search">
+                    <svg class="crm-toolbar__search-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                    <input type="text" id="searchInput" placeholder="Search consultants...">
+                </div>
+                <div class="crm-toolbar__divider"></div>
+                <div class="crm-toolbar__filters">
+                    <select id="statusFilter" class="crm-toolbar__pill" aria-label="Status">
+                        <option value="all">All Statuses</option>
+                        <option value="active" selected>Active Only</option>
+                        <option value="pending">Pending Only</option>
+                        <option value="inactive">Inactive Only</option>
+                    </select>
+                    <select id="clientFilter" class="crm-toolbar__pill" aria-label="Client">
+                        <option value="all">All Clients</option>
+                    </select>
+                    <select id="w2Filter" class="crm-toolbar__pill" aria-label="W2 Company">
+                        <option value="all">All W2</option>
+                    </select>
+                    <select id="currencyFilter" class="crm-toolbar__pill" aria-label="Currency">
+                        <option value="all">All Currencies</option>
+                    </select>
+                    <div class="crm-toolbar__divider"></div>
+                    <select id="sortSelect" class="crm-toolbar__pill" aria-label="Sort Order">
+                        <option value="name_asc">Name (A-Z)</option>
+                        <option value="name_desc">Name (Z-A)</option>
+                        <option value="client_asc">Client (A-Z)</option>
+                        <option value="client_desc">Client (Z-A)</option>
+                        <option value="start_date_desc">Start Date (Newest)</option>
+                        <option value="start_date_asc">Start Date (Oldest)</option>
+                        <option value="bill_rate_desc">Rate (Highest)</option>
+                        <option value="bill_rate_asc">Rate (Lowest)</option>
+                        <option value="status_asc">Status (A-Z)</option>
+                        <option value="status_desc">Status (Z-A)</option>
+                    </select>
+                </div>
+                <div class="crm-toolbar__divider"></div>
+                <div class="crm-toolbar__period-wrap">
+                    <div class="crm-toolbar__period">
+                        <button type="button" id="periodPrevBtn" class="crm-toolbar__period-btn" aria-label="Previous month">
+                            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path d="m15 19-7-7 7-7"/></svg>
+                        </button>
+                        <button type="button" id="periodLabel" class="crm-toolbar__period-label crm-toolbar__period-label--button" aria-label="Open month and year picker" aria-expanded="false">
+                            <span id="periodLabelText">—</span>
+                            <svg class="crm-toolbar__period-caret" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2"><path d="m6 9 6 6 6-6"/></svg>
+                        </button>
+                        <button type="button" id="periodNextBtn" class="crm-toolbar__period-btn" aria-label="Next month">
+                            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path d="m9 5 7 7-7 7"/></svg>
+                        </button>
+                    </div>
+                    <div id="periodJumpMenu" class="crm-toolbar__period-menu" hidden>
+                        <div class="crm-toolbar__period-menu-head">
+                            <select id="periodJumpYear" class="crm-toolbar__period-menu-select" aria-label="Jump to year"></select>
+                            <button type="button" id="periodJumpAllBtn" class="crm-toolbar__period-menu-all">All Months</button>
+                        </div>
+                        <div id="periodJumpMonths" class="crm-toolbar__period-menu-grid"></div>
+                    </div>
+                </div>
+                <div class="crm-toolbar__divider"></div>
+                <div class="crm-toolbar__views">
+                    <select id="savedViewSelect" aria-label="Saved views">
+                        <option value="">Saved Views</option>
+                    </select>
+                </div>
+                <div class="crm-toolbar__spacer"></div>
+                <button type="button" id="resetFiltersBtn" class="crm-toolbar__clear">Clear</button>
+
+                <!-- Expandable saved views controls -->
+                <div id="savedViewExpandRow" class="crm-toolbar__views-expand">
+                    <input type="text" id="savedViewName" placeholder="Name this view">
+                    <button id="saveViewBtn" class="btn btn--outline btn--sm" type="button">Save</button>
+                    <button id="updateViewBtn" class="btn btn--ghost btn--sm" type="button" disabled>Update</button>
+                    <button id="deleteViewBtn" class="btn btn--ghost btn--sm" type="button" disabled>Delete</button>
+                    <span id="savedViewMeta" class="crm-toolbar__views-expand__meta">No saved views</span>
+                </div>
+            </div>
+
+            <!-- ═══ MOBILE FILTER BAR (replaces crm-toolbar on small screens) ═══ -->
+            <div class="mobile-filter-bar" id="mobileFilterBar">
+                <!-- Row 1: Search + Filter button -->
+                <div class="mobile-filter-bar__row">
+                    <div class="mobile-filter-bar__search">
+                        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" width="16" height="16"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                        <input type="text" placeholder="Search consultants..." id="mobileSearchMirror" autocomplete="off">
+                    </div>
+                    <button class="mobile-filter-bar__filter-btn" id="mobileFilterBtn" aria-expanded="false">
+                        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" width="16" height="16"><path stroke-linecap="round" stroke-linejoin="round" d="M3 4h18M7 10h10M11 16h2"/></svg>
+                        Filters
+                        <span class="mobile-filter-bar__badge" id="mobileFilterBadge" hidden>0</span>
+                    </button>
+                </div>
+                <!-- Row 2: Active filter chips (hidden when none active) -->
+                <div class="mobile-filter-bar__chips" id="mobileFilterChips"></div>
+            </div>
+
+            <!-- ═══ MOBILE FILTER BOTTOM SHEET ═══ -->
+            <div class="mfs-backdrop" id="mfsBackdrop" aria-hidden="true"></div>
+            <div class="mfs-sheet" id="mfsSheet" role="dialog" aria-modal="true" aria-label="Filters">
+                <div class="mfs-sheet__handle"></div>
+                <div class="mfs-sheet__header">
+                    <span class="mfs-sheet__title">Filters</span>
+                    <button class="mfs-sheet__close" id="mfsClose" aria-label="Close filters">
+                        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" width="20" height="20"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                    </button>
+                </div>
+                <div class="mfs-sheet__body">
+                    <div class="mfs-group">
+                        <label class="mfs-group__label">Status</label>
+                        <div class="mfs-chips" id="mfsStatusChips">
+                            <button class="mfs-chip is-active" data-filter="status" data-value="all">All</button>
+                            <button class="mfs-chip" data-filter="status" data-value="active">Active</button>
+                            <button class="mfs-chip" data-filter="status" data-value="pending">Pending</button>
+                            <button class="mfs-chip" data-filter="status" data-value="inactive">Inactive</button>
+                        </div>
+                    </div>
+                    <div class="mfs-group">
+                        <label class="mfs-group__label">Client</label>
+                        <select class="mfs-select" id="mfsClientFilter">
+                            <option value="all">All Clients</option>
+                        </select>
+                    </div>
+                    <div class="mfs-group">
+                        <label class="mfs-group__label">W2 Company</label>
+                        <select class="mfs-select" id="mfsW2Filter">
+                            <option value="all">All W2 Companies</option>
+                        </select>
+                    </div>
+                    <div class="mfs-group">
+                        <label class="mfs-group__label">Currency</label>
+                        <select class="mfs-select" id="mfsCurrencyFilter">
+                            <option value="all">All Currencies</option>
+                        </select>
+                    </div>
+                    <div class="mfs-group">
+                        <label class="mfs-group__label">Period</label>
+                        <div class="mfs-period-selects">
+                            <select class="mfs-select" id="mfsYearSelect"></select>
+                            <select class="mfs-select" id="mfsMonthSelect">
+                                <option value="all">All Months</option>
+                                <option value="01">January</option>
+                                <option value="02">February</option>
+                                <option value="03">March</option>
+                                <option value="04">April</option>
+                                <option value="05">May</option>
+                                <option value="06">June</option>
+                                <option value="07">July</option>
+                                <option value="08">August</option>
+                                <option value="09">September</option>
+                                <option value="10">October</option>
+                                <option value="11">November</option>
+                                <option value="12">December</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="mfs-sheet__footer">
+                    <button class="mfs-btn-clear" id="mfsClearBtn">Clear All</button>
+                    <button class="mfs-btn-apply" id="mfsApplyBtn">Show Results</button>
+                </div>
+            </div>
+
+            <div id="consultantsFilterSummary" class="crm-stats-strip"></div>
+
+            <!-- Hidden selects for year/month (used by JS) -->
+
+            <select id="yearFilter" style="display:none;" aria-label="Filter year"></select>
+            <select id="monthFilter" style="display:none;" aria-label="Filter month"></select>
+            <button id="allMonthsToggleBtn" style="display:none;" type="button">All Months: OFF</button>
+                <div class="table-container">
+                    <table class="table" id="consultantsTable">
+                        <thead>
+                            <tr>
+                                <th class="sortable" data-sort-key="name">Name</th>
+                                <th class="sortable" data-sort-key="client">Client / W2</th>
+                                <th class="sortable" data-sort-key="start_date">Start Date</th>
+                                <th class="sortable" data-sort-key="end_date">End Date</th>
+                                <th class="sortable" data-sort-key="bill_rate">Rate</th>
+                                <th class="sortable" data-sort-key="status">Status</th>
+                                <th class="sortable" data-sort-key="coverage">Coverage</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="consultantsBody">
+                            <tr>
+                                <td colspan="8" class="table__empty">
+                                    <div class="empty-state">
+                                        <span class="empty-state__icon">👥</span>
+                                        <p class="empty-state__text">Loading consultants...</p>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <!-- Mobile card view (rendered by JS, shown only on small screens) -->
+                <div id="consultantCards" class="consultant-cards" aria-label="Consultants list"></div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Consultant Form Modal -->
+    <div id="consultantModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div>
+                    <h3 class="modal-title" id="modalTitle">Add New Consultant</h3>
+                    <p class="modal-subtitle">Create a consultant profile for invoice and timesheet tracking.</p>
+                </div>
+                <button class="modal-close" id="closeModalBtn" aria-label="Close modal">&times;</button>
+            </div>
+
+            <form id="consultantForm">
+                <div class="modal-body">
+                    <input type="hidden" id="consultantId">
+                    <div class="form-grid">
+                        <div class="form-field form-grid-full">
+                            <label class="form-field__label">
+                                Full Name <span class="form-field__required">*</span>
+                            </label>
+                            <input type="text" id="name" class="form-field__input" required placeholder="e.g. John Doe">
+                            <div id="nameError" class="form-field__error"></div>
+                        </div>
+
+                        <div class="form-field">
+                            <label class="form-field__label">Assigned Client</label>
+                            <input type="text" id="client" class="form-field__input" placeholder="e.g. Acme Corp">
+                        </div>
+
+                        <div class="form-field">
+                            <label class="form-field__label">W2 Company</label>
+                            <input type="text" id="w2Company" class="form-field__input"
+                                placeholder="e.g. TechStaffing LLC">
+                        </div>
+
+                        <div class="form-field">
+                            <label class="form-field__label">
+                                Status <span class="form-field__required">*</span>
+                            </label>
+                            <select id="status" class="form-field__select" required>
+                                <option value="active">Active</option>
+                                <option value="pending">Pending (Onboarding)</option>
+                                <option value="inactive">Inactive</option>
+                            </select>
+                            <div id="statusError" class="form-field__error"></div>
+                        </div>
+
+                        <div class="form-field">
+                            <label class="form-field__label" id="startDateLabel">
+                                Start Date <span class="form-field__required" id="startDateReq">*</span>
+                            </label>
+                            <input type="date" id="startDate" class="form-field__input">
+                            <div id="startDateError" class="form-field__error"></div>
+                        </div>
+
+                        <div class="form-field">
+                            <label class="form-field__label">End Date (Optional)</label>
+                            <input type="date" id="endDate" class="form-field__input">
+                            <small class="form-field__hint">If set, consultant auto-becomes inactive after this
+                                date.</small>
+                            <div id="endDateError" class="form-field__error"></div>
+                        </div>
+
+                        <div class="form-field">
+                            <label class="form-field__label">Bill Rate ($/hr)</label>
+                            <input type="number" id="billRate" class="form-field__input" min="0.01" step="0.01"
+                                placeholder="0.00">
+                            <small class="form-field__hint">Enter either Bill Rate or Referral Commission.</small>
+                            <div id="billRateError" class="form-field__error"></div>
+                        </div>
+
+                        <div class="form-field">
+                            <label class="form-field__label">Currency <span
+                                    class="form-field__required">*</span></label>
+                            <select id="currency" class="form-field__input" required>
+                                <option value="USD">USD — $</option>
+                                <option value="EUR">EUR — €</option>
+                                <option value="GBP">GBP — £</option>
+                                <option value="CAD">CAD — $</option>
+                                <option value="AUD">AUD — $</option>
+                                <option value="INR">INR — ₹</option>
+                            </select>
+                            <div id="currencyError" class="form-field__error"></div>
+                        </div>
+
+                        <div class="form-field">
+                            <label class="form-field__label">Referral Commission ($/hr)</label>
+                            <input type="number" id="commissionRate" class="form-field__input" min="0.01" step="0.01"
+                                placeholder="0.00">
+                            <div id="commissionRateError" class="form-field__error"></div>
+                        </div>
+                        <div class="form-field form-grid-full">
+                            <label class="form-field__label">Notes (Optional)</label>
+                            <textarea id="consultantNotes" class="form-field__input" rows="3"
+                                style="height: auto; padding-top: 0.5rem;"
+                                placeholder="e.g. Specific contract terms, availability, internal notes..."></textarea>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="modal-actions"
+                    style="margin-top: 0; padding: 1.25rem 1.75rem; background: linear-gradient(0deg, #fff8f6 0%, #ffffff 100%);">
+                    <button type="button" id="deleteConsultantBtn" class="btn btn--ghost"
+                        style="display:none;">Delete</button>
+                    <button type="button" id="cancelBtn" class="btn btn--outline">Cancel</button>
+                    <button type="submit" id="saveBtn" class="btn btn--primary">Save Consultant</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- ── Cascade Delete Confirmation Modal ─────────────────────────── -->
+    <div id="deleteConsultantModal"
+        style="display:none; position:fixed; inset:0; background:rgba(15,23,42,0.5); backdrop-filter:blur(4px); z-index:2000; align-items:center; justify-content:center; padding:1.5rem;">
+        <div
+            style="background:#fff; border-radius:16px; box-shadow:0 24px 70px rgba(15,23,42,0.2); width:min(480px,100%); padding:2rem;">
+            <div style="display:flex; align-items:center; gap:0.75rem; margin-bottom:1rem;">
+                <div
+                    style="width:40px; height:40px; border-radius:50%; background:#fee2e2; display:flex; align-items:center; justify-content:center; flex-shrink:0; font-size:1.125rem;">
+                    🗑️</div>
+                <div>
+                    <h3 style="font-size:1.125rem; font-weight:800; color:#111827; margin:0;" id="deleteModalTitle">
+                        Delete Consultant?</h3>
+                    <p style="font-size:0.8125rem; color:#6b7280; margin:0.2rem 0 0;" id="deleteModalSubtitle">This
+                        action cannot be undone.</p>
+                </div>
+            </div>
+
+            <div id="deleteModalWarning"
+                style="display:none; background:#fef2f2; border:1px solid #fecaca; border-radius:8px; padding:0.75rem 1rem; margin-bottom:1.25rem; font-size:0.8125rem; color:#991b1b;">
+                ⚠️ <strong>Cascade Warning:</strong> Deleting this consultant will also permanently delete <strong
+                    id="deleteTimesheetCount">N</strong> timesheet record(s). This data cannot be recovered.
+            </div>
+
+            <div id="deleteModalSafeMsg"
+                style="display:none; background:#ecfdf5; border:1px solid #a7f3d0; border-radius:8px; padding:0.75rem 1rem; margin-bottom:1.25rem; font-size:0.8125rem; color:#065f46;">
+                ✓ This consultant has no linked timesheet records. Safe to delete.
+            </div>
+
+            <p style="font-size:0.8125rem; color:#374151; margin-bottom:1.5rem;">
+                You are about to delete <strong id="deleteConsultantName">—</strong>. All associated data will be
+                permanently removed.
+            </p>
+
+            <div style="display:flex; gap:0.75rem; justify-content:flex-end;">
+                <button id="deleteCancelModalBtn"
+                    style="padding:0.5rem 1.25rem; border-radius:8px; border:1px solid #e5e7eb; background:#fff; font-weight:600; cursor:pointer; font-size:0.875rem; color:#374151;">Cancel</button>
+                <button id="deleteConfirmModalBtn"
+                    style="padding:0.5rem 1.25rem; border-radius:8px; border:none; background:#dc2626; color:#fff; font-weight:700; cursor:pointer; font-size:0.875rem;"
+                    disabled>
+                    <span id="deleteConfirmBtnLabel">Delete Consultant</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notification system -->
+    <div id="toastContainer" class="toast-container"></div>
+
+    <!-- Core Scripts -->
+
+    <!-- Mobile: auto-annotate table rows with data-label for card-style display -->
+    <script>
+        (function () {
+            const table = document.getElementById('consultantsTable');
+            if (!table) return;
+
+            function annotateRows() {
+                const headers = Array.from(table.querySelectorAll('thead th')).map(th => {
+                    // Strip sort button text and icon, just get clean label
+                    const btn = th.querySelector('.sort-button');
+                    if (btn) {
+                        const icon = btn.querySelector('.sort-icon');
+                        if (icon) icon.remove();
+                        return (btn.textContent || '').trim();
+                    }
+                    return (th.textContent || '').trim();
+                });
+                const tbody = document.getElementById('consultantsBody');
+                if (!tbody) return;
+                Array.from(tbody.rows).forEach(row => {
+                    Array.from(row.cells).forEach((cell, i) => {
+                        if (cell.tagName === 'TD' && headers[i]) {
+                            cell.setAttribute('data-label', headers[i]);
+                        }
+                    });
+                });
+            }
+
+            annotateRows();
+            const tbody = document.getElementById('consultantsBody');
+            if (tbody) {
+                const observer = new MutationObserver(annotateRows);
+                observer.observe(tbody, { childList: true, subtree: false });
+            }
+        })();
+    </script>
+
+    <!-- Mobile Filter Bottom Sheet Controller -->
+    <script>
+    (function () {
+        const MOBILE_BP = 760;
+        if (window.innerWidth > MOBILE_BP) return;
+
+        // ── DOM refs ──────────────────────────────────────────────
+        const sheet     = document.getElementById('mfsSheet');
+        const backdrop  = document.getElementById('mfsBackdrop');
+        const filterBtn = document.getElementById('mobileFilterBtn');
+        const badge     = document.getElementById('mobileFilterBadge');
+        const chipsRow  = document.getElementById('mobileFilterChips');
+        const mobileSearch = document.getElementById('mobileSearchMirror');
+
+        // Desktop hidden inputs
+        const desktopSearch  = document.getElementById('searchInput');
+        const desktopStatus  = document.getElementById('statusFilter');
+        const desktopClient  = document.getElementById('clientFilter');
+        const desktopW2      = document.getElementById('w2Filter');
+        const desktopCurr    = document.getElementById('currencyFilter');
+        const desktopYear    = document.getElementById('yearFilter');
+        const desktopMonth   = document.getElementById('monthFilter');
+
+        // Sheet elements
+        const mfsClose  = document.getElementById('mfsClose');
+        const mfsClear  = document.getElementById('mfsClearBtn');
+        const mfsApply  = document.getElementById('mfsApplyBtn');
+        const mfsClient = document.getElementById('mfsClientFilter');
+        const mfsW2     = document.getElementById('mfsW2Filter');
+        const mfsCurr   = document.getElementById('mfsCurrencyFilter');
+        const mfsYearSel  = document.getElementById('mfsYearSelect');
+        const mfsMonthSel = document.getElementById('mfsMonthSelect');
+
+        // ── Populate year select ───────────────────────────────────
+        function populateYears() {
+            if (!mfsYearSel) return;
+            const cur = new Date().getFullYear();
+            mfsYearSel.innerHTML = '';
+            for (let y = cur + 1; y >= cur - 5; y--) {
+                const opt = document.createElement('option');
+                opt.value = y; opt.textContent = y;
+                mfsYearSel.appendChild(opt);
+            }
+            mfsYearSel.value = cur;
+        }
+        populateYears();
+
+        // ── Open / Close ───────────────────────────────────────────
+        function openSheet() {
+            // Sync period selects from desktop state
+            if (mfsYearSel && desktopYear?.value) mfsYearSel.value = desktopYear.value;
+            if (mfsMonthSel && desktopMonth?.value) mfsMonthSel.value = desktopMonth.value;
+            if (mfsClient && desktopClient) copySelectOptions(desktopClient, mfsClient);
+            if (mfsW2 && desktopW2)         copySelectOptions(desktopW2, mfsW2);
+            if (mfsCurr && desktopCurr)     copySelectOptions(desktopCurr, mfsCurr);
+            const val = desktopStatus?.value || 'all';
+            document.querySelectorAll('[data-filter="status"]').forEach(b =>
+                b.classList.toggle('is-active', b.dataset.value === val)
+            );
+            sheet.classList.add('is-open');
+            backdrop.classList.add('is-open');
+            filterBtn?.setAttribute('aria-expanded', 'true');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeSheet() {
+            sheet.classList.remove('is-open');
+            backdrop.classList.remove('is-open');
+            filterBtn?.setAttribute('aria-expanded', 'false');
+            document.body.style.overflow = '';
+        }
+
+        function copySelectOptions(src, dest) {
+            dest.innerHTML = src.innerHTML;
+            dest.value = src.value;
+        }
+
+        // ── Apply ─────────────────────────────────────────────────
+        function applyFilters() {
+            const activeChip = document.querySelector('[data-filter="status"].is-active');
+            if (activeChip && desktopStatus) {
+                desktopStatus.value = activeChip.dataset.value;
+                desktopStatus.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+            [['mfsClientFilter','clientFilter'],['mfsW2Filter','w2Filter'],['mfsCurrencyFilter','currencyFilter']]
+              .forEach(([mId, dId]) => {
+                const m = document.getElementById(mId), d = document.getElementById(dId);
+                if (m && d) { d.value = m.value; d.dispatchEvent(new Event('change', { bubbles: true })); }
+            });
+            if (desktopYear && mfsYearSel) {
+                desktopYear.value = mfsYearSel.value;
+                desktopYear.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+            if (desktopMonth && mfsMonthSel) {
+                desktopMonth.value = mfsMonthSel.value;
+                desktopMonth.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+            updateChips();
+            closeSheet();
+        }
+
+        // ── Active chips strip ────────────────────────────────────
+        function updateChips() {
+            if (!chipsRow) return;
+            const chips = [];
+
+            const statusVal = desktopStatus?.value;
+            if (statusVal && statusVal !== 'all') {
+                chips.push({ key: 'status', label: { active:'Active', inactive:'Inactive', pending:'Pending' }[statusVal] || statusVal });
+            }
+            if (desktopClient?.value && desktopClient.value !== 'all') {
+                chips.push({ key: 'client', label: desktopClient.options[desktopClient.selectedIndex]?.text });
+            }
+            if (desktopW2?.value && desktopW2.value !== 'all') {
+                chips.push({ key: 'w2', label: desktopW2.options[desktopW2.selectedIndex]?.text });
+            }
+            if (desktopCurr?.value && desktopCurr.value !== 'all') {
+                chips.push({ key: 'currency', label: desktopCurr.value });
+            }
+
+            chipsRow.innerHTML = chips.map(c => `
+                <button class="mfb-chip" data-chip-key="${c.key}">
+                    ${c.label} <span class="mfb-chip__remove">✕</span>
+                </button>`).join('');
+
+            const count = chips.length;
+            if (badge) { badge.textContent = count; badge.hidden = count === 0; }
+            filterBtn?.classList.toggle('has-filters', count > 0);
+        }
+
+        // ── Clear all ──────────────────────────────────────────────
+        function clearAll() {
+            document.querySelectorAll('[data-filter="status"]').forEach(btn =>
+                btn.classList.toggle('is-active', btn.dataset.value === 'all')
+            );
+            if (mfsClient) mfsClient.value = 'all';
+            if (mfsW2)     mfsW2.value     = 'all';
+            if (mfsCurr)   mfsCurr.value   = 'all';
+            if (mfsYearSel) mfsYearSel.value = new Date().getFullYear();
+            if (mfsMonthSel) mfsMonthSel.value = String(new Date().getMonth() + 1).padStart(2, '0');
+        }
+
+        // ── Event wiring ──────────────────────────────────────────
+        filterBtn?.addEventListener('click', openSheet);
+        mfsClose?.addEventListener('click', closeSheet);
+        backdrop?.addEventListener('click', closeSheet);
+        mfsApply?.addEventListener('click', applyFilters);
+        mfsClear?.addEventListener('click', clearAll);
+
+        // Status chips
+        document.querySelectorAll('[data-filter="status"]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('[data-filter="status"]').forEach(b => b.classList.remove('is-active'));
+                btn.classList.add('is-active');
+            });
+        });
+
+        // Mobile search → desktop
+        if (mobileSearch && desktopSearch) {
+            mobileSearch.addEventListener('input', () => {
+                desktopSearch.value = mobileSearch.value;
+                desktopSearch.dispatchEvent(new Event('input', { bubbles: true }));
+            });
+        }
+
+        // Chip removal (instant apply)
+        chipsRow?.addEventListener('click', e => {
+            const chip = e.target.closest('.mfb-chip');
+            if (!chip) return;
+            const map = { status: desktopStatus, client: desktopClient, w2: desktopW2, currency: desktopCurr };
+            const el = map[chip.dataset.chipKey];
+            if (el) { el.value = 'all'; el.dispatchEvent(new Event('change', { bubbles: true })); }
+            updateChips();
+        });
+
+        // Mirror select options when JS populates them after data load
+        const syncDropdowns = () => {
+            if (mfsClient && desktopClient) copySelectOptions(desktopClient, mfsClient);
+            if (mfsW2 && desktopW2)         copySelectOptions(desktopW2, mfsW2);
+            if (mfsCurr && desktopCurr)     copySelectOptions(desktopCurr, mfsCurr);
+        };
+        const selectObserver = new MutationObserver(syncDropdowns);
+        if (desktopClient) selectObserver.observe(desktopClient, { childList: true });
+        if (desktopW2)     selectObserver.observe(desktopW2,     { childList: true });
+        if (desktopCurr)   selectObserver.observe(desktopCurr,   { childList: true });
+
+        setTimeout(updateChips, 600);
+    })();
+    </script>
+
+</body>
+
+</html>

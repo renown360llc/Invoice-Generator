@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Create Invoice - Invoice Generator Pro</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+
+    <style>
+        body {
+            display: none;
+        }
+    </style>
+  <script type="module" crossorigin src="/invoices/assets/app-BV9dG7RO.js"></script>
+  <link rel="modulepreload" crossorigin href="/invoices/assets/config-c-jMUxvT.js">
+  <link rel="modulepreload" crossorigin href="/invoices/assets/auth-De7W24vl.js">
+  <link rel="modulepreload" crossorigin href="/invoices/assets/utils-C_5o-oWL.js">
+  <link rel="modulepreload" crossorigin href="/invoices/assets/layout-BbfQceRr.js">
+  <link rel="modulepreload" crossorigin href="/invoices/assets/preload-helper-CON-e7xv.js">
+  <link rel="modulepreload" crossorigin href="/invoices/assets/audit-trail-D0qCF0dr.js">
+  <link rel="modulepreload" crossorigin href="/invoices/assets/database-UdH0ph9m.js">
+  <link rel="modulepreload" crossorigin href="/invoices/assets/utils-DcZaKD3w.js">
+  <link rel="modulepreload" crossorigin href="/invoices/assets/db-timesheets-CCgcNFbQ.js">
+  <link rel="modulepreload" crossorigin href="/invoices/assets/pdf-C6oxbDmS.js">
+  <link rel="modulepreload" crossorigin href="/invoices/assets/access-control-C8DOx5qE.js">
+  <link rel="stylesheet" crossorigin href="/invoices/assets/layout-D8RJuYgk.css">
+  <link rel="stylesheet" crossorigin href="/invoices/assets/app-B5kgfLt-.css">
+  <link rel="stylesheet" crossorigin href="/invoices/assets/dashboard-CTLGdJqp.css">
+  <link rel="stylesheet" crossorigin href="/invoices/assets/consultants-RQyqJNrw.css">
+</head>
+
+<body>
+    <!-- Navigation Header -->
+    <!-- Navigation injected by layout.js -->
+
+    <!-- Mobile Tab Switcher (hidden on desktop via mobile.css) -->
+    <div class="mobile-tab-bar" id="mobileTabBar" role="tablist" aria-label="Switch between form and preview">
+        <button class="mobile-tab-bar__btn is-active" id="mobileTabForm" role="tab" aria-selected="true" aria-controls="editorPanel">
+            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+            Edit Form
+        </button>
+        <button class="mobile-tab-bar__btn" id="mobileTabPreview" role="tab" aria-selected="false" aria-controls="previewPanel">
+            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+            Preview
+        </button>
+    </div>
+
+    <div class="app" id="appShell" data-mobile-tab="form">
+        <!-- Editor Panel -->
+        <aside class="editor">
+            <header class="editor__header">
+                <div>
+                    <h1 class="editor__title" id="editorTitle">Create Invoice</h1>
+                    <p class="editor__subtitle" id="editorSubtitle">Build, review, and save invoices before sending them out.</p>
+                </div>
+                <div class="editor__actions">
+                    <button type="button" id="newBtn" class="btn btn--outline btn--sm">New</button>
+                    <button type="button" id="saveBtn" class="btn btn--outline btn--sm">Save</button>
+                </div>
+            </header>
+
+            <div id="editorStatusBar" class="editor-statusbar" style="display:none;">
+                <div class="editor-statusbar__main">
+                    <span id="editorModePill" class="editor-statusbar__pill editor-statusbar__pill--neutral">Draft</span>
+                    <span id="editorStatusText" class="editor-statusbar__text">Ready to edit.</span>
+                </div>
+                <div class="editor-statusbar__actions">
+                    <span id="unsavedBadge" class="editor-statusbar__pill editor-statusbar__pill--info" style="display:none;">Unsaved changes</span>
+                    <button id="invoiceUnlockBtn" type="button" class="btn btn--outline btn--sm" style="display:none;">Unlock to Edit</button>
+                </div>
+            </div>
+
+
+            <!-- Template Bar -->
+            <div class="template-bar">
+                <select id="templateSelect" class="template-bar__select">
+                    <option value="">Load template...</option>
+                </select>
+                <button type="button" id="updateTemplateBtn" class="btn btn--outline btn--sm" style="display: none;"
+                    title="Overwrite current template">
+                    Update Template
+                </button>
+                <button type="button" id="saveTemplateBtn" class="btn btn--text btn--sm"
+                    title="Save current business/client info as new template">
+                    💾 Save as Template
+                </button>
+            </div>
+
+            <form id="invoiceForm" class="editor__form">
+                <!-- From Section -->
+                <section class="form-section">
+                    <h2 class="form-section__title">From</h2>
+                    <div class="form-section__content">
+                        <div class="form-field">
+                            <label class="form-field__label">Company Name</label>
+                            <input type="text" id="businessName" class="form-field__input form-field__input--lg"
+                                placeholder="Your Company Name">
+                        </div>
+                        <div class="form-row form-row--2">
+                            <div class="form-field">
+                                <label class="form-field__label">Email</label>
+                                <input type="email" id="businessEmail" class="form-field__input"
+                                    placeholder="email@company.com">
+                            </div>
+                            <div class="form-field">
+                                <label class="form-field__label">Phone</label>
+                                <input type="tel" id="businessPhone" class="form-field__input"
+                                    placeholder="+1 (555) 000-0000">
+                            </div>
+                        </div>
+                        <div class="form-field">
+                            <label class="form-field__label">Address</label>
+                            <textarea id="businessAddress" class="form-field__textarea" rows="2"
+                                placeholder="Street Address&#10;City, State ZIP"></textarea>
+                        </div>
+                        <div class="form-row form-row--2">
+                            <div class="form-field">
+                                <label class="form-field__label">Logo</label>
+                                <div class="file-upload">
+                                    <input type="file" id="logoUpload" accept="image/*" class="file-upload__input">
+                                    <label for="logoUpload" class="file-upload__label">
+                                        <span class="file-upload__icon">📎</span>
+                                        <span id="logoFileName" class="file-upload__text">Choose Logo</span>
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="form-field">
+                                <label class="form-field__label">Brand Color</label>
+                                <div class="color-picker" style="display:flex;align-items:center;gap:10px;">
+                                    <input type="color" id="brandColor" class="color-picker__input" value="#3b82f6"
+                                        oninput="document.getElementById('brandColorHex').textContent=this.value">
+                                    <span id="brandColorHex"
+                                        style="font-size:12px;color:var(--text-secondary);font-family:monospace;">#3b82f6</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Bill To Section -->
+                <section class="form-section">
+                    <h2 class="form-section__title">Bill To</h2>
+                    <div class="form-section__content">
+                        <div class="form-field">
+                            <label class="form-field__label">Client Name</label>
+                            <input type="text" id="clientName" class="form-field__input form-field__input--lg"
+                                placeholder="Client Company Name">
+                        </div>
+                        <div class="form-row form-row--2">
+                            <div class="form-field">
+                                <label class="form-field__label">Email</label>
+                                <input type="email" id="clientEmail" class="form-field__input"
+                                    placeholder="client@email.com">
+                            </div>
+                            <div class="form-field">
+                                <label class="form-field__label">Phone</label>
+                                <input type="tel" id="clientPhone" class="form-field__input"
+                                    placeholder="+1 (555) 000-0000">
+                            </div>
+                        </div>
+                        <div class="form-field">
+                            <label class="form-field__label">Address</label>
+                            <textarea id="clientAddress" class="form-field__textarea" rows="2"
+                                placeholder="Street Address&#10;City, State ZIP"></textarea>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Invoice Details Section -->
+                <section class="form-section">
+                    <h2 class="form-section__title">Invoice Details</h2>
+                    <div class="form-section__content">
+                        <div class="form-row form-row--3">
+                            <div class="form-field">
+                                <label class="form-field__label">Invoice #</label>
+                                <input type="text" id="invoiceNumber" class="form-field__input" placeholder="INV-0001">
+                            </div>
+                            <div class="form-field">
+                                <label class="form-field__label">Date</label>
+                                <input type="date" id="invoiceDate" class="form-field__input">
+                            </div>
+                            <div class="form-field">
+                                <label class="form-field__label">Due Date</label>
+                                <input type="date" id="dueDate" class="form-field__input">
+                            </div>
+                        </div>
+                        <div class="form-row form-row--2">
+                            <div class="form-field">
+                                <label class="form-field__label">Payment Terms</label>
+                                <select id="paymentTerms" class="form-field__select">
+                                    <option value="Due on Receipt">Due on Receipt</option>
+                                    <option value="Net 15">Net 15</option>
+                                    <option value="Net 30" selected>Net 30</option>
+                                    <option value="Net 45">Net 45</option>
+                                    <option value="Net 60">Net 60</option>
+                                </select>
+                            </div>
+                            <div class="form-field">
+                                <label class="form-field__label">Currency</label>
+                                <select id="currency" class="form-field__select">
+                                    <option value="USD">USD ($)</option>
+                                    <option value="EUR">EUR (€)</option>
+                                    <option value="GBP">GBP (£)</option>
+                                    <option value="INR">INR (₹)</option>
+                                    <option value="CAD">CAD ($)</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-row form-row--2">
+                            <div class="form-field">
+                                <label class="form-field__label">Invoice Status</label>
+                                <select id="invoiceStatus" class="form-field__select">
+                                    <option value="draft">Draft</option>
+                                    <option value="sent">Sent</option>
+                                    <option value="paid">Paid</option>
+                                    <option value="overdue">Overdue</option>
+                                </select>
+                            </div>
+                            <div class="form-field" id="paidDateField" style="display: none;">
+                                <label class="form-field__label">Payment Date</label>
+                                <input type="date" id="paidDate" class="form-field__input">
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Line Items Section -->
+                <section class="form-section">
+                    <div class="form-section__header"
+                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+                        <h2 class="form-section__title" style="margin: 0;">Line Items</h2>
+                        <button type="button" id="pullTimesheetsBtn" class="btn btn--outline btn--sm"
+                            style="display: flex; align-items: center; gap: 6px; padding: 6px 12px; font-size: 13px;">
+                            <span>⚡</span> Pull Consultant Timesheets
+                        </button>
+                    </div>
+                    <div id="itemsContainer" class="items-container">
+                        <!-- Dynamic items here -->
+                    </div>
+                    <button type="button" id="addItemBtn" class="btn btn--dashed btn--block">
+                        <span class="btn__icon">+</span> Add New Item
+                    </button>
+                </section>
+
+                <!-- Totals Section -->
+                <!-- Totals Section -->
+                <section class="form-section">
+                    <h2 class="form-section__title">Summary</h2>
+                    <div class="form-section__content">
+                        <!-- Inputs Grid -->
+                        <div class="summary-inputs">
+                            <div class="form-field">
+                                <label class="form-field__label">Tax Rate (%)</label>
+                                <input type="number" id="taxRate" class="form-field__input" value="0" min="0" max="100"
+                                    step="0.01">
+                            </div>
+
+                            <div class="form-field">
+                                <label class="form-field__label">Discount</label>
+                                <div class="input-group">
+                                    <select id="discountType" class="input-group__select">
+                                        <option value="percent">%</option>
+                                        <option value="fixed">$</option>
+                                    </select>
+                                    <input type="number" id="discountValue" class="input-group__input" value="0" min="0"
+                                        step="0.01">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Totals Display -->
+                        <div class="totals-display">
+                            <div class="totals-display__row">
+                                <span class="totals-display__label">Subtotal</span>
+                                <span id="subtotalDisplay" class="totals-display__value">$0.00</span>
+                            </div>
+                            <div class="totals-display__row">
+                                <span class="totals-display__label">Tax</span>
+                                <span id="taxDisplay" class="totals-display__value">$0.00</span>
+                            </div>
+                            <div class="totals-display__row">
+                                <span class="totals-display__label">Discount</span>
+                                <span id="discountDisplay" class="totals-display__value">-$0.00</span>
+                            </div>
+                            <div class="totals-display__row totals-display__row--total">
+                                <span class="totals-display__label">Total Due</span>
+                                <span id="totalDisplay" class="totals-display__value">$0.00</span>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Notes Section -->
+                <section class="form-section">
+                    <h2 class="form-section__title">Additional Info</h2>
+                    <div class="form-section__content">
+                        <div class="form-field">
+                            <label class="form-field__label">Notes</label>
+                            <textarea id="notes" class="form-field__textarea" rows="3"
+                                placeholder="Thank you for your business!"></textarea>
+                        </div>
+                        <div class="form-field">
+                            <label class="form-field__label">Payment Instructions</label>
+                            <textarea id="paymentInstructions" class="form-field__textarea" rows="3"
+                                placeholder="Bank: Example Bank&#10;Account: 1234567890&#10;Routing: 000000000"></textarea>
+                        </div>
+                    </div>
+                </section>
+
+            </form>
+        </aside>
+
+        <!-- Preview Panel -->
+        <main class="preview">
+            <header class="preview__header">
+                <div class="preview__header-main">
+                    <span class="preview__title">Live Preview</span>
+                    <span class="preview__subtitle" id="previewSubtitle">Changes appear here as you edit.</span>
+                </div>
+                <div class="preview__actions">
+                    <button type="button" id="emailBtn" class="btn btn--outline btn--sm">Email</button>
+                    <button type="button" id="downloadPdfBtn" class="btn btn--primary btn--sm">Download PDF</button>
+                    <button type="button" id="printBtn" class="btn btn--icon" title="Print">
+                        🖨️
+                    </button>
+                </div>
+            </header>
+            <div class="preview__container">
+                <div id="invoicePreview" class="invoice-paper">
+                    <!-- Preview content rendered here -->
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Timesheet Generator Modal -->
+    <div id="timesheetModal" class="modal"
+        style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center; padding: 1rem;">
+        <div class="modal-content"
+            style="background: white; border-radius: 1rem; padding: 2rem; width: 100%; max-width: 600px; max-height: 90vh; overflow-y: auto; position: relative;">
+            <button class="modal-close" id="closeTimesheetBtn"
+                style="position: absolute; top: 1.5rem; right: 1.5rem; background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--gray-500);">&times;</button>
+            <h3 style="font-size: 1.25rem; font-weight: 700; margin-bottom: 0.5rem; color: #1e293b;">Generate Line Items
+            </h3>
+            <p style="color: var(--gray-500); font-size: 14px; margin-bottom: 1.5rem;">Select the billing period and
+                pull pending timesheets. Hours come from timesheets only. Invoice number is linked automatically after
+                save.</p>
+
+            <div
+                style="display: grid; grid-template-columns: 1fr 1fr auto; gap: 1rem; margin-bottom: 1rem; background: #f8fafc; padding: 1rem; border-radius: 8px; align-items: end;">
+                <div class="form-field">
+                    <label class="form-field__label">Period Start</label>
+                    <input type="date" id="tsPeriodStart" class="form-field__input">
+                </div>
+                <div class="form-field">
+                    <label class="form-field__label">Period End</label>
+                    <input type="date" id="tsPeriodEnd" class="form-field__input">
+                </div>
+                <button type="button" id="loadTimesheetsBtn" class="btn btn--outline"
+                    style="height: 40px;">Load</button>
+            </div>
+            <p id="timesheetSelectionMeta"
+                style="font-size: 12px; color: var(--text-secondary); margin-bottom: 0.75rem;">No timesheets loaded.</p>
+
+            <div id="timesheetConsultantsList" style="margin-bottom: 1.5rem;">
+                <div style="text-align: center; color: var(--gray-500); padding: 2rem;">Select a date range and click
+                    Load.
+                </div>
+            </div>
+
+            <div
+                style="display: flex; gap: 1rem; justify-content: flex-end; padding-top: 1rem; border-top: 1px solid #e2e8f0;">
+                <button type="button" id="cancelTimesheetBtn" class="btn btn--outline">Cancel</button>
+                <button type="button" id="generateTimesheetBtn" class="btn btn--primary">
+                    <span style="margin-right: 6px;">⚡</span> Generate Items
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast -->
+    <div id="toast" class="toast"></div>
+
+    <!-- ── New Invoice Confirmation Modal ─────────────────────────────── -->
+    <div id="newInvoiceModal"
+        style="display:none; position:fixed; inset:0; background:rgba(15,23,42,0.45); backdrop-filter:blur(4px); z-index:2000; align-items:center; justify-content:center; padding:1.5rem;">
+        <div
+            style="background:#fff; border-radius:16px; box-shadow:0 24px 70px rgba(15,23,42,0.2); width:min(440px,100%); padding:2rem;">
+            <h3 style="font-size:1.25rem; font-weight:800; color:#111827; margin-bottom:0.5rem;">Start a New Invoice?
+            </h3>
+            <p style="color:#6b7280; font-size:0.875rem; margin-bottom:0.25rem;" id="newInvoiceModalBody">Any unsaved
+                changes will be lost.</p>
+            <p style="color:#6b7280; font-size:0.8125rem; margin-bottom:1.5rem;">Make sure you have saved your current
+                work before continuing.</p>
+            <div style="display:flex; gap:0.75rem; justify-content:flex-end;">
+                <button id="newInvoiceCancelBtn"
+                    style="padding:0.5rem 1.25rem; border-radius:8px; border:1px solid #e5e7eb; background:#fff; font-weight:600; cursor:pointer; font-size:0.875rem;">Keep
+                    Editing</button>
+                <button id="newInvoiceConfirmBtn"
+                    style="padding:0.5rem 1.25rem; border-radius:8px; border:none; background:#ef4444; color:#fff; font-weight:600; cursor:pointer; font-size:0.875rem;">Discard
+                    & Start New</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Unlock Invoice Confirmation Modal ──────────────────────────── -->
+    <div id="unlockInvoiceModal"
+        style="display:none; position:fixed; inset:0; background:rgba(15,23,42,0.45); backdrop-filter:blur(4px); z-index:2000; align-items:center; justify-content:center; padding:1.5rem;">
+        <div
+            style="background:#fff; border-radius:16px; box-shadow:0 24px 70px rgba(15,23,42,0.2); width:min(460px,100%); padding:2rem;">
+            <h3 style="font-size:1.25rem; font-weight:800; color:#111827; margin-bottom:0.5rem;">⚠️ Unlock This Invoice?
+            </h3>
+            <p style="color:#6b7280; font-size:0.875rem; margin-bottom:0.5rem;">This invoice has been
+                <strong>paid</strong>. Unlocking will allow edits and revert it to <strong>Draft</strong> status.</p>
+            <p
+                style="color:#92400e; font-size:0.8125rem; background:#fef3c7; border-radius:8px; padding:0.625rem 0.875rem; margin-bottom:1.5rem;">
+                Only unlock if you need to make corrections. Make sure to re-mark as Paid when done.</p>
+            <div style="display:flex; gap:0.75rem; justify-content:flex-end;">
+                <button id="unlockCancelBtn"
+                    style="padding:0.5rem 1.25rem; border-radius:8px; border:1px solid #e5e7eb; background:#fff; font-weight:600; cursor:pointer; font-size:0.875rem;">Keep
+                    Locked</button>
+                <button id="unlockConfirmBtn"
+                    style="padding:0.5rem 1.25rem; border-radius:8px; border:none; background:#f59e0b; color:#fff; font-weight:600; cursor:pointer; font-size:0.875rem;">Unlock
+                    & Edit</button>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- Mobile tab switcher logic (no-op on desktop) -->
+    <script>
+        (function () {
+            const appShell = document.getElementById('appShell');
+            const tabForm = document.getElementById('mobileTabForm');
+            const tabPreview = document.getElementById('mobileTabPreview');
+            if (!appShell || !tabForm || !tabPreview) return;
+
+            function switchTab(tab) {
+                const isForm = tab === 'form';
+                appShell.dataset.mobileTab = tab;
+                tabForm.classList.toggle('is-active', isForm);
+                tabPreview.classList.toggle('is-active', !isForm);
+                tabForm.setAttribute('aria-selected', String(isForm));
+                tabPreview.setAttribute('aria-selected', String(!isForm));
+                // Scroll to top of content area when switching
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            }
+
+            tabForm.addEventListener('click', () => switchTab('form'));
+            tabPreview.addEventListener('click', () => switchTab('preview'));
+        })();
+    </script>
+
+</body>
+
+</html>

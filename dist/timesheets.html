@@ -1,0 +1,758 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Timesheets - Invoice Generator Pro</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+
+    <style>
+        body {
+            display: none;
+        }
+
+        body.modal-open {
+            overflow: hidden;
+        }
+
+        .ts-inline-controls {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .ts-inline-controls input {
+            width: 90px;
+        }
+
+        .ts-inline-controls select {
+            width: 110px;
+        }
+
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            border-radius: 999px;
+            padding: 0.25rem 0.5rem;
+            font-size: 0.72rem;
+            font-weight: 600;
+        }
+
+        .status-pending {
+            background: #fff7ed;
+            color: #9a3412;
+        }
+
+        .status-invoiced {
+            background: #dcfce7;
+            color: #166534;
+        }
+
+        .status-mixed {
+            background: #e2e8f0;
+            color: #334155;
+        }
+
+        .status-paid {
+            background: #f3e8ff;
+            color: #7e22ce;
+        }
+
+        .filters-meta {
+            margin-top: 0.45rem;
+            font-size: 0.8125rem;
+            color: var(--text-secondary);
+        }
+
+        .modal {
+            position: fixed;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.45);
+            backdrop-filter: blur(4px);
+            z-index: 1200;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+        }
+
+        .modal.is-open {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 14px;
+            width: 100%;
+            max-width: 520px;
+            max-height: 90vh;
+            overflow-y: hidden;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            border: 1px solid var(--surface-glass-border);
+            box-shadow: var(--shadow-paper);
+        }
+
+        .modal-title {
+            font-size: 1.625rem;
+            line-height: 1.15;
+            font-weight: 800;
+            color: var(--text-primary);
+            letter-spacing: -0.02em;
+        }
+
+        .modal-subtitle {
+            margin-top: 0.25rem;
+            font-size: 0.8125rem;
+            color: var(--text-secondary);
+        }
+
+        .modal-close {
+            width: 38px;
+            height: 38px;
+            border-radius: 999px;
+            border: 1px solid var(--surface-glass-border);
+            background: #ffffff;
+            font-size: 1.75rem;
+            line-height: 1;
+            cursor: pointer;
+            color: var(--text-secondary);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.15s ease;
+        }
+
+        .modal-close:hover {
+            color: var(--text-primary);
+            border-color: #d1d5db;
+            background: #f9fafb;
+        }
+
+        .modal-body {
+            padding: 1.5rem 1.75rem 1.625rem;
+            overflow-y: auto;
+            max-height: calc(92vh - 110px);
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 1rem 1.125rem;
+        }
+
+        .form-grid-full {
+            grid-column: 1 / -1;
+        }
+
+        .form-field {
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 0.45rem;
+        }
+
+        .form-field__label {
+            font-size: 0.8125rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            letter-spacing: 0.01em;
+        }
+
+        .form-field__required {
+            color: var(--primary);
+        }
+
+        .form-field__input {
+            width: 100%;
+            height: 42px;
+            border: 1px solid var(--surface-glass-border);
+            border-radius: 10px;
+            background: #ffffff;
+            padding: 0 0.875rem;
+            font-size: 0.875rem;
+            color: var(--text-primary);
+            font-family: var(--font-sans);
+            transition: border-color 0.15s ease, box-shadow 0.15s ease;
+        }
+
+        .form-field__input:hover {
+            border-color: #d1d5db;
+        }
+
+        .form-field__input:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(255, 107, 74, 0.12);
+        }
+
+        .form-field__input::placeholder {
+            color: var(--text-tertiary);
+        }
+
+        .form-field__hint {
+            font-size: 0.75rem;
+            color: var(--text-tertiary);
+            line-height: 1.35;
+        }
+    </style>
+  <script type="module" crossorigin src="/invoices/assets/timesheets-Bzs4vHm9.js"></script>
+  <link rel="modulepreload" crossorigin href="/invoices/assets/config-c-jMUxvT.js">
+  <link rel="modulepreload" crossorigin href="/invoices/assets/auth-De7W24vl.js">
+  <link rel="modulepreload" crossorigin href="/invoices/assets/utils-C_5o-oWL.js">
+  <link rel="modulepreload" crossorigin href="/invoices/assets/layout-BbfQceRr.js">
+  <link rel="modulepreload" crossorigin href="/invoices/assets/audit-trail-D0qCF0dr.js">
+  <link rel="modulepreload" crossorigin href="/invoices/assets/db-timesheets-CCgcNFbQ.js">
+  <link rel="modulepreload" crossorigin href="/invoices/assets/utils-DcZaKD3w.js">
+  <link rel="modulepreload" crossorigin href="/invoices/assets/crm-filters-B0ueEEPp.js">
+  <link rel="modulepreload" crossorigin href="/invoices/assets/saved-views-DboOTZfB.js">
+  <link rel="stylesheet" crossorigin href="/invoices/assets/layout-D8RJuYgk.css">
+  <link rel="stylesheet" crossorigin href="/invoices/assets/dashboard-CTLGdJqp.css">
+  <link rel="stylesheet" crossorigin href="/invoices/assets/consultants-RQyqJNrw.css">
+</head>
+
+<body>
+    <main class="dashboard">
+        <div class="dashboard__container">
+            <div class="dashboard__header consultants-header">
+                <div class="consultants-header__content">
+                    <h1 class="dashboard__title">Timesheets</h1>
+                    <p class="dashboard__subtitle">Edit monthly consultant hours before invoicing, with one consistent CRM filter workflow.</p>
+                </div>
+                <div class="consultants-header__actions" style="display:flex;gap:0.5rem;align-items:center;">
+                    <button id="importCsvBtn" class="btn btn--outline" title="Import Timesheets from CSV">
+                        <svg class="btn-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l4-4m0 0l4 4m-4-4v12"/></svg>
+                        <span class="btn-text">Import CSV</span>
+                    </button>
+                    <button id="exportCsvBtn" class="btn btn--outline" title="Export Timesheets to CSV">
+                        <svg class="btn-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                        <span class="btn-text">Export CSV</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Mobile Filter UI (Always visible at top on mobile) -->
+            <div class="mobile-filter-bar" id="mobileFilterBar">
+                <div class="mobile-filter-bar__row">
+                    <div class="mobile-filter-bar__search">
+                        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" width="18" height="18"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                        <input type="text" id="mobileSearchMirror" placeholder="Search invoices...">
+                    </div>
+                    <button type="button" class="mobile-filter-bar__filter-btn" id="mobileFilterBtn" aria-label="Filters" aria-expanded="false">
+                        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M3 6h18M6 12h12m-9 6h6"/></svg>
+                        <span>Filters</span>
+                        <span class="mobile-filter-bar__badge" id="mobileFilterBadge" hidden>0</span>
+                    </button>
+                </div>
+                <div class="mobile-filter-bar__chips" id="mobileFilterChips">
+                    <!-- Chips dynamically inserted here via JS -->
+                </div>
+            </div>
+
+            <div class="crm-toolbar">
+                <div class="crm-toolbar__search">
+                    <svg class="crm-toolbar__search-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                    <input type="text" id="searchInput" placeholder="Search consultant, client, W2...">
+                </div>
+                <div class="crm-toolbar__divider"></div>
+                <div class="crm-toolbar__filters">
+                    <select id="statusFilter" class="crm-toolbar__pill" aria-label="Status">
+                        <option value="all">All Status</option>
+                        <option value="pending">Pending</option>
+                        <option value="invoiced">Invoiced</option>
+                    </select>
+                    <select id="clientFilter" class="crm-toolbar__pill" aria-label="Client">
+                        <option value="all">All Clients</option>
+                    </select>
+                    <select id="w2Filter" class="crm-toolbar__pill" aria-label="W2 Company">
+                        <option value="all">All W2</option>
+                    </select>
+                    <select id="currencyFilter" class="crm-toolbar__pill" aria-label="Currency">
+                        <option value="all">All Currencies</option>
+                    </select>
+                    <div class="crm-toolbar__divider"></div>
+                    <select id="sortSelect" class="crm-toolbar__pill" aria-label="Sort Order">
+                        <option value="date_desc">End Date (Newest)</option>
+                        <option value="date_asc">End Date (Oldest)</option>
+                        <option value="consultant_asc">Consultant (A-Z)</option>
+                        <option value="consultant_desc">Consultant (Z-A)</option>
+                        <option value="client_asc">Client (A-Z)</option>
+                        <option value="client_desc">Client (Z-A)</option>
+                        <option value="hours_desc">Hours (Highest)</option>
+                        <option value="hours_asc">Hours (Lowest)</option>
+                    </select>
+                </div>
+                <div class="crm-toolbar__divider"></div>
+                <div class="crm-toolbar__period-wrap">
+                    <div class="crm-toolbar__period">
+                        <button type="button" id="periodPrevBtn" class="crm-toolbar__period-btn" aria-label="Previous month">
+                            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path d="m15 19-7-7 7-7"/></svg>
+                        </button>
+                        <button type="button" id="periodLabel" class="crm-toolbar__period-label crm-toolbar__period-label--button" aria-label="Open month and year picker" aria-expanded="false">
+                            <span id="periodLabelText">—</span>
+                            <svg class="crm-toolbar__period-caret" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2"><path d="m6 9 6 6 6-6"/></svg>
+                        </button>
+                        <button type="button" id="periodNextBtn" class="crm-toolbar__period-btn" aria-label="Next month">
+                            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path d="m9 5 7 7-7 7"/></svg>
+                        </button>
+                    </div>
+                    <div id="periodJumpMenu" class="crm-toolbar__period-menu" hidden>
+                        <div class="crm-toolbar__period-menu-head">
+                            <select id="periodJumpYear" class="crm-toolbar__period-menu-select" aria-label="Jump to year"></select>
+                            <button type="button" id="periodJumpAllBtn" class="crm-toolbar__period-menu-all">All Months</button>
+                        </div>
+                        <div id="periodJumpMonths" class="crm-toolbar__period-menu-grid"></div>
+                    </div>
+                </div>
+                <div class="crm-toolbar__divider"></div>
+                <div class="crm-toolbar__views">
+                    <select id="savedViewSelect" aria-label="Saved views">
+                        <option value="">Saved Views</option>
+                    </select>
+                </div>
+                <div class="crm-toolbar__spacer"></div>
+                <button type="button" id="resetFiltersBtn" class="crm-toolbar__clear">Clear</button>
+
+                <!-- Expandable saved views controls -->
+                <div id="savedViewExpandRow" class="crm-toolbar__views-expand">
+                    <input type="text" id="savedViewName" placeholder="Name this view">
+                    <button id="saveViewBtn" class="btn btn--outline btn--sm" type="button">Save</button>
+                    <button id="updateViewBtn" class="btn btn--ghost btn--sm" type="button" disabled>Update</button>
+                    <button id="deleteViewBtn" class="btn btn--ghost btn--sm" type="button" disabled>Delete</button>
+                    <span id="savedViewMeta" class="crm-toolbar__views-expand__meta">No saved views</span>
+                </div>
+            </div>
+            <div class="crm-stats-strip">
+                <span class="crm-stats-strip__stat"><strong id="timesheetPeriodTitle">Loading...</strong></span>
+                <span class="crm-stats-strip__dot">·</span>
+                <span class="crm-stats-strip__stat"><strong id="timesheetConsultantsStat">0</strong> consultants</span>
+                <span class="crm-stats-strip__dot">·</span>
+                <span class="crm-stats-strip__stat"><strong id="timesheetHoursStat">0.00</strong> hours</span>
+                <span class="crm-stats-strip__dot">·</span>
+                <span class="crm-stats-strip__stat"><strong id="timesheetInvoicedStat">0.00</strong> invoiced</span>
+                <span id="timesheetMeta" style="display:none;"></span>
+            </div>
+
+            <!-- Hidden selects for year/month (used by JS) -->
+            <select id="yearFilter" style="display:none;" aria-label="Filter year"></select>
+            <select id="monthFilter" style="display:none;" aria-label="Filter month"></select>
+            <button id="allMonthsToggleBtn" style="display:none;" type="button">All Months: OFF</button>
+
+            <div class="section">
+                <!-- Mobile Parallel Render Container -->
+                <div id="timesheetCards" class="m-cards"></div>
+
+                <div class="table-container">
+                    <table class="table" id="desktopTimesheetTable">
+                        <thead>
+                            <tr>
+                                <th class="sortable" data-sort-key="consultant">Consultant</th>
+                                <th class="sortable" data-sort-key="client">Client</th>
+                                <th class="sortable" data-sort-key="company">W2 Company</th>
+                                <th class="sortable" data-sort-key="start">Period Start</th>
+                                <th class="sortable" data-sort-key="date">Period End</th>
+                                <th class="sortable" data-sort-key="hours">Hours</th>
+                                <th class="sortable" data-sort-key="status">Status</th>
+                                <th class="sortable" data-sort-key="invoice">Invoice #</th>
+                                <th class="sortable" data-sort-key="currency">Currency</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="timesheetBody">
+                            <tr>
+                                <td colspan="10" class="table__empty">Loading...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <div id="toast" class="toast" role="status" aria-live="polite" aria-atomic="true"></div>
+
+    <!-- Timesheet Modal -->
+    <div id="tsModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="tsModalTitle">
+        <div class="modal-content">
+            <div style="padding: 1.5rem 1.75rem 1.25rem; border-bottom: 1px solid var(--surface-glass-border); display: flex; align-items: flex-start; justify-content: space-between;">
+                <div>
+                    <h2 class="modal-title" id="tsModalTitle">Edit Timesheet</h2>
+                    <p class="modal-subtitle" id="tsModalSubtitle">Update hours, period, status, and invoice reference.</p>
+                </div>
+                <button class="modal-close" id="tsModalClose" aria-label="Close modal">×</button>
+            </div>
+
+            <div class="modal-body">
+                <div class="form-grid">
+                    <div class="form-field form-grid-full">
+                        <label class="form-field__label">Consultant <span class="form-field__required">*</span></label>
+                        <input type="text" id="tsModalConsultant" class="form-field__input" readonly>
+                    </div>
+
+                    <div class="form-field">
+                        <label class="form-field__label">Period Start <span class="form-field__required">*</span></label>
+                        <input type="date" id="tsModalStart" class="form-field__input">
+                    </div>
+                    <div class="form-field">
+                        <label class="form-field__label">Period End <span class="form-field__required">*</span></label>
+                        <input type="date" id="tsModalEnd" class="form-field__input">
+                    </div>
+
+                    <div class="form-field">
+                        <label class="form-field__label">Hours <span class="form-field__required">*</span></label>
+                        <input type="number" id="tsModalHours" class="form-field__input" min="0" step="0.25">
+                    </div>
+                    <div class="form-field">
+                        <label class="form-field__label">Status</label>
+                        <select id="tsModalStatus" class="form-field__input">
+                            <option value="pending">Pending</option>
+                            <option value="invoiced">Invoiced</option>
+                        </select>
+                    </div>
+
+                    <div class="form-field form-grid-full" style="margin-top: 0.25rem;">
+                        <label class="form-field__label">Linked Invoice Number</label>
+                        <input type="text" id="tsModalInvoice" class="form-field__input" placeholder="e.g. INV-2024-001 — leave blank if not yet invoiced">
+                        <p class="form-field__hint" style="margin-top: 0.25rem;">Enter an invoice number to manually link this timesheet and mark it as invoiced.</p>
+                    </div>
+                </div>
+
+                <div style="display:flex; gap:0.75rem; justify-content:flex-end; margin-top:2rem;">
+                    <button id="tsModalDelete" class="btn btn--ghost" style="display:none; margin-right:auto;">Delete</button>
+                    <button id="tsModalCancel" class="btn btn--outline">Cancel</button>
+                    <button id="tsModalSave" class="btn btn--primary">Save Timesheet</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- Mobile Filter Bottom Sheet -->
+    <div class="mfs-backdrop" id="mfsBackdrop"></div>
+    <div class="mfs-sheet" id="mfsSheet">
+        <div class="mfs-sheet__drag-handle"></div>
+        <div class="mfs-sheet__header">
+            <h3 class="mfs-sheet__title">Filters</h3>
+            <button type="button" class="mfs-sheet__close" id="mfsClose" aria-label="Close filters">✕</button>
+        </div>
+        <div class="mfs-sheet__body">
+            <!-- Filter Groups -->
+            <div class="mfs-filters">
+                <div class="mfs-group">
+                    <label class="mfs-group__label">Status</label>
+                    <div class="mfs-chip-group">
+                        <button class="mfs-chip" data-filter="status" data-value="all">All</button>
+                        <button class="mfs-chip" data-filter="status" data-value="pending">Pending</button>
+                        <button class="mfs-chip" data-filter="status" data-value="invoiced">Invoiced</button>
+                    </div>
+                </div>
+                <div class="mfs-group">
+                    <label class="mfs-group__label">Client</label>
+                    <select class="mfs-select" id="mfsClientFilter">
+                        <option value="all">All Clients</option>
+                    </select>
+                </div>
+                <div class="mfs-group">
+                    <label class="mfs-group__label">W2 Company</label>
+                    <select class="mfs-select" id="mfsW2Filter">
+                        <option value="all">All W2 Companies</option>
+                    </select>
+                </div>
+                <div class="mfs-group">
+                    <label class="mfs-group__label">Currency</label>
+                    <select class="mfs-select" id="mfsCurrencyFilter">
+                        <option value="all">All Currencies</option>
+                    </select>
+                </div>
+                <div class="mfs-group">
+                    <label class="mfs-group__label">Period</label>
+                    <div class="mfs-period-selects">
+                        <select class="mfs-select" id="mfsYearSelect"></select>
+                        <select class="mfs-select" id="mfsMonthSelect">
+                            <option value="all">All Months</option>
+                            <option value="01">January</option>
+                            <option value="02">February</option>
+                            <option value="03">March</option>
+                            <option value="04">April</option>
+                            <option value="05">May</option>
+                            <option value="06">June</option>
+                            <option value="07">July</option>
+                            <option value="08">August</option>
+                            <option value="09">September</option>
+                            <option value="10">October</option>
+                            <option value="11">November</option>
+                            <option value="12">December</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="mfs-sheet__footer">
+            <button type="button" class="btn btn--outline" id="mfsClearBtn">Clear All</button>
+            <button type="button" class="btn btn--primary" id="mfsApplyBtn">Show Results</button>
+        </div>
+    </div>
+
+    <!-- Mobile Filter Bottom Sheet Controller -->
+    <script>
+    (function () {
+        const MOBILE_BP = 760;
+        if (window.innerWidth > MOBILE_BP) return;
+
+        // ── DOM refs ──────────────────────────────────────────────
+        const sheet     = document.getElementById('mfsSheet');
+        const backdrop  = document.getElementById('mfsBackdrop');
+        const filterBtn = document.getElementById('mobileFilterBtn');
+        const badge     = document.getElementById('mobileFilterBadge');
+        const chipsRow  = document.getElementById('mobileFilterChips');
+        const mobileSearch = document.getElementById('mobileSearchMirror');
+
+        // Desktop hidden inputs
+        const desktopSearch  = document.getElementById('searchInput');
+        const desktopStatus  = document.getElementById('statusFilter');
+        const desktopClient  = document.getElementById('clientFilter');
+        const desktopW2      = document.getElementById('w2Filter');
+        const desktopCurr    = document.getElementById('currencyFilter');
+        const desktopYear    = document.getElementById('yearFilter');
+        const desktopMonth   = document.getElementById('monthFilter');
+
+        // Sheet elements
+        const mfsClose  = document.getElementById('mfsClose');
+        const mfsClear  = document.getElementById('mfsClearBtn');
+        const mfsApply  = document.getElementById('mfsApplyBtn');
+        const mfsClient = document.getElementById('mfsClientFilter');
+        const mfsW2     = document.getElementById('mfsW2Filter');
+        const mfsCurr   = document.getElementById('mfsCurrencyFilter');
+        const mfsYearSel  = document.getElementById('mfsYearSelect');
+        const mfsMonthSel = document.getElementById('mfsMonthSelect');
+
+        // ── Populate year select ───────────────────────────────────
+        function populateYears() {
+            if (!mfsYearSel) return;
+            const cur = new Date().getFullYear();
+            mfsYearSel.innerHTML = '';
+            for (let y = cur + 1; y >= cur - 5; y--) {
+                const opt = document.createElement('option');
+                opt.value = y; opt.textContent = y;
+                mfsYearSel.appendChild(opt);
+            }
+            mfsYearSel.value = cur;
+        }
+        populateYears();
+
+        // ── Open / Close ───────────────────────────────────────────
+        function openSheet() {
+            // Sync period selects from desktop state
+            if (mfsYearSel && desktopYear?.value) mfsYearSel.value = desktopYear.value;
+            if (mfsMonthSel && desktopMonth?.value) mfsMonthSel.value = desktopMonth.value;
+            if (mfsClient && desktopClient) copySelectOptions(desktopClient, mfsClient);
+            if (mfsW2 && desktopW2)         copySelectOptions(desktopW2, mfsW2);
+            if (mfsCurr && desktopCurr)     copySelectOptions(desktopCurr, mfsCurr);
+            const val = desktopStatus?.value || 'all';
+            document.querySelectorAll('[data-filter="status"]').forEach(b =>
+                b.classList.toggle('is-active', b.dataset.value === val)
+            );
+            sheet.classList.add('is-open');
+            backdrop.classList.add('is-open');
+            filterBtn?.setAttribute('aria-expanded', 'true');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeSheet() {
+            sheet.classList.remove('is-open');
+            backdrop.classList.remove('is-open');
+            filterBtn?.setAttribute('aria-expanded', 'false');
+            document.body.style.overflow = '';
+        }
+
+        function copySelectOptions(src, dest) {
+            dest.innerHTML = src.innerHTML;
+            dest.value = src.value;
+        }
+
+        // ── Apply ─────────────────────────────────────────────────
+        function applyFilters() {
+            const activeChip = document.querySelector('[data-filter="status"].is-active');
+            if (activeChip && desktopStatus) {
+                desktopStatus.value = activeChip.dataset.value;
+                desktopStatus.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+            [['mfsClientFilter','clientFilter'],['mfsW2Filter','w2Filter'],['mfsCurrencyFilter','currencyFilter']]
+              .forEach(([mId, dId]) => {
+                const m = document.getElementById(mId), d = document.getElementById(dId);
+                if (m && d) { d.value = m.value; d.dispatchEvent(new Event('change', { bubbles: true })); }
+            });
+            if (desktopYear && mfsYearSel) {
+                desktopYear.value = mfsYearSel.value;
+                desktopYear.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+            if (desktopMonth && mfsMonthSel) {
+                desktopMonth.value = mfsMonthSel.value;
+                desktopMonth.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+            updateChips();
+            closeSheet();
+        }
+
+        // ── Active chips strip ────────────────────────────────────
+        function updateChips() {
+            if (!chipsRow) return;
+            const chips = [];
+
+            const statusVal = desktopStatus?.value;
+            if (statusVal && statusVal !== 'all') {
+                chips.push({ key: 'status', label: { pending:'Pending', invoiced:'Invoiced' }[statusVal] || statusVal });
+            }
+            if (desktopClient?.value && desktopClient.value !== 'all') {
+                chips.push({ key: 'client', label: desktopClient.options[desktopClient.selectedIndex]?.text });
+            }
+            if (desktopW2?.value && desktopW2.value !== 'all') {
+                chips.push({ key: 'w2', label: desktopW2.options[desktopW2.selectedIndex]?.text });
+            }
+            if (desktopCurr?.value && desktopCurr.value !== 'all') {
+                chips.push({ key: 'currency', label: desktopCurr.value });
+            }
+
+            chipsRow.innerHTML = chips.map(c => `
+                <button class="mfb-chip" data-chip-key="${c.key}">
+                    ${c.label} <span class="mfb-chip__remove">✕</span>
+                </button>`).join('');
+
+            const count = chips.length;
+            if (badge) { badge.textContent = count; badge.hidden = count === 0; }
+            filterBtn?.classList.toggle('has-filters', count > 0);
+        }
+
+        // ── Clear all ──────────────────────────────────────────────
+        function clearAll() {
+            document.querySelectorAll('[data-filter="status"]').forEach(btn =>
+                btn.classList.toggle('is-active', btn.dataset.value === 'all')
+            );
+            if (mfsClient) mfsClient.value = 'all';
+            if (mfsW2)     mfsW2.value     = 'all';
+            if (mfsCurr)   mfsCurr.value   = 'all';
+            if (mfsYearSel) mfsYearSel.value = new Date().getFullYear();
+            if (mfsMonthSel) mfsMonthSel.value = String(new Date().getMonth() + 1).padStart(2, '0');
+        }
+
+        // ── Event wiring ──────────────────────────────────────────
+        filterBtn?.addEventListener('click', openSheet);
+        mfsClose?.addEventListener('click', closeSheet);
+        backdrop?.addEventListener('click', closeSheet);
+        mfsApply?.addEventListener('click', applyFilters);
+        mfsClear?.addEventListener('click', clearAll);
+
+        // Status chips
+        document.querySelectorAll('[data-filter="status"]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('[data-filter="status"]').forEach(b => b.classList.remove('is-active'));
+                btn.classList.add('is-active');
+            });
+        });
+
+        // Mobile search → desktop
+        if (mobileSearch && desktopSearch) {
+            mobileSearch.addEventListener('input', () => {
+                desktopSearch.value = mobileSearch.value;
+                desktopSearch.dispatchEvent(new Event('input', { bubbles: true }));
+            });
+        }
+
+        // Chip removal (instant apply)
+        chipsRow?.addEventListener('click', e => {
+            const chip = e.target.closest('.mobile-filter-bar__chip');
+            if (!chip) return;
+            const map = { status: desktopStatus, client: desktopClient, w2: desktopW2, currency: desktopCurr };
+            const el = map[chip.dataset.chipKey];
+            if (el) { el.value = 'all'; el.dispatchEvent(new Event('change', { bubbles: true })); }
+            updateChips();
+        });
+
+        // Mirror select options when JS populates them after data load
+        const syncDropdowns = () => {
+            if (mfsClient && desktopClient) copySelectOptions(desktopClient, mfsClient);
+            if (mfsW2 && desktopW2)         copySelectOptions(desktopW2, mfsW2);
+            if (mfsCurr && desktopCurr)     copySelectOptions(desktopCurr, mfsCurr);
+        };
+        const selectObserver = new MutationObserver(syncDropdowns);
+        if (desktopClient) selectObserver.observe(desktopClient, { childList: true });
+        if (desktopW2)     selectObserver.observe(desktopW2,     { childList: true });
+        if (desktopCurr)   selectObserver.observe(desktopCurr,   { childList: true });
+
+        setInterval(updateChips, 600); // Check periodically because timeheet views might change it
+    })();
+    </script>
+
+    <!-- CSV Import Modal -->
+    <div id="csvImportModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="csvImportTitle">
+        <div class="modal-content" style="max-width:760px;">
+            <div style="padding:1.5rem 1.75rem 1.25rem;border-bottom:1px solid var(--surface-glass-border);display:flex;align-items:flex-start;justify-content:space-between;">
+                <div>
+                    <h2 class="modal-title" id="csvImportTitle">Import Timesheets</h2>
+                    <p class="modal-subtitle">Paste or upload a CSV with consultant name, period, and hours. Each row is validated before saving.</p>
+                </div>
+                <button class="modal-close" id="csvImportClose" aria-label="Close">×</button>
+            </div>
+            <div class="modal-body" id="csvImportBody">
+
+                <!-- Step 1: Input -->
+                <div id="csvStep1">
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.625rem;">
+                        <label class="form-field__label" style="margin:0;">Paste CSV or upload a file</label>
+                        <button type="button" id="csvDownloadTemplate" style="font-size:0.75rem;color:var(--primary);background:none;border:none;cursor:pointer;text-decoration:underline;padding:0;">
+                            Download template
+                        </button>
+                    </div>
+                    <textarea id="csvPasteArea" rows="8"
+                        placeholder="consultant_name,period_start,period_end,hours_worked&#10;John Smith,2026-01-01,2026-01-31,160&#10;Jane Doe,2026-02-01,2026-02-28,80"
+                        style="width:100%;border:1px solid var(--surface-glass-border);border-radius:10px;padding:0.75rem;font-size:0.8125rem;font-family:monospace;resize:vertical;background:#fafafa;box-sizing:border-box;"></textarea>
+                    <div style="display:flex;align-items:center;gap:0.75rem;margin-top:0.75rem;">
+                        <label style="font-size:0.8125rem;color:var(--text-secondary);">Or upload:</label>
+                        <input type="file" id="csvFileInput" accept=".csv,text/csv" style="font-size:0.8125rem;">
+                    </div>
+                    <div style="margin-top:1.25rem;padding:0.75rem;background:#f8fafc;border-radius:8px;font-size:0.78rem;color:var(--text-secondary);line-height:1.6;">
+                        <strong style="color:var(--text-primary);">Required columns</strong> (header row must be first):<br>
+                        <code style="background:#e2e8f0;padding:0.1rem 0.35rem;border-radius:4px;">consultant_name</code> — must match an existing consultant exactly (case-insensitive)<br>
+                        <code style="background:#e2e8f0;padding:0.1rem 0.35rem;border-radius:4px;">period_start</code> and <code style="background:#e2e8f0;padding:0.1rem 0.35rem;border-radius:4px;">period_end</code> — YYYY-MM-DD format<br>
+                        <code style="background:#e2e8f0;padding:0.1rem 0.35rem;border-radius:4px;">hours_worked</code> — positive number (e.g. 80, 160, 37.5)
+                    </div>
+                </div>
+
+                <!-- Step 2: Preview -->
+                <div id="csvStep2" hidden>
+                    <div id="csvPreviewSummary" style="margin-bottom:0.75rem;font-size:0.875rem;"></div>
+                    <div style="overflow-x:auto;max-height:320px;overflow-y:auto;border:1px solid var(--surface-glass-border);border-radius:8px;">
+                        <table style="width:100%;border-collapse:collapse;font-size:0.8rem;">
+                            <thead>
+                                <tr style="background:#f8fafc;position:sticky;top:0;">
+                                    <th style="padding:0.5rem 0.75rem;text-align:left;font-weight:600;color:var(--text-secondary);border-bottom:1px solid var(--surface-glass-border);">#</th>
+                                    <th style="padding:0.5rem 0.75rem;text-align:left;font-weight:600;color:var(--text-secondary);border-bottom:1px solid var(--surface-glass-border);">Consultant</th>
+                                    <th style="padding:0.5rem 0.75rem;text-align:left;font-weight:600;color:var(--text-secondary);border-bottom:1px solid var(--surface-glass-border);">Period Start</th>
+                                    <th style="padding:0.5rem 0.75rem;text-align:left;font-weight:600;color:var(--text-secondary);border-bottom:1px solid var(--surface-glass-border);">Period End</th>
+                                    <th style="padding:0.5rem 0.75rem;text-align:right;font-weight:600;color:var(--text-secondary);border-bottom:1px solid var(--surface-glass-border);">Hours</th>
+                                    <th style="padding:0.5rem 0.75rem;text-align:left;font-weight:600;color:var(--text-secondary);border-bottom:1px solid var(--surface-glass-border);">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="csvPreviewBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+            </div>
+            <div style="padding:1rem 1.75rem;border-top:1px solid var(--surface-glass-border);display:flex;gap:0.75rem;justify-content:flex-end;">
+                <button type="button" class="btn btn--outline" id="csvImportBack">Cancel</button>
+                <button type="button" class="btn btn--outline" id="csvParseBtn">Preview</button>
+                <button type="button" class="btn btn--primary" id="csvImportBtn" hidden disabled>Import</button>
+            </div>
+        </div>
+    </div>
+</body>
+
+</html>

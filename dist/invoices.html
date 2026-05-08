@@ -1,0 +1,911 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Invoices - Invoice Generator Pro</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+
+    <style>
+        body {
+            display: none;
+        }
+
+        .invoices-filters-grid {
+            display: grid;
+            grid-template-columns: repeat(9, minmax(0, 1fr));
+            gap: 0.75rem;
+            margin-bottom: 0.75rem;
+        }
+
+        .invoices-page {
+            padding-inline: 1.5rem;
+        }
+
+        .invoices-page__container {
+            max-width: 1680px;
+        }
+
+        .invoice-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            gap: 1rem;
+        }
+
+        .invoice-header__content {
+            min-width: 0;
+        }
+
+        .invoice-header__actions {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+            justify-content: flex-end;
+            flex-shrink: 0;
+        }
+
+        #searchInput {
+            grid-column: span 2;
+        }
+
+        .filters-meta {
+            margin-top: 0.35rem;
+            font-size: 0.8125rem;
+            color: var(--text-secondary);
+        }
+
+        .actions-row {
+            display: flex;
+            gap: 0.375rem;
+            flex-wrap: nowrap;
+            justify-content: flex-end;
+            align-items: center;
+        }
+
+        .action-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid var(--surface-glass-border);
+            border-radius: 8px;
+            padding: 0.3rem 0.55rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+            background: white;
+            color: var(--text-primary);
+            cursor: pointer;
+        }
+
+        .action-btn svg {
+            width: 12px;
+            height: 12px;
+            flex-shrink: 0;
+        }
+
+        .action-btn:hover {
+            background: #f8fafc;
+        }
+
+        .action-btn--primary {
+            background: var(--primary);
+            border-color: var(--primary);
+            color: white;
+        }
+
+        .action-btn--danger {
+            background: #fff1f2;
+            border-color: #fecdd3;
+            color: #be123c;
+        }
+
+        .invoice-table {
+            width: 100%;
+            table-layout: auto;
+        }
+
+        .invoice-col--number,
+        .invoice-cell--number,
+        .invoice-col--date,
+        .invoice-cell--date,
+        .invoice-col--payment,
+        .invoice-cell--payment,
+        .invoice-col--status,
+        .invoice-cell--status,
+        .invoice-col--currency,
+        .invoice-cell--currency,
+        .invoice-col--amount,
+        .invoice-cell--amount,
+        .invoice-col--actions,
+        .invoice-cell--actions {
+            white-space: nowrap;
+        }
+
+        .invoice-col--client,
+        .invoice-cell--client {
+            min-width: 14rem;
+        }
+
+        .invoice-col--from,
+        .invoice-cell--from {
+            min-width: 13rem;
+        }
+
+        .invoice-col--payment,
+        .invoice-cell--payment {
+            min-width: 7.5rem;
+        }
+
+        .invoice-col--amount,
+        .invoice-cell--amount {
+            text-align: right;
+        }
+
+        .invoice-col--actions,
+        .invoice-cell--actions {
+            text-align: right;
+            width: 1%;
+        }
+
+        .invoice-cell--number strong {
+            font-size: 0.875rem;
+        }
+
+        .invoice-client {
+            display: flex;
+            flex-direction: column;
+            gap: 0.2rem;
+            min-width: 0;
+        }
+
+        .invoice-client__name,
+        .invoice-client__meta {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .invoice-client__name {
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .invoice-client__meta {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
+
+        .invoice-payment {
+            display: flex;
+            flex-direction: column;
+            gap: 0.18rem;
+        }
+
+        .invoice-payment__label {
+            font-size: 0.68rem;
+            font-weight: 700;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+            color: var(--text-tertiary);
+        }
+
+        .invoice-payment__label--paid {
+            color: #166534;
+        }
+
+        .invoice-payment__label--overdue {
+            color: #b91c1c;
+        }
+
+        .invoice-payment__date {
+            font-size: 0.8125rem;
+            color: var(--text-primary);
+        }
+
+        .invoice-payment__date--muted {
+            color: var(--text-secondary);
+        }
+
+        .invoice-primary-action {
+            min-width: 5.25rem;
+        }
+
+        .action-btn--menu {
+            min-width: 2.625rem;
+            padding-inline: 0.55rem;
+        }
+
+        .invoice-row-actions {
+            position: relative;
+        }
+
+        .invoice-row-menu {
+            min-width: 13rem;
+        }
+
+        .invoice-cell--actions .dropdown-menu {
+            right: 0;
+            left: auto;
+        }
+
+        .dropdown-item--danger {
+            color: #be123c;
+        }
+
+        .dropdown-item--danger:hover {
+            background: #fff1f2;
+            color: #be123c;
+        }
+
+        .status-chip {
+            display: inline-flex;
+            align-items: center;
+            border-radius: 999px;
+            padding: 0.25rem 0.5rem;
+            font-size: 0.72rem;
+            font-weight: 600;
+        }
+
+        .status-chip--draft {
+            background: #f3f4f6;
+            color: #4b5563;
+        }
+
+        .status-chip--sent {
+            background: #dbeafe;
+            color: #1d4ed8;
+        }
+
+        .status-chip--paid {
+            background: #dcfce7;
+            color: #166534;
+        }
+
+        .status-chip--overdue {
+            background: #fee2e2;
+            color: #b91c1c;
+        }
+
+        .status-chip--partially_paid {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        /* Ledger Styles */
+        .ledger-table {
+            width: 100%;
+            font-size: 0.8rem;
+            border-collapse: collapse;
+            margin-top: 0.5rem;
+        }
+        .ledger-table th {
+            text-align: left;
+            padding: 0.5rem;
+            color: var(--text-secondary);
+            border-bottom: 1px solid var(--surface-border);
+            font-weight: 600;
+        }
+        .ledger-table td {
+            padding: 0.5rem;
+            border-bottom: 1px dashed var(--surface-border);
+        }
+        .ledger-delete {
+            color: #ef4444;
+            cursor: pointer;
+            padding: 0.25rem;
+            border-radius: 4px;
+        }
+        .ledger-delete:hover {
+            background: #fef2f2;
+        }
+        .balance-summary {
+            background: var(--surface-alt);
+            border-radius: 8px;
+            padding: 0.75rem;
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+        }
+        .balance-item__label {
+            font-size: 0.7rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.025em;
+        }
+        .balance-item__value {
+            font-size: 0.95rem;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        @media (max-width: 1200px) {
+            .invoices-filters-grid {
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+            }
+
+            #searchInput {
+                grid-column: span 1;
+            }
+
+            .invoice-client__meta {
+                max-width: 16rem;
+            }
+        }
+
+        @media (max-width: 760px) {
+            .invoices-page {
+                padding-inline: 1.25rem;
+            }
+
+            .invoice-header {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .invoice-header__actions {
+                justify-content: flex-start;
+                flex-wrap: wrap;
+            }
+
+            .invoices-filters-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .invoice-col--client,
+            .invoice-cell--client,
+            .invoice-col--from,
+            .invoice-cell--from,
+            .invoice-col--payment,
+            .invoice-cell--payment {
+                min-width: auto;
+            }
+        }
+    </style>
+  <script type="module" crossorigin src="/invoices/assets/invoices-Ds4S461-.js"></script>
+  <link rel="modulepreload" crossorigin href="/invoices/assets/config-c-jMUxvT.js">
+  <link rel="modulepreload" crossorigin href="/invoices/assets/auth-De7W24vl.js">
+  <link rel="modulepreload" crossorigin href="/invoices/assets/utils-C_5o-oWL.js">
+  <link rel="modulepreload" crossorigin href="/invoices/assets/layout-BbfQceRr.js">
+  <link rel="modulepreload" crossorigin href="/invoices/assets/audit-trail-D0qCF0dr.js">
+  <link rel="modulepreload" crossorigin href="/invoices/assets/database-UdH0ph9m.js">
+  <link rel="modulepreload" crossorigin href="/invoices/assets/preload-helper-CON-e7xv.js">
+  <link rel="modulepreload" crossorigin href="/invoices/assets/utils-DcZaKD3w.js">
+  <link rel="modulepreload" crossorigin href="/invoices/assets/pdf-C6oxbDmS.js">
+  <link rel="modulepreload" crossorigin href="/invoices/assets/access-control-C8DOx5qE.js">
+  <link rel="modulepreload" crossorigin href="/invoices/assets/security-DyVtF4XP.js">
+  <link rel="stylesheet" crossorigin href="/invoices/assets/layout-D8RJuYgk.css">
+  <link rel="stylesheet" crossorigin href="/invoices/assets/dashboard-CTLGdJqp.css">
+  <link rel="stylesheet" crossorigin href="/invoices/assets/consultants-RQyqJNrw.css">
+</head>
+
+<body>
+    <!-- Navigation Header -->
+    <!-- Navigation injected by layout.js -->
+
+    <!-- Main Content -->
+    <main class="dashboard invoices-page">
+        <div class="dashboard__container invoices-page__container">
+            <!-- Header -->
+            <div class="dashboard__header invoice-header">
+                <div class="invoice-header__content">
+                    <h1 class="dashboard__title">Invoices</h1>
+                    <p class="dashboard__subtitle">Track created invoices, payment status, and linked timesheet coverage.</p>
+                </div>
+                <div class="invoice-header__actions">
+                    <button id="refreshBtn" class="btn btn--outline" title="Refresh List">
+                        <svg class="btn-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                        <span class="btn-text">Refresh</span>
+                    </button>
+                    <button id="exportCsvBtn" class="btn btn--outline" title="Export Report to CSV">
+                        <svg class="btn-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                        <span class="btn-text">Export CSV</span>
+                    </button>
+                    <a href="app.html" class="btn btn--primary">
+                        <svg class="btn-icon" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd"
+                                d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z"
+                                clip-rule="evenodd" />
+                        </svg>
+                        <span class="btn-text">New Invoice</span>
+                    </a>
+                </div>
+            </div>
+
+            <!-- Search & Filters -->
+            <div class="section">
+                <!-- Mobile Filter UI (Always visible at top on mobile) -->
+                <div class="mobile-filter-bar" id="mobileFilterBar">
+                    <div class="mobile-filter-bar__row">
+                        <div class="mobile-filter-bar__search">
+                            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" width="18" height="18"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                            <input type="text" id="mobileSearchMirror" placeholder="Search invoices...">
+                        </div>
+                        <button type="button" class="mobile-filter-bar__filter-btn" id="mobileFilterBtn" aria-label="Filters" aria-expanded="false">
+                            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M3 6h18M6 12h12m-9 6h6"/></svg>
+                            <span>Filters</span>
+                            <span class="mobile-filter-bar__badge" id="mobileFilterBadge" hidden>0</span>
+                        </button>
+                    </div>
+                    <div class="mobile-filter-bar__chips" id="mobileFilterChips">
+                        <!-- Chips dynamically inserted here via JS -->
+                    </div>
+                </div>
+
+                <div class="invoices-filters-grid">
+                    <select id="statusFilter" class="sort-select" aria-label="Filter by status">
+                        <option value="all">All Status</option>
+                        <option value="draft">Draft</option>
+                        <option value="sent">Sent</option>
+                        <option value="partially_paid">Partially Paid</option>
+                        <option value="paid">Paid</option>
+                        <option value="overdue">Overdue</option>
+                    </select>
+                    <select id="consultantFilter" class="sort-select" aria-label="Filter by consultant">
+                        <option value="all">All Consultants</option>
+                    </select>
+                    <select id="currencyFilter" class="sort-select" aria-label="Filter by currency">
+                        <option value="all">All Currencies</option>
+                    </select>
+                    <select id="dueFilter" class="sort-select" aria-label="Filter by due date">
+                        <option value="all">All Due Dates</option>
+                        <option value="overdue">Overdue</option>
+                        <option value="next-7">Due in 7 Days</option>
+                        <option value="next-30">Due in 30 Days</option>
+                        <option value="no-due">No Due Date</option>
+                    </select>
+                    <select id="amountFilter" class="sort-select" aria-label="Filter by amount">
+                        <option value="all">All Amounts</option>
+                        <option value="under-1000">Under 1,000</option>
+                        <option value="1000-5000">1,000 to 5,000</option>
+                        <option value="5000-10000">5,000 to 10,000</option>
+                        <option value="over-10000">Over 10,000</option>
+                    </select>
+                    <input type="text" id="searchInput" class="search-input"
+                        placeholder="Search invoice # or client...">
+                    <select id="sortSelect" class="sort-select">
+                        <option value="date-desc">Date (Newest)</option>
+                        <option value="date-asc">Date (Oldest)</option>
+                        <option value="amount-desc">Amount (Highest)</option>
+                        <option value="amount-asc">Amount (Lowest)</option>
+                        <option value="client-asc">Client (A-Z)</option>
+                        <option value="client-desc">Client (Z-A)</option>
+                        <option value="invoice-asc">Invoice # (A-Z)</option>
+                        <option value="invoice-desc">Invoice # (Z-A)</option>
+                        <option value="status-asc">Status (A-Z)</option>
+                        <option value="status-desc">Status (Z-A)</option>
+                        <option value="payment-asc">Payment (Most Owed)</option>
+                        <option value="payment-desc">Payment (Least Owed)</option>
+                        <option value="company-asc">Company (A-Z)</option>
+                        <option value="company-desc">Company (Z-A)</option>
+                    </select>
+                    <button id="clearFiltersBtn" class="btn btn--ghost" type="button">
+                        Clear All
+                    </button>
+                </div>
+                <p id="filtersMeta" class="filters-meta">0 filters applied</p>
+
+                <!-- Mobile Parallel Render Container -->
+                <div id="invoiceCards" class="m-cards"></div>
+
+                <!-- Invoices Table -->
+                <div class="table-container">
+                    <table class="table invoice-table" id="invoicesTable">
+                        <thead>
+                            <tr>
+                                <th class="invoice-col--number sortable" data-sort-key="invoice">Invoice #</th>
+                                <th class="invoice-col--client sortable" data-sort-key="client">Client</th>
+                                <th class="invoice-col--from sortable" data-sort-key="company">From Company</th>
+                                <th class="invoice-col--date sortable" data-sort-key="date">Invoice Date</th>
+                                <th class="invoice-col--payment sortable" data-sort-key="payment">Payment</th>
+                                <th class="invoice-col--status sortable" data-sort-key="status">Status</th>
+                                <th class="invoice-col--currency sortable" data-sort-key="currency">Currency</th>
+                                <th class="invoice-col--amount sortable" data-sort-key="amount">Amount</th>
+                                <th class="invoice-col--actions">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="invoicesBody">
+                            <tr>
+                                <td colspan="9" class="table__empty">
+                                    <div class="empty-state">
+                                        <span class="empty-state__icon">⏳</span>
+                                        <p class="empty-state__text">Loading invoices...</p>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Pagination -->
+                <div id="pagination" style="display: flex; justify-content: center; gap: 0.5rem; margin-top: 1.5rem;">
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Delete Confirmation Modal -->
+    <div id="deleteModal"
+        style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center;">
+        <div style="background: white; border-radius: 1rem; padding: 2rem; max-width: 400px; margin: 1rem;">
+            <h3 style="font-size: 1.25rem; font-weight: 700; margin-bottom: 0.5rem;">Delete Invoice?</h3>
+            <p id="deleteInvoiceMeta" style="color: var(--text-secondary); font-size: 0.8125rem; margin-bottom: 0.5rem;"></p>
+            <p style="color: var(--gray-600); margin-bottom: 1.5rem;">This action cannot be undone. The invoice will be
+                permanently deleted and linked timesheets will be set back to pending.</p>
+            <div style="display: flex; gap: 1rem; justify-content: flex-end;">
+                <button id="cancelDelete" class="btn"
+                    style="background: var(--gray-200); color: var(--gray-700);">Cancel</button>
+                <button id="confirmDelete" class="btn"
+                    style="background: #DC2626; color: white; border: none;">Delete</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Payment Info Modal -->
+    <div id="paymentInfoModal"
+        style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 2000; align-items: center; justify-content: center;">
+        <div
+            style="background: white; border-radius: 1.25rem; padding: 1.25rem; max-width: 520px; width: 100%; margin: 1rem; max-height: 92vh; overflow-y: auto; box-shadow: var(--shadow-paper);">
+            
+            <!-- Header -->
+            <div class="erp-modal-header">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                    <div class="erp-status-badge" id="modalStatusBadge">Sent</div>
+                    <button id="closePaymentModal" style="background:none; border:none; color:var(--text-tertiary); cursor:pointer; padding:4px;">
+                        <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                    </button>
+                </div>
+                <h3 style="font-size: 1.25rem; font-weight: 800; color: var(--text-primary); letter-spacing: -0.02em;">Payment Reconciliation</h3>
+                <p id="modalInvoiceNumber" style="color: var(--text-secondary); font-size: 0.8rem; margin-top: 0.125rem; font-weight: 500;"></p>
+            </div>
+
+            <!-- Compact Financial Summary -->
+            <div class="erp-financial-row">
+                <div class="erp-metric">
+                    <span class="erp-metric__label">Billed</span>
+                    <span id="summaryTotal" class="erp-metric__value">$0.00</span>
+                </div>
+                <div class="erp-metric">
+                    <span class="erp-metric__label">Paid</span>
+                    <span id="summaryPaid" class="erp-metric__value" style="color: var(--accent-green);">$0.00</span>
+                </div>
+                <div class="erp-metric">
+                    <span class="erp-metric__label">Due</span>
+                    <span id="summaryBalance" class="erp-metric__value" style="color: var(--accent-yellow);">$0.00</span>
+                </div>
+                <div class="erp-metric" style="align-items: flex-end; min-width: 60px;">
+                    <span class="erp-metric__label">Progress</span>
+                    <span class="erp-metric__value" id="modalProgressPercent" style="color: var(--accent-green);">0%</span>
+                </div>
+            </div>
+
+            <div class="erp-progress-bar" style="margin-top: -0.5rem; margin-bottom: 1.25rem;">
+                <div class="erp-progress-fill" id="modalProgressFill" style="width: 0%"></div>
+            </div>
+
+            <!-- Post New Entry -->
+            <div class="erp-card" style="background: rgba(248, 250, 252, 0.5); border-style: dashed; margin-bottom: 0.75rem;">
+                <div class="erp-card__title" style="margin-bottom: 0.5rem;">
+                    <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                    Post New Installment
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 0.75rem;">
+                    <div>
+                        <label style="display: block; font-size: 0.65rem; font-weight: 700; margin-bottom: 0.25rem; color: var(--text-secondary); text-transform: uppercase;">Entry Date</label>
+                        <input type="date" id="newPaymentDate" style="width: 100%; padding: 0.45rem; border: 1.5px solid var(--surface-glass-border); border-radius: 6px; font-size: 0.8rem;">
+                    </div>
+                    <div>
+                        <label style="display: block; font-size: 0.65rem; font-weight: 700; margin-bottom: 0.25rem; color: var(--text-secondary); text-transform: uppercase;">Credit Amount</label>
+                        <input type="number" id="newPaymentAmount" placeholder="0.00" step="0.01" style="width: 100%; padding: 0.45rem; border: 1.5px solid var(--surface-glass-border); border-radius: 6px; font-size: 0.8rem;">
+                    </div>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 0.875rem;">
+                    <div>
+                        <label style="display: block; font-size: 0.65rem; font-weight: 700; margin-bottom: 0.25rem; color: var(--text-secondary); text-transform: uppercase;">
+                            USD Realized
+                            <div class="info-tooltip-container">
+                                <span class="info-tooltip-trigger">i</span>
+                                <div class="info-tooltip-box">Exact USD amount received.</div>
+                            </div>
+                        </label>
+                        <input type="number" id="newPaymentUsd" placeholder="0.00" step="0.01" style="width: 100%; padding: 0.45rem; border: 1.5px solid var(--surface-glass-border); border-radius: 6px; font-size: 0.8rem;">
+                    </div>
+                    <div>
+                        <label style="display: block; font-size: 0.65rem; font-weight: 700; margin-bottom: 0.25rem; color: var(--text-secondary); text-transform: uppercase;">Ref / Note</label>
+                        <input type="text" id="newPaymentNote" placeholder="e.g. Check #..." style="width: 100%; padding: 0.45rem; border: 1.5px solid var(--surface-glass-border); border-radius: 6px; font-size: 0.8rem;">
+                    </div>
+                </div>
+                <button id="addPaymentBtn" class="btn btn--primary" style="width: 100%; padding: 0.5rem; font-weight: 700; font-size: 0.85rem;">Record Transaction</button>
+            </div>
+
+            <!-- Transaction Audit Trail -->
+            <div class="erp-card" style="margin-bottom: 0.75rem;">
+                <div class="erp-card__title" style="margin-bottom: 0.5rem;">
+                    <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+                    Audit Trail
+                    <div class="info-tooltip-container">
+                        <span class="info-tooltip-trigger">i</span>
+                        <div class="info-tooltip-box">Log of all installments received.</div>
+                    </div>
+                </div>
+                <div style="max-height: 100px; overflow-y: auto; margin: 0 -0.25rem;">
+                    <table class="ledger-table">
+                        <tbody id="paymentLedgerBody"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div id="editModeIndicator" style="display: none; align-items: center; justify-content: space-between; margin-bottom: 0.5rem; padding: 0.4rem 0.75rem; background: var(--primary-light); border-radius: 6px; border: 1px solid rgba(255,107,74,0.1);">
+                <span style="font-size: 0.75rem; font-weight: 700; color: var(--primary);">Editing Installment...</span>
+                <button id="cancelEditBtn" style="background: none; border: none; color: var(--text-secondary); font-size: 0.7rem; font-weight: 700; cursor: pointer; text-decoration: underline;">Cancel Edit</button>
+            </div>
+
+            <!-- Advanced Status Override -->
+            <div style="margin-top: 1rem; padding: 0.5rem 0.875rem; background: #fdfdfd; border: 1px solid var(--surface-glass-border); border-radius: 8px;">
+                <label style="display: flex; align-items: center; font-size: 0.7rem; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em;">
+                    Manual Status Override
+                    <div class="info-tooltip-container">
+                        <span class="info-tooltip-trigger">i</span>
+                        <div class="info-tooltip-box">Update the invoice status manually.</div>
+                    </div>
+                </label>
+                <select id="modalStatusInput" style="width: 100%; border: none; background: transparent; font-size: 0.875rem; font-weight: 600; padding: 0.25rem 0; cursor: pointer; color: var(--text-primary); outline: none;">
+                    <option value="draft">Draft</option>
+                    <option value="sent">Sent</option>
+                    <option value="partially_paid">Partially Paid</option>
+                    <option value="paid">Paid</option>
+                </select>
+            </div>
+
+            <div style="display: flex; gap: 0.75rem; margin-top: 1.25rem;">
+                <button id="cancelPaymentBtn" class="btn btn--outline" style="flex: 1; padding: 0.5rem; font-size: 0.85rem;">Cancel</button>
+                <button id="saveStatusBtn" class="btn btn--primary" style="flex: 1.5; padding: 0.5rem; font-size: 0.85rem;">Save Changes</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast" class="toast"></div>
+
+
+    <!-- Mobile Filter Bottom Sheet -->
+    <div class="mfs-backdrop" id="mfsBackdrop"></div>
+    <div class="mfs-sheet" id="mfsSheet">
+        <div class="mfs-sheet__drag-handle"></div>
+        <div class="mfs-sheet__header">
+            <h3 class="mfs-sheet__title">Filters & Sort</h3>
+            <button type="button" class="mfs-sheet__close" id="mfsClose" aria-label="Close filters">✕</button>
+        </div>
+        <div class="mfs-sheet__body">
+            <div class="mfs-filters">
+                <div class="mfs-group">
+                    <label class="mfs-group__label">Status</label>
+                    <div class="mfs-chip-group">
+                        <button class="mfs-chip" data-filter="status" data-value="all">All</button>
+                        <button class="mfs-chip" data-filter="status" data-value="draft">Draft</button>
+                        <button class="mfs-chip" data-filter="status" data-value="sent">Sent</button>
+                        <button class="mfs-chip" data-filter="status" data-value="partially_paid">Partially Paid</button>
+                        <button class="mfs-chip" data-filter="status" data-value="paid">Paid</button>
+                        <button class="mfs-chip" data-filter="status" data-value="overdue">Overdue</button>
+                    </div>
+                </div>
+                <div class="mfs-group">
+                    <label class="mfs-group__label">Consultant</label>
+                    <select class="mfs-select" id="mfsConsultantFilter">
+                        <option value="all">All Consultants</option>
+                    </select>
+                </div>
+                <div class="mfs-group">
+                    <label class="mfs-group__label">Due Date</label>
+                    <select class="mfs-select" id="mfsDueFilter">
+                        <option value="all">All Due Dates</option>
+                        <option value="overdue">Overdue</option>
+                        <option value="next-7">Due in 7 Days</option>
+                        <option value="next-30">Due in 30 Days</option>
+                        <option value="no-due">No Due Date</option>
+                    </select>
+                </div>
+                <div class="mfs-group">
+                    <label class="mfs-group__label">Amount</label>
+                    <select class="mfs-select" id="mfsAmountFilter">
+                        <option value="all">All Amounts</option>
+                        <option value="under-1000">Under 1,000</option>
+                        <option value="1000-5000">1,000 to 5,000</option>
+                        <option value="5000-10000">5,000 to 10,000</option>
+                        <option value="over-10000">Over 10,000</option>
+                    </select>
+                </div>
+                <div class="mfs-group">
+                    <label class="mfs-group__label">Currency</label>
+                    <select class="mfs-select" id="mfsCurrencyFilter">
+                        <option value="all">All Currencies</option>
+                    </select>
+                </div>
+                <div class="mfs-group">
+                    <label class="mfs-group__label">Sort By</label>
+                    <select class="mfs-select" id="mfsSortSelect">
+                        <option value="date-desc">Newest First</option>
+                        <option value="date-asc">Oldest First</option>
+                        <option value="amount-desc">Highest Amount</option>
+                        <option value="amount-asc">Lowest Amount</option>
+                        <option value="client-asc">Client A-Z</option>
+                        <option value="invoice-asc">Invoice # A-Z</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+        <div class="mfs-sheet__footer">
+            <button type="button" class="btn btn--outline" id="mfsClearBtn">Clear All</button>
+            <button type="button" class="btn btn--primary" id="mfsApplyBtn">Show Results</button>
+        </div>
+    </div>
+
+    <!-- Mobile Filter Bottom Sheet Controller -->
+    <script>
+    (function () {
+        const MOBILE_BP = 760;
+        if (window.innerWidth > MOBILE_BP) return;
+
+        const sheet     = document.getElementById('mfsSheet');
+        const backdrop  = document.getElementById('mfsBackdrop');
+        const filterBtn = document.getElementById('mobileFilterBtn');
+        const badge     = document.getElementById('mobileFilterBadge');
+        const chipsRow  = document.getElementById('mobileFilterChips');
+        const mobileSearch = document.getElementById('mobileSearchMirror');
+
+        // Desktop
+        const desktopSearch  = document.getElementById('searchInput');
+        const desktopStatus  = document.getElementById('statusFilter');
+        const desktopConsul  = document.getElementById('consultantFilter');
+        const desktopDue     = document.getElementById('dueFilter');
+        const desktopAmt     = document.getElementById('amountFilter');
+        const desktopCurr    = document.getElementById('currencyFilter');
+        const desktopSort    = document.getElementById('sortSelect');
+
+        // Sheet elements
+        const mfsClose  = document.getElementById('mfsClose');
+        const mfsClear  = document.getElementById('mfsClearBtn');
+        const mfsApply  = document.getElementById('mfsApplyBtn');
+        const mfsConsul = document.getElementById('mfsConsultantFilter');
+        const mfsDue    = document.getElementById('mfsDueFilter');
+        const mfsAmt    = document.getElementById('mfsAmountFilter');
+        const mfsCurr   = document.getElementById('mfsCurrencyFilter');
+        const mfsSort   = document.getElementById('mfsSortSelect');
+
+        function openSheet() {
+            if (mfsConsul && desktopConsul) copySelectOptions(desktopConsul, mfsConsul);
+            if (mfsCurr && desktopCurr)     copySelectOptions(desktopCurr, mfsCurr);
+            if (mfsDue && desktopDue)       mfsDue.value = desktopDue.value;
+            if (mfsAmt && desktopAmt)       mfsAmt.value = desktopAmt.value;
+            if (mfsSort && desktopSort)     mfsSort.value = desktopSort.value;
+            
+            const val = desktopStatus?.value || 'all';
+            document.querySelectorAll('[data-filter="status"]').forEach(b =>
+                b.classList.toggle('is-active', b.dataset.value === val)
+            );
+            
+            sheet.classList.add('is-open');
+            backdrop.classList.add('is-open');
+            filterBtn?.setAttribute('aria-expanded', 'true');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeSheet() {
+            sheet.classList.remove('is-open');
+            backdrop.classList.remove('is-open');
+            filterBtn?.setAttribute('aria-expanded', 'false');
+            document.body.style.overflow = '';
+        }
+
+        function copySelectOptions(src, dest) {
+            dest.innerHTML = src.innerHTML;
+            dest.value = src.value;
+        }
+
+        function applyFilters() {
+            const activeChip = document.querySelector('[data-filter="status"].is-active');
+            if (activeChip && desktopStatus) {
+                desktopStatus.value = activeChip.dataset.value;
+                desktopStatus.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+            [['mfsConsultantFilter','consultantFilter'],['mfsDueFilter','dueFilter'],
+             ['mfsAmountFilter','amountFilter'],['mfsCurrencyFilter','currencyFilter'],
+             ['mfsSortSelect','sortSelect']]
+              .forEach(([mId, dId]) => {
+                const m = document.getElementById(mId), d = document.getElementById(dId);
+                if (m && d) { d.value = m.value; d.dispatchEvent(new Event('change', { bubbles: true })); }
+            });
+            updateChips();
+            closeSheet();
+        }
+
+        function updateChips() {
+            if (!chipsRow) return;
+            const chips = [];
+
+            const statusVal = desktopStatus?.value;
+            if (statusVal && statusVal !== 'all') {
+                const labels = { draft:'Draft', sent:'Sent', partially_paid:'Partially Paid', paid:'Paid', overdue:'Overdue' };
+                chips.push({ key: 'status', label: labels[statusVal] || statusVal });
+            }
+            if (desktopConsul?.value && desktopConsul.value !== 'all') {
+                chips.push({ key: 'consultant', label: desktopConsul.options[desktopConsul.selectedIndex]?.text });
+            }
+            if (desktopDue?.value && desktopDue.value !== 'all') {
+                chips.push({ key: 'due', label: desktopDue.options[desktopDue.selectedIndex]?.text });
+            }
+            if (desktopAmt?.value && desktopAmt.value !== 'all') {
+                chips.push({ key: 'amount', label: desktopAmt.options[desktopAmt.selectedIndex]?.text });
+            }
+            if (desktopCurr?.value && desktopCurr.value !== 'all') {
+                chips.push({ key: 'currency', label: desktopCurr.value });
+            }
+
+            chipsRow.innerHTML = chips.map(c => `
+                <button class="mobile-filter-bar__chip" data-chip-key="${c.key}">
+                    ${c.label} <span class="mobile-filter-bar__chip-remove">✕</span>
+                </button>`).join('');
+
+            const count = chips.length;
+            if (badge) { badge.textContent = count; badge.hidden = count === 0; }
+            filterBtn?.classList.toggle('has-filters', count > 0);
+        }
+
+        function clearAll() {
+            document.querySelectorAll('[data-filter="status"]').forEach(btn =>
+                btn.classList.toggle('is-active', btn.dataset.value === 'all')
+            );
+            if (mfsConsul) mfsConsul.value = 'all';
+            if (mfsDue)    mfsDue.value    = 'all';
+            if (mfsAmt)    mfsAmt.value    = 'all';
+            if (mfsCurr)   mfsCurr.value   = 'all';
+            if (mfsSort)   mfsSort.value   = 'date-desc';
+        }
+
+        filterBtn?.addEventListener('click', openSheet);
+        mfsClose?.addEventListener('click', closeSheet);
+        backdrop?.addEventListener('click', closeSheet);
+        mfsApply?.addEventListener('click', applyFilters);
+        mfsClear?.addEventListener('click', clearAll);
+
+        document.querySelectorAll('[data-filter="status"]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('[data-filter="status"]').forEach(b => b.classList.remove('is-active'));
+                btn.classList.add('is-active');
+            });
+        });
+
+        if (mobileSearch && desktopSearch) {
+            mobileSearch.addEventListener('input', () => {
+                desktopSearch.value = mobileSearch.value;
+                desktopSearch.dispatchEvent(new Event('input', { bubbles: true }));
+            });
+        }
+
+        chipsRow?.addEventListener('click', e => {
+            const chip = e.target.closest('.mobile-filter-bar__chip');
+            if (!chip) return;
+            const map = { status: desktopStatus, consultant: desktopConsul, due: desktopDue, amount: desktopAmt, currency: desktopCurr };
+            const el = map[chip.dataset.chipKey];
+            if (el) { el.value = 'all'; el.dispatchEvent(new Event('change', { bubbles: true })); }
+            updateChips();
+        });
+
+        const syncDropdowns = () => {
+            if (mfsConsul && desktopConsul) copySelectOptions(desktopConsul, mfsConsul);
+            if (mfsCurr && desktopCurr)     copySelectOptions(desktopCurr, mfsCurr);
+        };
+        const selectObserver = new MutationObserver(syncDropdowns);
+        if (desktopConsul) selectObserver.observe(desktopConsul, { childList: true });
+        if (desktopCurr)   selectObserver.observe(desktopCurr,   { childList: true });
+
+        setInterval(updateChips, 600);
+    })();
+    </script>
+</body>
+
+</html>

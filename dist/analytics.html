@@ -1,0 +1,891 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Analytics - Invoice Generator Pro</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+
+    <style>
+        body {
+            display: none;
+        }
+
+        .analytics-meta {
+            font-size: 0.8125rem;
+            color: var(--text-secondary);
+        }
+
+        .filters-meta {
+            margin-top: 0.45rem;
+            font-size: 0.8125rem;
+            color: var(--text-secondary);
+        }
+
+        .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .kpi-card {
+            background: white;
+            border: 1px solid var(--surface-glass-border);
+            border-radius: var(--radius-lg);
+            padding: 1rem 1.125rem;
+            box-shadow: var(--shadow-card);
+        }
+
+        .kpi-card__label {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: var(--text-tertiary);
+            font-weight: 700;
+        }
+
+        .kpi-card__label-meta {
+            margin-left: 0.3rem;
+            font-size: 0.68rem;
+            letter-spacing: 0.02em;
+            text-transform: none;
+            color: var(--text-secondary);
+            font-weight: 600;
+        }
+
+        .kpi-card__value {
+            margin-top: 0.5rem;
+            font-size: 1.25rem;
+            font-weight: 800;
+            color: var(--text-primary);
+            line-height: 1.2;
+            letter-spacing: -0.02em;
+        }
+
+        .kpi-card__sub {
+            margin-top: 0.25rem;
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
+
+        .kpi-card__stack {
+            margin-top: 0.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.35rem;
+        }
+
+        .kpi-card__stack-item {
+            font-size: 0.875rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            line-height: 1.3;
+        }
+
+        .insights-grid {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .insight-card {
+            background: white;
+            border: 1px solid var(--surface-glass-border);
+            border-radius: var(--radius-lg);
+            padding: 1rem 1.125rem;
+            box-shadow: var(--shadow-card);
+        }
+
+        .insight-card__eyebrow {
+            font-size: 0.72rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: var(--text-tertiary);
+        }
+
+        .insight-card__title {
+            margin-top: 0.4rem;
+            font-size: 1rem;
+            font-weight: 800;
+            color: var(--text-primary);
+            line-height: 1.25;
+        }
+
+        .insight-card__body {
+            margin-top: 0.45rem;
+            font-size: 0.8125rem;
+            color: var(--text-secondary);
+            line-height: 1.5;
+        }
+
+        .insight-card__meta {
+            margin-top: 0.75rem;
+            display: grid;
+            gap: 0.35rem;
+        }
+
+        .insight-card__meta-row {
+            display: flex;
+            justify-content: space-between;
+            gap: 0.75rem;
+            font-size: 0.78rem;
+            color: var(--text-secondary);
+        }
+
+        .insight-card__meta-row strong {
+            color: var(--text-primary);
+            font-weight: 700;
+        }
+
+        .pivot-wrap {
+            overflow-x: auto;
+            border: 1px solid var(--surface-glass-border);
+            border-radius: var(--radius-md);
+        }
+
+        .pivot-table {
+            min-width: 1100px;
+        }
+
+        .metric-list {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .metric-list div {
+            font-size: 0.75rem;
+            color: var(--text-primary);
+        }
+
+        .table-note {
+            margin-top: 0.75rem;
+            font-size: 0.75rem;
+            color: var(--text-tertiary);
+        }
+
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            border-radius: 999px;
+            padding: 0.25rem 0.5rem;
+            font-size: 0.72rem;
+            font-weight: 600;
+        }
+
+        .status-pending {
+            background: #fff7ed;
+            color: #9a3412;
+        }
+
+        .status-invoiced {
+            background: #dcfce7;
+            color: #166534;
+        }
+
+        .status-mixed {
+            background: #e2e8f0;
+            color: #334155;
+        }
+
+        .status-paid {
+            background: #f3e8ff;
+            color: #7e22ce;
+        }
+
+        .analytics-person {
+            display: flex;
+            flex-direction: column;
+            gap: 0.2rem;
+        }
+
+        .analytics-person__name {
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .analytics-person__meta {
+            font-size: 0.75rem;
+            color: var(--text-tertiary);
+        }
+
+        .invoice-pill {
+            display: inline-flex;
+            align-items: center;
+            border-radius: 999px;
+            padding: 0.22rem 0.55rem;
+            font-size: 0.72rem;
+            font-weight: 700;
+            letter-spacing: 0.01em;
+            white-space: nowrap;
+        }
+
+        .invoice-pill--unbilled {
+            background: #fff7ed;
+            color: #9a3412;
+        }
+
+        .invoice-pill--linked {
+            background: #ecfccb;
+            color: #3f6212;
+        }
+
+        .invoice-pill--multiple {
+            background: #e0f2fe;
+            color: #075985;
+        }
+
+        @media (max-width: 1100px) {
+            .analytics-filter-bar {
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+            }
+
+            .kpi-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+
+            .insights-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 640px) {
+            .analytics-filter-bar {
+                grid-template-columns: 1fr;
+            }
+
+            .kpi-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+  <script type="module" crossorigin src="/invoices/assets/analytics-DFDpgKig.js"></script>
+  <link rel="modulepreload" crossorigin href="/invoices/assets/config-c-jMUxvT.js">
+  <link rel="modulepreload" crossorigin href="/invoices/assets/auth-De7W24vl.js">
+  <link rel="modulepreload" crossorigin href="/invoices/assets/utils-C_5o-oWL.js">
+  <link rel="modulepreload" crossorigin href="/invoices/assets/layout-BbfQceRr.js">
+  <link rel="modulepreload" crossorigin href="/invoices/assets/audit-trail-D0qCF0dr.js">
+  <link rel="modulepreload" crossorigin href="/invoices/assets/utils-DcZaKD3w.js">
+  <link rel="modulepreload" crossorigin href="/invoices/assets/db-timesheets-CCgcNFbQ.js">
+  <link rel="modulepreload" crossorigin href="/invoices/assets/database-UdH0ph9m.js">
+  <link rel="modulepreload" crossorigin href="/invoices/assets/crm-filters-B0ueEEPp.js">
+  <link rel="modulepreload" crossorigin href="/invoices/assets/saved-views-DboOTZfB.js">
+  <link rel="stylesheet" crossorigin href="/invoices/assets/layout-D8RJuYgk.css">
+  <link rel="stylesheet" crossorigin href="/invoices/assets/dashboard-CTLGdJqp.css">
+  <link rel="stylesheet" crossorigin href="/invoices/assets/consultants-RQyqJNrw.css">
+</head>
+
+<body>
+    <main class="dashboard">
+        <div class="dashboard__container">
+            <div class="dashboard__header">
+                <div>
+                    <h1 class="dashboard__title">Analytics</h1>
+                    <p class="dashboard__subtitle">Read-only performance view from timesheets with consistent CRM filters.</p>
+                </div>
+            </div>
+
+            <div class="crm-toolbar">
+                <div class="crm-toolbar__search">
+                    <svg class="crm-toolbar__search-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                    <input type="text" id="consultantSearch" placeholder="Search consultant, client, W2...">
+                </div>
+                <div class="crm-toolbar__divider"></div>
+                <div class="crm-toolbar__filters">
+                    <select id="statusFilter" class="crm-toolbar__pill" aria-label="Status">
+                        <option value="all">All Status</option>
+                        <option value="pending">Pending</option>
+                        <option value="invoiced">Invoiced</option>
+                        <option value="paid">Paid</option>
+                    </select>
+                    <select id="clientFilter" class="crm-toolbar__pill" aria-label="Client">
+                        <option value="all">All Clients</option>
+                    </select>
+                    <select id="w2Filter" class="crm-toolbar__pill" aria-label="W2 Company">
+                        <option value="all">All W2</option>
+                    </select>
+                    <select id="currencyFilter" class="crm-toolbar__pill" aria-label="Currency">
+                        <option value="all">All Currencies</option>
+                    </select>
+                </div>
+                <div class="crm-toolbar__divider"></div>
+                <div class="crm-toolbar__period-wrap">
+                    <div class="crm-toolbar__period">
+                        <button type="button" id="periodPrevBtn" class="crm-toolbar__period-btn" aria-label="Previous month">
+                            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path d="m15 19-7-7 7-7"/></svg>
+                        </button>
+                        <button type="button" id="periodLabel" class="crm-toolbar__period-label crm-toolbar__period-label--button" aria-label="Open month and year picker" aria-expanded="false">
+                            <span id="periodLabelText">—</span>
+                            <svg class="crm-toolbar__period-caret" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2"><path d="m6 9 6 6 6-6"/></svg>
+                        </button>
+                        <button type="button" id="periodNextBtn" class="crm-toolbar__period-btn" aria-label="Next month">
+                            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path d="m9 5 7 7-7 7"/></svg>
+                        </button>
+                    </div>
+                    <div id="periodJumpMenu" class="crm-toolbar__period-menu" hidden>
+                        <div class="crm-toolbar__period-menu-head">
+                            <select id="periodJumpYear" class="crm-toolbar__period-menu-select" aria-label="Jump to year"></select>
+                            <button type="button" id="periodJumpAllBtn" class="crm-toolbar__period-menu-all">All Months</button>
+                        </div>
+                        <div id="periodJumpMonths" class="crm-toolbar__period-menu-grid"></div>
+                    </div>
+                </div>
+                <div class="crm-toolbar__divider"></div>
+                <div class="crm-toolbar__views">
+                    <select id="savedViewSelect" aria-label="Saved views">
+                        <option value="">Saved Views</option>
+                    </select>
+                </div>
+                <div class="crm-toolbar__spacer"></div>
+                <button type="button" id="clearFiltersBtn" class="crm-toolbar__clear">Clear</button>
+                <button type="button" id="refreshBtn" class="crm-toolbar__action">Refresh</button>
+
+                <!-- Expandable saved views controls -->
+                <div id="savedViewExpandRow" class="crm-toolbar__views-expand">
+                    <input type="text" id="savedViewName" placeholder="Name this view">
+                    <button id="saveViewBtn" class="btn btn--outline btn--sm" type="button">Save</button>
+                    <button id="updateViewBtn" class="btn btn--ghost btn--sm" type="button" disabled>Update</button>
+                    <button id="deleteViewBtn" class="btn btn--ghost btn--sm" type="button" disabled>Delete</button>
+                    <span id="savedViewMeta" class="crm-toolbar__views-expand__meta">No saved views</span>
+                </div>
+            </div>
+
+            <!-- ═══ MOBILE FILTER BAR (replaces crm-toolbar on small screens) ═══ -->
+            <div class="mobile-filter-bar" id="mobileFilterBar">
+                <div class="mobile-filter-bar__row">
+                    <div class="mobile-filter-bar__search">
+                        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" width="16" height="16"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                        <input type="text" placeholder="Search consultant, client, W2..." id="mobileSearchMirror" autocomplete="off">
+                    </div>
+                    <button class="mobile-filter-bar__filter-btn" id="mobileFilterBtn" aria-expanded="false" aria-controls="mfsSheet">
+                        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" width="16" height="16"><path stroke-linecap="round" stroke-linejoin="round" d="M3 4h18M7 10h10M11 16h2"/></svg>
+                        Filters
+                        <span class="mobile-filter-bar__badge" id="mobileFilterBadge" hidden>0</span>
+                    </button>
+                </div>
+                <div class="mobile-filter-bar__chips" id="mobileFilterChips"></div>
+            </div>
+
+            <!-- ═══ MOBILE FILTER BOTTOM SHEET ═══ -->
+            <div class="mfs-backdrop" id="mfsBackdrop" aria-hidden="true"></div>
+            <div class="mfs-sheet" id="mfsSheet" role="dialog" aria-modal="true" aria-label="Filters">
+                <div class="mfs-sheet__handle"></div>
+                <div class="mfs-sheet__header">
+                    <span class="mfs-sheet__title">Filters &amp; Period</span>
+                    <button class="mfs-sheet__close" id="mfsClose" aria-label="Close filters">
+                        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" width="20" height="20"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                    </button>
+                </div>
+                <div class="mfs-sheet__body">
+                    <!-- Period -->
+                    <div class="mfs-group">
+                        <label class="mfs-group__label">Period</label>
+                        <div class="mfs-period-selects">
+                            <select class="mfs-select" id="mfsPeriodYear" aria-label="Year"></select>
+                            <select class="mfs-select" id="mfsPeriodMonth" aria-label="Month">
+                                <option value="all">All Months</option>
+                                <option value="01">January</option>
+                                <option value="02">February</option>
+                                <option value="03">March</option>
+                                <option value="04">April</option>
+                                <option value="05">May</option>
+                                <option value="06">June</option>
+                                <option value="07">July</option>
+                                <option value="08">August</option>
+                                <option value="09">September</option>
+                                <option value="10">October</option>
+                                <option value="11">November</option>
+                                <option value="12">December</option>
+                            </select>
+                        </div>
+                    </div>
+                    <!-- Status -->
+                    <div class="mfs-group">
+                        <label class="mfs-group__label">Status</label>
+                        <div class="mfs-chips">
+                            <button class="mfs-chip is-active" data-filter="status" data-value="all">All</button>
+                            <button class="mfs-chip" data-filter="status" data-value="pending">Pending</button>
+                            <button class="mfs-chip" data-filter="status" data-value="invoiced">Invoiced</button>
+                        </div>
+                    </div>
+                    <!-- Client -->
+                    <div class="mfs-group">
+                        <label class="mfs-group__label">Client</label>
+                        <select class="mfs-select" id="mfsClientFilter" aria-label="Client">
+                            <option value="all">All Clients</option>
+                        </select>
+                    </div>
+                    <!-- W2 Company -->
+                    <div class="mfs-group">
+                        <label class="mfs-group__label">W2 Company</label>
+                        <select class="mfs-select" id="mfsW2Filter" aria-label="W2 Company">
+                            <option value="all">All W2 Companies</option>
+                        </select>
+                    </div>
+                    <!-- Currency -->
+                    <div class="mfs-group">
+                        <label class="mfs-group__label">Currency</label>
+                        <select class="mfs-select" id="mfsCurrencyFilter" aria-label="Currency">
+                            <option value="all">All Currencies</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="mfs-sheet__footer">
+                    <button class="mfs-btn-clear" id="mfsClearBtn">Clear Filters</button>
+                    <button class="mfs-btn-apply" id="mfsApplyBtn">Show Results</button>
+                </div>
+            </div>
+
+            <!-- Hidden selects for year/month (used by JS) -->
+            <select id="yearFilter" style="display:none;" aria-label="Filter year"></select>
+            <select id="snapshotMonthFilter" style="display:none;" aria-label="Snapshot month"></select>
+            <button id="allMonthsToggleBtn" style="display:none;" type="button">All Months: OFF</button>
+
+            <!-- ═══ Tab Bar ═══ -->
+            <div class="analytics-tabs-row">
+                <nav class="analytics-tabs" role="tablist">
+                    <button class="analytics-tabs__btn is-active" data-tab="overview" role="tab" aria-selected="true">Overview</button>
+                    <button class="analytics-tabs__btn" data-tab="clients" role="tab" aria-selected="false">
+                        Clients <span id="clientTabBadge" class="analytics-tabs__badge">0</span>
+                    </button>
+                    <button class="analytics-tabs__btn" data-tab="pivot" role="tab" aria-selected="false">Pivot</button>
+                </nav>
+                <div class="crm-stats-strip crm-stats-strip--inline">
+                    <span class="crm-stats-strip__stat"><strong id="analyticsPeriodTitle">Loading...</strong></span>
+                    <span class="crm-stats-strip__dot">·</span>
+                    <span class="crm-stats-strip__stat"><strong id="analyticsConsultantsStat">0</strong> consultants</span>
+                    <span class="crm-stats-strip__dot">·</span>
+                    <span class="crm-stats-strip__stat"><strong id="analyticsHoursStat">0.00</strong> hours</span>
+                    <span class="crm-stats-strip__dot">·</span>
+                    <span class="crm-stats-strip__stat"><strong id="analyticsCurrenciesStat">0</strong> currencies</span>
+                    <span id="analyticsMeta" style="display:none;"></span>
+                </div>
+            </div>
+
+            <!-- ═══ PANEL: Overview ═══ -->
+            <div class="analytics-panel is-visible" id="panel-overview" role="tabpanel">
+                <section class="kpi-grid" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));">
+                    <article class="kpi-card kpi-card--interactive" data-filter="all" id="kpiTotalHours">
+                        <div class="kpi-card__label">Hours <span id="totalHoursLabelMeta" class="kpi-card__label-meta">(Period)</span></div>
+                        <div class="kpi-card__value" id="totalHoursCard">0.00</div>
+                        <div class="kpi-card__filter-hint">Click to reset filters</div>
+                    </article>
+                    <article class="kpi-card kpi-card--interactive" data-filter="revenue" id="kpiRevenue">
+                        <div class="kpi-card__label">Projected <span id="projectedRevenueLabelMeta" class="kpi-card__label-meta">(Period)</span><span class="kpi-card__tooltip" data-tooltip="Total invoice value of the hours logged in the selected month.">?</span></div>
+                        <div class="kpi-card__value" id="projectedRevenueCard">$0.00</div>
+                        <div class="kpi-card__filter-hint">Click to view detail</div>
+                    </article>
+                    <article class="kpi-card" id="kpiActualRevenue">
+                        <div class="kpi-card__label">Collected <span id="actualRevenueLabelMeta" class="kpi-card__label-meta">(Period)</span><span class="kpi-card__tooltip" data-tooltip="Amount successfully paid so far specifically for work done in the selected month (Accrual basis).">?</span></div>
+                        <div class="kpi-card__value" id="actualRevenueCard">$0.00</div>
+                    </article>
+                    <article class="kpi-card" id="kpiCashFlow">
+                        <div class="kpi-card__label">Cash Flow <span id="cashFlowLabelMeta" class="kpi-card__label-meta">(Received)</span><span class="kpi-card__tooltip" data-tooltip="Total cash that landed in the bank during the selected month, regardless of when the work was done (Cash basis).">?</span></div>
+                        <div class="kpi-card__value" id="cashFlowCard" style="color:var(--success)">$0.00</div>
+                        <div class="kpi-card__sub" id="cashFlowUsdSub" style="display:none;"></div>
+                    </article>
+                    <article class="kpi-card kpi-card--interactive" data-filter="consultants" id="kpiConsultants">
+                        <div class="kpi-card__label">Consultants <span id="consultantsLabelMeta" class="kpi-card__label-meta">(With Hours)</span></div>
+                        <div class="kpi-card__value" id="activeConsultantsCard">0</div>
+                        <div class="kpi-card__sub" id="consultantsSub" style="font-weight:600;">Generating $0.00/hr</div>
+                        <div class="kpi-card__filter-hint">Click to view detail</div>
+                    </article>
+                    <article class="kpi-card kpi-card--interactive" data-filter="pending" id="kpiBilling">
+                        <div class="kpi-card__label">Coverage <span id="billingCoverageLabelMeta" class="kpi-card__label-meta">(Invoiced)</span></div>
+                        <div class="kpi-card__value" id="billingCoverageCard">0%</div>
+                        <div class="kpi-card__sub" id="billingCoverageSub">0.00 invoiced hrs of 0.00 total</div>
+                        <div class="kpi-card__filter-hint">Click to show pending only</div>
+                    </article>
+                </section>
+
+                <!-- Accrual vs Collections + Invoice Status Distribution -->
+                <section class="analytics-charts-row">
+                    <div class="analytics-chart-card" id="revenueTrendCard">
+                        <div class="analytics-chart-card__header">
+                            <div class="kpi-card__label">Accrual vs Collections</div>
+                            <div class="analytics-chart-card__legend">
+                                <span style="display:inline-flex;align-items:center;gap:4px;"><span style="width:10px;height:10px;border-radius:3px;background:#cbd5e1;display:inline-block;"></span> Projected</span>
+                                <span style="display:inline-flex;align-items:center;gap:4px;"><span style="width:10px;height:10px;border-radius:3px;background:#3b82f6;display:inline-block;"></span> Collected</span>
+                            </div>
+                        </div>
+                        <div class="analytics-trend-chart" id="revenueTrendBars">
+                            <!-- Rendered by JS -->
+                        </div>
+                    </div>
+                    <div class="analytics-chart-card" id="invoiceStatusCard">
+                        <div class="analytics-chart-card__header">
+                            <div class="kpi-card__label">Invoice Status Distribution</div>
+                            <div class="analytics-chart-card__legend" id="invoiceStatusLegend"></div>
+                        </div>
+                        <div class="analytics-status-dist" id="invoiceStatusDist">
+                            <!-- Rendered by JS -->
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Cash Flow Trend + Collections Aging -->
+                <section class="analytics-charts-row">
+                    <div class="analytics-chart-card" id="cashFlowTrendCard">
+                        <div class="analytics-chart-card__header">
+                            <div class="kpi-card__label">Cash Flow Trend</div>
+                            <div class="analytics-chart-card__legend" id="cashFlowTrendLegend">
+                            </div>
+                        </div>
+                        <div class="analytics-trend-chart" id="cashFlowTrendBars">
+                            <!-- Rendered by JS -->
+                        </div>
+                    </div>
+                    <div class="analytics-chart-card" id="agingCard">
+                        <div class="analytics-chart-card__header">
+                            <div class="kpi-card__label">Collections Aging</div>
+                        </div>
+                        <div class="analytics-aging-buckets" id="agingBuckets">
+                            <!-- Rendered by JS -->
+                        </div>
+                    </div>
+                </section>
+
+                <section class="insights-grid">
+                    <article class="insight-card insight-card--clickable" id="topClientInsight" data-drill="client">
+                        <div class="insight-card__eyebrow">Top Client</div>
+                        <div class="insight-card__title">No client data yet</div>
+                        <div class="insight-card__body">Add timesheets for the selected period to identify top-billing clients.</div>
+                    </article>
+                    <article class="insight-card insight-card--clickable" id="topConsultantInsight" data-drill="consultant">
+                        <div class="insight-card__eyebrow">Top Consultant</div>
+                        <div class="insight-card__title">No consultant data yet</div>
+                        <div class="insight-card__body">Consultant-level performance appears here once hours are added.</div>
+                    </article>
+                    <article class="insight-card insight-card--clickable" id="billingInsight" data-drill="billing">
+                        <div class="insight-card__eyebrow">Billing Status</div>
+                        <div class="insight-card__title">No billing data yet</div>
+                        <div class="insight-card__body">This view will separate pending and invoiced hours for the selected period.</div>
+                    </article>
+                </section>
+
+                <!-- Commission + Unbilled Alerts -->
+                <section class="insights-grid" style="grid-template-columns: repeat(2, minmax(0, 1fr));">
+                    <article class="insight-card" id="commissionInsight">
+                        <div class="insight-card__eyebrow">Commission Tracking</div>
+                        <div class="insight-card__title">No commission data yet</div>
+                        <div class="insight-card__body">Consultants with commission rates will show earned commissions here.</div>
+                    </article>
+                    <article class="insight-card" id="unbilledInsight" style="border-left: 3px solid var(--accent);">
+                        <div class="insight-card__eyebrow">⚠ Unbilled Hours Alert</div>
+                        <div class="insight-card__title">No unbilled hours</div>
+                        <div class="insight-card__body">All hours have been invoiced for the selected period.</div>
+                    </article>
+                </section>
+            </div>
+
+            <!-- ═══ PANEL: Clients ═══ -->
+            <div class="analytics-panel" id="panel-clients" role="tabpanel">
+                <div class="section">
+                    <div class="section__header">
+                        <h2 class="section__title" id="clientBreakdownTitle">Client Revenue Breakdown</h2>
+                        <div class="dashboard__actions">
+                            <button id="exportCsvBtn" class="btn btn--outline btn--sm" type="button">Export CSV</button>
+                            <button id="copyCsvBtn" class="btn btn--ghost btn--sm" type="button">Copy CSV</button>
+                        </div>
+                    </div>
+                    <div class="table-container">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th style="width: 2rem;"></th>
+                                    <th>Consultant</th>
+                                    <th>Status</th>
+                                    <th>Hours in Month</th>
+                                    <th>Projected Revenue</th>
+                                    <th>Invoice Link</th>
+                                </tr>
+                            </thead>
+                            <tbody id="clientBreakdownBody">
+                                <tr>
+                                    <td colspan="6" class="table__empty">Loading...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div class="analytics-panel" id="panel-pivot" role="tabpanel">
+                <div class="section">
+                    <div class="section__header" style="align-items: flex-end;">
+                        <div>
+                            <h2 class="section__title" id="pivotTitle" style="margin-bottom: 0.25rem;">Pivot by Consultant and Month</h2>
+                            <p class="table-note" style="margin: 0;">Heat intensity reflects relative value. <span style="display:inline-flex;align-items:center;gap:3px;margin-left:6px;"><span style="width:6px;height:6px;border-radius:50%;background:#22c55e;display:inline-block;"></span> Invoiced</span> &nbsp;<span style="display:inline-flex;align-items:center;gap:3px;"><span style="width:6px;height:6px;border-radius:50%;background:#f97316;display:inline-block;"></span> Pending</span> &nbsp;<span style="display:inline-flex;align-items:center;gap:3px;"><span style="width:6px;height:6px;border-radius:50%;background:#9333ea;display:inline-block;"></span> Paid</span></p>
+                        </div>
+                        <div class="segmented" role="group" aria-label="Pivot metric">
+                            <button id="pivotHoursBtn" class="segmented__btn is-active" type="button">Hours</button>
+                            <button id="pivotRevenueBtn" class="segmented__btn" type="button">Revenue</button>
+                        </div>
+                    </div>
+                    <div class="pivot-wrap">
+                        <table class="table pivot-table">
+                            <thead>
+                                <tr id="pivotHeadRow">
+                                    <th>Consultant</th>
+                                    <th>Currency</th>
+                                    <th>Total</th>
+                                </tr>
+                            </thead>
+                            <tbody id="pivotBody">
+                                <tr>
+                                    <td class="table__empty">Loading...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- ═══ Detail Drawer ═══ -->
+    <div class="detail-drawer-overlay" id="drawerOverlay"></div>
+    <aside class="detail-drawer" id="detailDrawer">
+        <div class="detail-drawer__header">
+            <h3 class="detail-drawer__title" id="drawerTitle">—</h3>
+            <button class="detail-drawer__close" id="drawerCloseBtn" aria-label="Close">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6 6 18M6 6l12 12"/></svg>
+            </button>
+        </div>
+        <div class="detail-drawer__body" id="drawerBody">
+            <!-- Rendered dynamically -->
+        </div>
+        <div class="detail-drawer__footer">
+            <button class="btn btn--primary btn--sm" id="drawerOpenTimesheets">Open in Timesheets</button>
+            <button class="btn btn--outline btn--sm" id="drawerCloseFooter">Close</button>
+        </div>
+    </aside>
+
+    <div id="toast" class="toast" role="status" aria-live="polite" aria-atomic="true"></div>
+
+
+    <script>
+    /* ── Analytics Mobile Filter Bar ── */
+    (function () {
+        const MOBILE_BP = 760;
+        if (window.innerWidth > MOBILE_BP) return;
+
+        const sheet        = document.getElementById('mfsSheet');
+        const backdrop     = document.getElementById('mfsBackdrop');
+        const filterBtn    = document.getElementById('mobileFilterBtn');
+        const badge        = document.getElementById('mobileFilterBadge');
+        const chipsRow     = document.getElementById('mobileFilterChips');
+        const mobileSearch = document.getElementById('mobileSearchMirror');
+
+        // Desktop filter elements driven by analytics-main.js
+        const desktopSearch   = document.getElementById('consultantSearch');
+        const desktopStatus   = document.getElementById('statusFilter');
+        const desktopClient   = document.getElementById('clientFilter');
+        const desktopW2       = document.getElementById('w2Filter');
+        const desktopCurrency = document.getElementById('currencyFilter');
+        const desktopYear     = document.getElementById('yearFilter');
+        const desktopMonth    = document.getElementById('snapshotMonthFilter');
+
+        // Sheet elements
+        const mfsClose       = document.getElementById('mfsClose');
+        const mfsClear       = document.getElementById('mfsClearBtn');
+        const mfsApply       = document.getElementById('mfsApplyBtn');
+        const mfsClient      = document.getElementById('mfsClientFilter');
+        const mfsW2          = document.getElementById('mfsW2Filter');
+        const mfsCurrency    = document.getElementById('mfsCurrencyFilter');
+        const mfsPeriodYear  = document.getElementById('mfsPeriodYear');
+        const mfsPeriodMonth = document.getElementById('mfsPeriodMonth');
+
+        function copySelectOptions(src, dest) {
+            if (!src || !dest) return;
+            const prev = dest.value;
+            dest.innerHTML = src.innerHTML;
+            dest.value = src.value || prev;
+        }
+
+        function syncMobilePeriodControls() {
+            if (mfsPeriodYear && desktopYear) {
+                const desktopYearValue = desktopYear.value || 'all';
+                mfsPeriodYear.value = desktopYearValue;
+                if (mfsPeriodYear.value !== desktopYearValue && mfsPeriodYear.options.length) {
+                    mfsPeriodYear.value = mfsPeriodYear.options[0].value || 'all';
+                }
+            }
+
+            if (mfsPeriodMonth && desktopMonth) {
+                const desktopMonthValue = desktopMonth.value || 'all';
+                mfsPeriodMonth.value = desktopMonthValue;
+                if (mfsPeriodMonth.value !== desktopMonthValue && mfsPeriodMonth.options.length) {
+                    mfsPeriodMonth.value = mfsPeriodMonth.options[0].value || 'all';
+                }
+            }
+        }
+
+        function openSheet() {
+            // Sync dynamic dropdowns populated async by analytics-main.js
+            copySelectOptions(desktopClient,   mfsClient);
+            copySelectOptions(desktopW2,       mfsW2);
+            copySelectOptions(desktopCurrency, mfsCurrency);
+            copySelectOptions(desktopYear,     mfsPeriodYear);
+            syncMobilePeriodControls();
+
+            // Sync status chips
+            const activeStatus = desktopStatus?.value || 'all';
+            document.querySelectorAll('[data-filter="status"]').forEach(b =>
+                b.classList.toggle('is-active', b.dataset.value === activeStatus)
+            );
+
+            sheet.classList.add('is-open');
+            backdrop.classList.add('is-open');
+            filterBtn?.setAttribute('aria-expanded', 'true');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeSheet() {
+            sheet.classList.remove('is-open');
+            backdrop.classList.remove('is-open');
+            filterBtn?.setAttribute('aria-expanded', 'false');
+            document.body.style.overflow = '';
+        }
+
+        function applyFilters() {
+            // Status
+            const activeChip = document.querySelector('[data-filter="status"].is-active');
+            if (activeChip && desktopStatus) {
+                desktopStatus.value = activeChip.dataset.value;
+                desktopStatus.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+
+            // Client, W2, Currency
+            [['mfsClientFilter', 'clientFilter'],
+             ['mfsW2Filter',     'w2Filter'],
+             ['mfsCurrencyFilter','currencyFilter']]
+              .forEach(([mId, dId]) => {
+                const m = document.getElementById(mId);
+                const d = document.getElementById(dId);
+                if (m && d && m.value !== d.value) {
+                    d.value = m.value;
+                    d.dispatchEvent(new Event('change', { bubbles: true }));
+                }
+            });
+
+            // Period — year change triggers data refetch; month just re-renders
+            if (mfsPeriodYear && desktopYear && mfsPeriodYear.value !== desktopYear.value) {
+                desktopYear.value = mfsPeriodYear.value;
+                desktopYear.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+            if (mfsPeriodMonth && desktopMonth && mfsPeriodMonth.value !== desktopMonth.value) {
+                desktopMonth.value = mfsPeriodMonth.value;
+                desktopMonth.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+
+            updateChips();
+            closeSheet();
+        }
+
+        function updateChips() {
+            if (!chipsRow) return;
+            const chips = [];
+
+            const statusVal = desktopStatus?.value;
+            if (statusVal && statusVal !== 'all') {
+                const labels = { pending: 'Pending', invoiced: 'Invoiced' };
+                chips.push({ key: 'status', label: labels[statusVal] || statusVal });
+            }
+            if (desktopClient?.value && desktopClient.value !== 'all') {
+                chips.push({ key: 'client', label: desktopClient.options[desktopClient.selectedIndex]?.text });
+            }
+            if (desktopW2?.value && desktopW2.value !== 'all') {
+                chips.push({ key: 'w2', label: desktopW2.options[desktopW2.selectedIndex]?.text });
+            }
+            if (desktopCurrency?.value && desktopCurrency.value !== 'all') {
+                chips.push({ key: 'currency', label: desktopCurrency.value });
+            }
+
+            chipsRow.innerHTML = chips.map(c => `
+                <button class="mfb-chip" data-chip-key="${c.key}">
+                    ${c.label} <span class="mfb-chip__remove">✕</span>
+                </button>`).join('');
+
+            const count = chips.length;
+            if (badge) { badge.textContent = count; badge.hidden = count === 0; }
+            filterBtn?.classList.toggle('has-filters', count > 0);
+        }
+
+        function clearAll() {
+            document.querySelectorAll('[data-filter="status"]').forEach(b =>
+                b.classList.toggle('is-active', b.dataset.value === 'all')
+            );
+            if (mfsClient)   mfsClient.value   = 'all';
+            if (mfsW2)       mfsW2.value       = 'all';
+            if (mfsCurrency) mfsCurrency.value = 'all';
+            // Period intentionally left — it's navigation, not a filter
+        }
+
+        // Event listeners
+        filterBtn?.addEventListener('click', openSheet);
+        mfsClose?.addEventListener('click',  closeSheet);
+        backdrop?.addEventListener('click',  closeSheet);
+        mfsApply?.addEventListener('click',  applyFilters);
+        mfsClear?.addEventListener('click',  clearAll);
+
+        // Status chip toggles
+        document.querySelectorAll('[data-filter="status"]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('[data-filter="status"]').forEach(b => b.classList.remove('is-active'));
+                btn.classList.add('is-active');
+            });
+        });
+
+        // Mirror mobile search → desktop search (drives analytics-main.js)
+        mobileSearch?.addEventListener('input', () => {
+            if (!desktopSearch) return;
+            desktopSearch.value = mobileSearch.value;
+            desktopSearch.dispatchEvent(new Event('input', { bubbles: true }));
+        });
+
+        // Tap active chip to remove that filter
+        chipsRow?.addEventListener('click', e => {
+            const chip = e.target.closest('.mfb-chip');
+            if (!chip) return;
+            const map = {
+                status:   desktopStatus,
+                client:   desktopClient,
+                w2:       desktopW2,
+                currency: desktopCurrency
+            };
+            const el = map[chip.dataset.chipKey];
+            if (el) { el.value = 'all'; el.dispatchEvent(new Event('change', { bubbles: true })); }
+            updateChips();
+        });
+
+        // Watch for analytics-main.js populating dynamic dropdowns and keep sheet in sync
+        const observer = new MutationObserver(() => {
+            if (sheet.classList.contains('is-open')) {
+                copySelectOptions(desktopClient,   mfsClient);
+                copySelectOptions(desktopW2,       mfsW2);
+                copySelectOptions(desktopCurrency, mfsCurrency);
+                copySelectOptions(desktopYear,     mfsPeriodYear);
+                syncMobilePeriodControls();
+            }
+        });
+        if (desktopClient)   observer.observe(desktopClient,   { childList: true });
+        if (desktopW2)       observer.observe(desktopW2,       { childList: true });
+        if (desktopCurrency) observer.observe(desktopCurrency, { childList: true });
+        if (desktopYear)     observer.observe(desktopYear,     { childList: true });
+
+        // Keep chips strip in sync with desktop state (handles external filter changes)
+        setInterval(updateChips, 500);
+    })();
+    </script>
+</body>
+
+</html>

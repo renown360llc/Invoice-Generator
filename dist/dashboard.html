@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#0ea5e9">
+  <title>Dashboard - Invoice Generator Pro</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+
+  <style>
+    /* Utilities and initial paint helpers */
+    .visually-hidden {
+      position: absolute !important;
+      height: 1px;
+      width: 1px;
+      overflow: hidden;
+      clip: rect(1px, 1px, 1px, 1px);
+      white-space: nowrap;
+    }
+
+    .btn-emoji {
+      display: inline-block;
+    }
+
+    .btn-text {
+      display: inline-block;
+    }
+
+    .skeleton {
+      background: linear-gradient(90deg, rgba(0, 0, 0, 0.06), rgba(0, 0, 0, 0.12), rgba(0, 0, 0, 0.06));
+      background-size: 200% 100%;
+      animation: shimmer 1.2s infinite;
+    }
+
+    @keyframes shimmer {
+      0% {
+        background-position: 200% 0;
+      }
+
+      100% {
+        background-position: -200% 0;
+      }
+    }
+
+    .focusable:focus {
+      position: static !important;
+      height: auto;
+      width: auto;
+      clip: auto;
+      padding: 0.5rem 0.75rem;
+      background: #111;
+      color: #fff;
+      border-radius: 6px;
+    }
+
+    .revenue-overview__meta {
+      margin-top: 0.35rem;
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+    }
+
+    .revenue-overview__controls {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 0.75rem;
+    }
+
+    .revenue-overview__currencies {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 0.5rem;
+    }
+
+    @media (max-width: 760px) {
+      .revenue-overview__controls {
+        width: 100%;
+        align-items: flex-start;
+      }
+
+      .revenue-overview__currencies {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-start;
+    }
+    }
+
+    /* Ledger & Status Styles */
+    .status-chip--partially_paid {
+        background: #fef3c7 !important;
+        color: #92400e !important;
+    }
+
+    .ledger-table {
+        width: 100%;
+        font-size: 0.8rem;
+        border-collapse: collapse;
+        margin-top: 0.5rem;
+    }
+    .ledger-table th {
+        text-align: left;
+        padding: 0.5rem;
+        color: var(--text-secondary);
+        border-bottom: 1px solid var(--surface-border);
+        font-weight: 600;
+    }
+    .ledger-table td {
+        padding: 0.5rem;
+        border-bottom: 1px dashed var(--surface-border);
+    }
+    .ledger-delete {
+        color: #ef4444;
+        cursor: pointer;
+        padding: 0.25rem;
+        border-radius: 4px;
+    }
+    .ledger-delete:hover {
+        background: #fef2f2;
+    }
+    .balance-summary {
+        background: var(--surface-alt);
+        border-radius: 8px;
+        padding: 0.75rem;
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 0.5rem;
+        margin-bottom: 1rem;
+    }
+    .balance-item__label {
+        font-size: 0.7rem;
+        color: var(--text-secondary);
+        text-transform: uppercase;
+        letter-spacing: 0.025em;
+    }
+    .balance-item__value {
+        font-size: 0.9rem;
+        font-weight: 700;
+        color: var(--text-primary);
+    }
+  </style>
+  <script type="module" crossorigin src="/invoices/assets/dashboard-W2WMdVUC.js"></script>
+  <link rel="modulepreload" crossorigin href="/invoices/assets/config-c-jMUxvT.js">
+  <link rel="modulepreload" crossorigin href="/invoices/assets/auth-De7W24vl.js">
+  <link rel="modulepreload" crossorigin href="/invoices/assets/utils-C_5o-oWL.js">
+  <link rel="modulepreload" crossorigin href="/invoices/assets/layout-BbfQceRr.js">
+  <link rel="modulepreload" crossorigin href="/invoices/assets/audit-trail-D0qCF0dr.js">
+  <link rel="modulepreload" crossorigin href="/invoices/assets/database-UdH0ph9m.js">
+  <link rel="modulepreload" crossorigin href="/invoices/assets/utils-DcZaKD3w.js">
+  <link rel="modulepreload" crossorigin href="/invoices/assets/db-timesheets-CCgcNFbQ.js">
+  <link rel="modulepreload" crossorigin href="/invoices/assets/crm-filters-B0ueEEPp.js">
+  <link rel="modulepreload" crossorigin href="/invoices/assets/preload-helper-CON-e7xv.js">
+  <link rel="modulepreload" crossorigin href="/invoices/assets/pdf-C6oxbDmS.js">
+  <link rel="modulepreload" crossorigin href="/invoices/assets/security-DyVtF4XP.js">
+  <link rel="stylesheet" crossorigin href="/invoices/assets/layout-D8RJuYgk.css">
+  <link rel="stylesheet" crossorigin href="/invoices/assets/dashboard-CTLGdJqp.css">
+  <link rel="stylesheet" crossorigin href="/invoices/assets/consultants-RQyqJNrw.css">
+</head>
+
+<body>
+  <a href="#mainContent" class="visually-hidden focusable">Skip to main content</a>
+  <noscript>
+    <div class="noscript-warning" role="alert">
+      JavaScript is required to use Invoice Generator Pro. Please enable JavaScript in your browser.
+    </div>
+  </noscript>
+  <!-- Navigation Header -->
+  <!-- Navigation injected by layout.js -->
+
+  <!-- Main Content -->
+  <main id="mainContent" class="dashboard" role="main">
+    <div class="dashboard__container">
+      <!-- Hero Header -->
+      <div class="dash-hero">
+        <div class="dash-hero__left">
+          <p class="dash-hero__greeting">Good day 👋</p>
+          <h1 class="dash-hero__title">Welcome back, <span id="userNameDisplay">there</span>!</h1>
+          <p class="dash-hero__subtitle">Here's what's happening with your business today</p>
+        </div>
+        <div class="dash-hero__actions">
+          <button id="menuToggle" class="btn btn--ghost" aria-label="Open menu" style="display:none;"><span
+              class="btn-emoji" aria-hidden="true">☰</span></button>
+          <button id="refreshBtn" class="btn btn--outline" title="Refresh Dashboard" aria-label="Refresh dashboard">
+            <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            Refresh
+          </button>
+          <a href="app.html" class="btn btn--primary">
+            <svg class="btn-icon" fill="currentColor" viewBox="0 0 20 20">
+              <path fill-rule="evenodd"
+                d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z"
+                clip-rule="evenodd" />
+            </svg>
+            New Invoice
+          </a>
+          <button id="themeToggle" class="btn btn--ghost" aria-label="Toggle theme" title="Toggle theme"><span
+              class="btn-emoji" aria-hidden="true">🌙</span></button>
+          <span id="lastUpdated" class="last-updated" aria-live="polite">Last updated: —</span>
+        </div><!-- End dash-hero__actions -->
+      </div><!-- End dash-hero -->
+      <!-- container continues to wrap stats and sections -->
+
+      <!-- Stats Cards — 6 KPI Grid -->
+      <section class="stats-grid" aria-label="Key stats">
+
+        <div class="stat-card stat-card--blue">
+          <div class="stat-card__accent"></div>
+          <div class="stat-card__icon-wrap">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <div class="stat-card__label">Paid This Month</div>
+          <div class="stat-card__value" id="monthlyRevenue"><span class="skeleton"
+              style="display:inline-block;height:1em;width:5ch;border-radius:4px;"></span></div>
+          <div class="stat-card__change" id="monthlyChange">—</div>
+        </div>
+
+        <div class="stat-card stat-card--violet">
+          <div class="stat-card__accent"></div>
+          <div class="stat-card__icon-wrap">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+          </div>
+          <div class="stat-card__label">Total Invoices</div>
+          <div class="stat-card__value" id="totalInvoices"><span class="skeleton"
+              style="display:inline-block;height:1em;width:5ch;border-radius:4px;"></span></div>
+          <div class="stat-card__change" id="invoiceChange">—</div>
+        </div>
+
+        <div class="stat-card stat-card--emerald">
+          <div class="stat-card__accent"></div>
+          <div class="stat-card__icon-wrap">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+            </svg>
+          </div>
+          <div class="stat-card__label">Paid YTD</div>
+          <div class="stat-card__value" id="yearlyRevenue"><span class="skeleton"
+              style="display:inline-block;height:1em;width:5ch;border-radius:4px;"></span></div>
+          <div class="stat-card__change" id="yearlyChange">—</div>
+        </div>
+
+        <div class="stat-card stat-card--amber">
+          <div class="stat-card__accent"></div>
+          <div class="stat-card__icon-wrap">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+            </svg>
+          </div>
+          <div class="stat-card__label">Conversion</div>
+          <div class="stat-card__value" id="conversionRate"><span class="skeleton"
+              style="display:inline-block;height:1em;width:5ch;border-radius:4px;"></span></div>
+          <div class="stat-card__change">—</div>
+        </div>
+
+        <div class="stat-card stat-card--rose">
+          <div class="stat-card__accent"></div>
+          <div class="stat-card__icon-wrap">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <div class="stat-card__label">Pending</div>
+          <div class="stat-card__value" id="activeTasks"><span class="skeleton"
+              style="display:inline-block;height:1em;width:5ch;border-radius:4px;"></span></div>
+          <div class="stat-card__change">—</div>
+        </div>
+
+        <!-- Active Consultants -->
+        <div class="stat-card stat-card--teal">
+          <div class="stat-card__accent"></div>
+          <div class="stat-card__icon-wrap">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+          </div>
+          <div class="stat-card__label">Active Consultants</div>
+          <div class="stat-card__value" id="activeConsultantsKpi"><span class="skeleton"
+              style="display:inline-block;height:1em;width:3ch;border-radius:4px;"></span></div>
+          <div class="stat-card__change" id="activeConsultantsChange">—</div>
+        </div>
+
+        <div class="stat-card stat-card--cyan">
+          <div class="stat-card__accent"></div>
+          <div class="stat-card__icon-wrap">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+            </svg>
+          </div>
+          <div class="stat-card__label">Outstanding A/R</div>
+          <div class="stat-card__value" id="outstandingReceivables"><span class="skeleton"
+              style="display:inline-block;height:1em;width:5ch;border-radius:4px;"></span></div>
+          <div class="stat-card__change" id="outstandingChange">—</div>
+        </div>
+
+      </section>
+
+      <!-- Month Close -->
+      <section class="section">
+        <div class="section__header section__header--with-controls">
+          <div>
+            <h2 class="section__title">Month Close</h2>
+            <p class="section__subtitle">Track whether the last billing period is ready for invoicing and collections follow-up.</p>
+          </div>
+          <a href="timesheets.html" class="link">Manage close period →</a>
+        </div>
+        <div id="monthCloseBanner" class="close-banner" aria-live="polite"></div>
+      </section>
+
+      <!-- Operations — Workflow Cards Only -->
+      <section class="section">
+        <div class="section__header section__header--with-controls">
+          <div>
+            <h2 class="section__title">Operations Overview</h2>
+            <p class="section__subtitle">Billing, coverage, collections, and review status at a glance.</p>
+          </div>
+          <a href="timesheets.html" class="link">Open timesheets →</a>
+        </div>
+        <div id="workflowQueue" class="workflow-grid" aria-live="polite"></div>
+      </section>
+
+      <!-- Exception Center -->
+      <section class="section">
+        <div class="section__header section__header--with-controls">
+          <div>
+            <h2 class="section__title">Exception Center</h2>
+            <p class="section__subtitle">Items that need attention before they become billing problems.</p>
+          </div>
+          <a href="invoices.html" class="link">Review invoices →</a>
+        </div>
+        <div id="exceptionCenter" class="exception-list" aria-live="polite"></div>
+      </section>
+
+      <!-- Revenue Overview + Collections Activity — Side by Side -->
+      <div class="dash-duo">
+        <div class="section">
+          <div class="section__header section__header--with-controls">
+            <div>
+              <h2 class="section__title">Revenue Overview</h2>
+              <div style="font-size: 1.4rem; font-weight: 800; color: var(--text-primary); line-height: 1; margin-top: 0.35rem;"><span id="chartTotal">—</span></div>
+              <div id="chartMeta" class="revenue-overview__meta">Paid revenue by received date</div>
+            </div>
+            <div class="revenue-overview__controls">
+              <div id="revenueCurrencyFilter" class="revenue-overview__currencies" role="group" aria-label="Revenue currency"></div>
+              <div class="segmented" role="group" aria-label="Revenue range">
+                <button type="button" class="segmented__btn is-active" data-range="30d" aria-pressed="true" aria-controls="revenueChart">30D</button>
+                <button type="button" class="segmented__btn" data-range="90d" aria-pressed="false" aria-controls="revenueChart">90D</button>
+                <button type="button" class="segmented__btn" data-range="ytd" aria-pressed="false" aria-controls="revenueChart">YTD</button>
+              </div>
+            </div>
+          </div>
+          <figure class="chart-container">
+            <div class="chart-skeleton" aria-hidden="true">
+              <span class="skeleton"></span><span class="skeleton"></span><span class="skeleton"></span><span class="skeleton"></span><span class="skeleton"></span>
+            </div>
+            <canvas id="revenueChart" aria-describedby="revenueChartDesc"></canvas>
+            <figcaption id="revenueChartDesc" class="visually-hidden">Revenue for the last 12 months.</figcaption>
+          </figure>
+        </div>
+
+        <div class="section">
+          <div class="section__header section__header--with-controls">
+            <div>
+              <h2 class="section__title">Collections Activity</h2>
+              <p class="section__subtitle">Payments, due invoices, and collections items.</p>
+            </div>
+            <a href="invoices.html" class="link">View all →</a>
+          </div>
+          <div id="collectionsFeed" class="collections-feed" aria-live="polite"></div>
+        </div>
+      </div>
+
+      <!-- Recent Activity — Compact Timeline -->
+      <section class="section">
+        <div class="section__header">
+          <div>
+            <h2 class="section__title">Recent Activity</h2>
+            <p class="section__subtitle">Audit trail of recent changes across consultants, timesheets, invoices, and templates.</p>
+          </div>
+        </div>
+        <div id="recentActivityFeed" class="activity-timeline" aria-live="polite"></div>
+      </section>
+
+    </div><!-- End dashboard__container -->
+  </main>
+
+  <!-- Modals and Toasts -->
+  <div id="toast" class="toast" role="status" aria-live="polite" aria-atomic="true"></div>
+
+  <!-- Edit Payment Info Modal -->
+  <div id="paymentInfoModal" class="modal-backdrop"
+    style="display: none; align-items: center; justify-content: center; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 9999;">
+    <div
+      style="background: white; border-radius: 1.25rem; padding: 1.25rem; max-width: 520px; width: 100%; margin: 1rem; max-height: 92vh; overflow-y: auto; box-shadow: var(--shadow-paper);">
+      
+      <!-- Header -->
+      <div class="erp-modal-header">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+          <div class="erp-status-badge" id="modalStatusBadge">Sent</div>
+          <button id="closePaymentModal" style="background:none; border:none; color:var(--text-tertiary); cursor:pointer; padding:4px;">
+            <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+          </button>
+        </div>
+        <h3 style="font-size: 1.25rem; font-weight: 800; color: var(--text-primary); letter-spacing: -0.02em;">Payment Reconciliation</h3>
+        <p id="modalInvoiceNumber" style="color: var(--text-secondary); font-size: 0.8rem; margin-top: 0.125rem; font-weight: 500;"></p>
+      </div>
+
+      <!-- Compact Financial Summary -->
+      <div class="erp-financial-row">
+        <div class="erp-metric">
+          <span class="erp-metric__label">Billed</span>
+          <span id="summaryTotal" class="erp-metric__value">$0.00</span>
+        </div>
+        <div class="erp-metric">
+          <span class="erp-metric__label">Paid</span>
+          <span id="summaryPaid" class="erp-metric__value" style="color: var(--accent-green);">$0.00</span>
+        </div>
+        <div class="erp-metric">
+          <span class="erp-metric__label">Due</span>
+          <span id="summaryBalance" class="erp-metric__value" style="color: var(--accent-yellow);">$0.00</span>
+        </div>
+        <div class="erp-metric" style="align-items: flex-end; min-width: 60px;">
+          <span class="erp-metric__label">Progress</span>
+          <span class="erp-metric__value" id="modalProgressPercent" style="color: var(--accent-green);">0%</span>
+        </div>
+      </div>
+
+      <div class="erp-progress-bar" style="margin-top: -0.5rem; margin-bottom: 1.25rem;">
+        <div class="erp-progress-fill" id="modalProgressFill" style="width: 0%"></div>
+      </div>
+
+      <!-- Post New Entry -->
+      <div class="erp-card" style="background: rgba(248, 250, 252, 0.5); border-style: dashed; margin-bottom: 0.75rem;">
+        <div class="erp-card__title" style="margin-bottom: 0.5rem;">
+          <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          Post New Installment
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 0.75rem;">
+          <div>
+            <label style="display: block; font-size: 0.65rem; font-weight: 700; margin-bottom: 0.25rem; color: var(--text-secondary); text-transform: uppercase;">Entry Date</label>
+            <input type="date" id="newPaymentDate" style="width: 100%; padding: 0.45rem; border: 1.5px solid var(--surface-glass-border); border-radius: 6px; font-size: 0.8rem;">
+          </div>
+          <div>
+            <label style="display: block; font-size: 0.65rem; font-weight: 700; margin-bottom: 0.25rem; color: var(--text-secondary); text-transform: uppercase;">Credit Amount</label>
+            <input type="number" id="newPaymentAmount" placeholder="0.00" step="0.01" style="width: 100%; padding: 0.45rem; border: 1.5px solid var(--surface-glass-border); border-radius: 6px; font-size: 0.8rem;">
+          </div>
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 0.875rem;">
+          <div>
+            <label style="display: block; font-size: 0.65rem; font-weight: 700; margin-bottom: 0.25rem; color: var(--text-secondary); text-transform: uppercase;">
+              USD Realized
+              <div class="info-tooltip-container">
+                <span class="info-tooltip-trigger">i</span>
+                <div class="info-tooltip-box">Exact USD amount received.</div>
+              </div>
+            </label>
+            <input type="number" id="newPaymentUsd" placeholder="0.00" step="0.01" style="width: 100%; padding: 0.45rem; border: 1.5px solid var(--surface-glass-border); border-radius: 6px; font-size: 0.8rem;">
+          </div>
+          <div>
+            <label style="display: block; font-size: 0.65rem; font-weight: 700; margin-bottom: 0.25rem; color: var(--text-secondary); text-transform: uppercase;">Ref / Note</label>
+            <input type="text" id="newPaymentNote" placeholder="e.g. Check #..." style="width: 100%; padding: 0.45rem; border: 1.5px solid var(--surface-glass-border); border-radius: 6px; font-size: 0.8rem;">
+          </div>
+        </div>
+        <button id="addPaymentBtn" class="btn btn--primary" style="width: 100%; padding: 0.5rem; font-weight: 700; font-size: 0.85rem;">Record Transaction</button>
+      </div>
+
+      <!-- Transaction Audit Trail -->
+      <div class="erp-card" style="margin-bottom: 0.75rem;">
+        <div class="erp-card__title" style="margin-bottom: 0.5rem;">
+          <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+          Audit Trail
+          <div class="info-tooltip-container">
+            <span class="info-tooltip-trigger">i</span>
+            <div class="info-tooltip-box">Log of all installments received.</div>
+          </div>
+        </div>
+        <div style="max-height: 100px; overflow-y: auto; margin: 0 -0.25rem;">
+          <table class="ledger-table">
+            <tbody id="paymentLedgerBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div id="editModeIndicator" style="display: none; align-items: center; justify-content: space-between; margin-bottom: 0.5rem; padding: 0.4rem 0.75rem; background: var(--primary-light); border-radius: 6px; border: 1px solid rgba(255,107,74,0.1);">
+        <span style="font-size: 0.75rem; font-weight: 700; color: var(--primary);">Editing Installment...</span>
+        <button id="cancelEditBtn" style="background: none; border: none; color: var(--text-secondary); font-size: 0.7rem; font-weight: 700; cursor: pointer; text-decoration: underline;">Cancel Edit</button>
+      </div>
+        <div style="margin-bottom: 1rem;">
+          <label style="display: block; font-size: 0.75rem; font-weight: 700; margin-bottom: 0.375rem; color: var(--text-secondary);">
+            USD Realized
+            <div class="info-tooltip-container">
+              <span class="info-tooltip-trigger">i</span>
+              <div class="info-tooltip-box">Record the exact amount realized in your USD account after bank conversion fees.</div>
+            </div>
+          </label>
+          <input type="number" id="newPaymentUsd" placeholder="0.00" step="0.01" style="width: 100%; padding: 0.6rem; border: 1.5px solid var(--surface-glass-border); border-radius: 8px; font-size: 0.875rem;">
+
+      <!-- Advanced Status Override -->
+      <div style="margin-top: 1rem; padding: 0.5rem 0.875rem; background: #fdfdfd; border: 1px solid var(--surface-glass-border); border-radius: 8px;">
+        <label style="display: flex; align-items: center; font-size: 0.7rem; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em;">
+          Manual Status Override
+          <div class="info-tooltip-container">
+            <span class="info-tooltip-trigger">i</span>
+            <div class="info-tooltip-box">Update the invoice status manually.</div>
+          </div>
+        </label>
+        <select id="modalStatusInput" style="width: 100%; border: none; background: transparent; font-size: 0.875rem; font-weight: 600; padding: 0.25rem 0; cursor: pointer; color: var(--text-primary); outline: none;">
+          <option value="draft">Draft</option>
+          <option value="sent">Sent</option>
+          <option value="partially_paid">Partially Paid</option>
+          <option value="paid">Paid</option>
+        </select>
+      </div>
+
+      <div style="display: flex; gap: 0.75rem; margin-top: 1.25rem;">
+        <button id="cancelPaymentBtn" class="btn" style="flex: 1; padding: 0.5rem; font-size: 0.85rem; background: var(--surface-alt); border: 1px solid var(--surface-glass-border);">Cancel</button>
+        <button id="saveStatusBtn" class="btn btn--primary" style="flex: 1.5; padding: 0.5rem; font-size: 0.85rem;">Save Changes</button>
+      </div>
+    </div>
+  </div>
+
+
+</body>
+
+</html>
