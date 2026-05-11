@@ -194,13 +194,16 @@ export async function generatePDF(data) {
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(80);
 
+    // Strip Unicode bidirectional/invisible control chars that cause jsPDF to space out characters
+    const cleanText = (str) => (str || '').replace(/[​-‏‪-‮⁦-⁩﻿­]/g, '').trim();
+
     if (data.notes) {
         doc.setFont('helvetica', 'bold');
         doc.text('Notes:', margin, y);
         y += 4;
         doc.setFont('helvetica', 'normal');
-        doc.text(data.notes, margin, y, { maxWidth: contentWidth });
-        y += 10; // Approx logic
+        doc.text(cleanText(data.notes), margin, y, { maxWidth: contentWidth });
+        y += 10;
     }
 
     if (data.payment_instructions) {
@@ -208,7 +211,7 @@ export async function generatePDF(data) {
         doc.text('Payment Instructions:', margin, y);
         y += 4;
         doc.setFont('helvetica', 'normal');
-        doc.text(data.payment_instructions, margin, y, { maxWidth: contentWidth });
+        doc.text(cleanText(data.payment_instructions), margin, y, { maxWidth: contentWidth });
     }
 
     doc.save(`Invoice-${data.invoice_number}.pdf`);
