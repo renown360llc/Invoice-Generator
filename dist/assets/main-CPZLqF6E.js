@@ -1,1 +1,0 @@
-import"./config-c-jMUxvT.js";import{l as r}from"./layout-BbfQceRr.js";import{g as t}from"./auth-De7W24vl.js";import"./utils-C_5o-oWL.js";t().then(o=>{o&&(window.location.href="dashboard.html")});r("");
