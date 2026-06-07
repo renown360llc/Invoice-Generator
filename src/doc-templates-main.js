@@ -384,7 +384,7 @@ const PRINT_CSS = `
 
 async function getLogoDataUrl() {
     try {
-        const resp = await fetch('assets/logo-sm.png')
+        const resp = await fetch('assets/logo.png')
         const blob = await resp.blob()
         return await new Promise(res => {
             const r = new FileReader()

@@ -37,7 +37,7 @@ export async function loadLayout(activeLink = '') {
         <!-- Sidebar -->
         <aside class="sidebar" id="sidebar">
             <div class="sidebar__brand">
-                <img src="assets/logo-sm.png" alt="Renown360" style="height:36px;width:36px;object-fit:contain;border-radius:6px;flex-shrink:0;">
+                <img src="assets/logo.png" alt="Renown360" style="height:36px;width:36px;object-fit:contain;border-radius:6px;flex-shrink:0;">
                 <span class="sidebar__name">Renown360</span>
             </div>
 

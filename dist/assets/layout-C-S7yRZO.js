@@ -7,7 +7,7 @@ import{g as m,c as $}from"./auth-De7W24vl.js";import{e as E}from"./utils-C_5o-oW
         <!-- Sidebar -->
         <aside class="sidebar" id="sidebar">
             <div class="sidebar__brand">
-                <img src="assets/logo-sm.png" alt="Renown360" style="height:36px;width:36px;object-fit:contain;border-radius:6px;flex-shrink:0;">
+                <img src="assets/logo.png" alt="Renown360" style="height:36px;width:36px;object-fit:contain;border-radius:6px;flex-shrink:0;">
                 <span class="sidebar__name">Renown360</span>
             </div>
 
