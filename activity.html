@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <base href="/invoices/">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Activity Log - Invoice Generator Pro</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <link rel="stylesheet" href="styles/variables.css">
+    <link rel="stylesheet" href="styles/app.css">
+    <link rel="stylesheet" href="styles/sidebar.css?v=1">
+    <link rel="stylesheet" href="styles/dashboard.css?v=13">
+    <link rel="stylesheet" href="styles/mobile.css?v=2">
+
+    <style>
+        body {
+            display: none;
+        }
+    </style>
+    <script type="module">
+        import { requireAuth } from './src/auth.js';
+        requireAuth().then(user => {
+            if (user) document.body.style.display = 'block';
+        });
+    </script>
+</head>
+
+<body>
+    <!-- Navigation injected by layout.js -->
+
+    <!-- Main Content -->
+    <main class="dashboard">
+        <div class="dashboard__container">
+            <!-- Header -->
+            <div class="dashboard__header invoice-header">
+                <div class="invoice-header__content">
+                    <h1 class="dashboard__title">Activity Log</h1>
+                    <p class="dashboard__subtitle">Full audit trail of changes to consultants, timesheets, invoices &amp; templates</p>
+                </div>
+            </div>
+
+            <!-- Filter bar -->
+            <div style="display: flex; gap: 0.75rem; flex-wrap: wrap; align-items: center; margin-bottom: 1.5rem;">
+                <select id="entityFilter" class="form-field__select" style="max-width: 220px;">
+                    <option value="all">All activity</option>
+                    <option value="invoice">Invoices</option>
+                    <option value="client">Clients</option>
+                    <option value="company">Companies</option>
+                    <option value="consultant">Consultants</option>
+                    <option value="timesheet">Timesheets</option>
+                    <option value="template">Templates</option>
+                </select>
+                <input type="search" id="activitySearch" class="form-field__input" placeholder="Search loaded activity…" style="flex: 1; min-width: 200px;">
+            </div>
+
+            <!-- Activity feed -->
+            <section class="section">
+                <div id="activityFeed" class="activity-timeline" aria-live="polite">
+                    <div style="display:flex; flex-direction:column; gap:1.25rem; padding:0.5rem 0;">
+                        <div class="skeleton-line" style="width:55%"></div>
+                        <div class="skeleton-line" style="width:42%"></div>
+                        <div class="skeleton-line" style="width:60%"></div>
+                        <div class="skeleton-line" style="width:48%"></div>
+                        <div class="skeleton-line" style="width:52%"></div>
+                    </div>
+                </div>
+
+                <!-- Empty State (hidden initially) -->
+                <div id="emptyState" class="empty-state" style="display: none; text-align: center; padding: 3rem 1rem;">
+                    <div style="font-size: 3rem; margin-bottom: 1rem;">🗂️</div>
+                    <h3 style="font-size: 1.125rem; font-weight: 700; margin-bottom: 0.5rem;">No activity yet</h3>
+                    <p class="empty-state__text" style="color: var(--text-secondary); font-size: 0.875rem;">
+                        Once you edit consultants, timesheets, invoices, or templates, the history will show here.
+                    </p>
+                </div>
+
+                <div style="text-align: center; margin-top: 1.5rem;">
+                    <button id="loadMoreBtn" class="btn btn--outline" style="display: none;">Load more</button>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <div id="toast" class="toast"></div>
+
+    <script type="module">
+        import { loadLayout } from './src/components/layout.js';
+        loadLayout('activity');
+    </script>
+    <script type="module" src="src/activity-main.js"></script>
+</body>
+
+</html>

@@ -63,12 +63,36 @@ function compactTemplate(record = {}) {
     };
 }
 
+function compactClient(record = {}) {
+    return {
+        id: record.id || null,
+        name: record.name || null,
+        company: record.company || null,
+        email: record.email || null,
+        phone: record.phone || null,
+        status: record.status || 'active'
+    };
+}
+
+function compactCompany(record = {}) {
+    return {
+        id: record.id || null,
+        name: record.name || null,
+        email: record.email || null,
+        phone: record.phone || null,
+        currency: record.currency || null,
+        status: record.status || 'active'
+    };
+}
+
 function compactRecord(entityType, record) {
     if (!record) return null;
     if (entityType === 'invoice') return compactInvoice(record);
     if (entityType === 'consultant') return compactConsultant(record);
     if (entityType === 'timesheet') return compactTimesheet(record);
     if (entityType === 'template') return compactTemplate(record);
+    if (entityType === 'client') return compactClient(record);
+    if (entityType === 'company') return compactCompany(record);
     return record;
 }
 
@@ -118,6 +142,35 @@ export async function logAuditEvent({
     }
 
     return data;
+}
+
+export async function getAuditEvents({ limit = 50, offset = 0, entityType = null } = {}) {
+    const user = await getCurrentUser();
+    if (!user) return [];
+
+    let query = supabase
+        .from('audit_events')
+        .select('*')
+        .eq('user_id', user.id);
+
+    if (entityType && entityType !== 'all') {
+        query = query.eq('entity_type', entityType);
+    }
+
+    const { data, error } = await query
+        .order('created_at', { ascending: false })
+        .range(offset, offset + limit - 1);
+
+    if (error) {
+        if (isMissingAuditTableError(error)) {
+            console.warn('Audit trail table does not exist yet.');
+            return [];
+        }
+        reportAuditError('load audit events', error, { limit, offset, entityType });
+        return [];
+    }
+
+    return data || [];
 }
 
 export async function getRecentAuditEvents(limit = 8) {

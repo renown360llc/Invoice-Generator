@@ -69,6 +69,20 @@ export async function loadLayout(activeLink = '') {
 
                 <div class="sidebar__section-label">CRM</div>
 
+                <a href="clients.html" class="sidebar__link ${activeLink === 'clients' ? 'sidebar__link--active' : ''}">
+                    <svg class="sidebar__icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0H5m14 0h2m-16 0H3m9-14h.01M12 11h.01M12 15h.01"/>
+                    </svg>
+                    Clients
+                </a>
+
+                <a href="companies.html" class="sidebar__link ${activeLink === 'companies' ? 'sidebar__link--active' : ''}">
+                    <svg class="sidebar__icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M3 21h18M5 21V7l8-4v18M19 21V11l-6-3M9 9h.01M9 13h.01M9 17h.01"/>
+                    </svg>
+                    Companies
+                </a>
+
                 <a href="consultants.html" class="sidebar__link ${activeLink === 'consultants' ? 'sidebar__link--active' : ''}">
                     <svg class="sidebar__icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/>
@@ -99,13 +113,6 @@ export async function loadLayout(activeLink = '') {
                     Invoices
                 </a>
 
-                <a href="templates.html" class="sidebar__link ${activeLink === 'templates' ? 'sidebar__link--active' : ''}">
-                    <svg class="sidebar__icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414A1 1 0 0120 8.414V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2"/>
-                    </svg>
-                    Templates
-                </a>
-
                 <div class="sidebar__section-label">Insights</div>
 
                 <a href="analytics.html" class="sidebar__link ${activeLink === 'analytics' ? 'sidebar__link--active' : ''}">
@@ -113,6 +120,13 @@ export async function loadLayout(activeLink = '') {
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M3 3v18h18M8 14l3-3 3 2 4-5"/>
                     </svg>
                     Analytics
+                </a>
+
+                <a href="activity.html" class="sidebar__link ${activeLink === 'activity' ? 'sidebar__link--active' : ''}">
+                    <svg class="sidebar__icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                    Activity Log
                 </a>
 
                 <div class="sidebar__section-label">Account</div>
@@ -158,13 +172,6 @@ export async function loadLayout(activeLink = '') {
                 </div>
 
                 <div class="top-header__actions">
-                    <button class="top-header__icon-btn" title="Notifications" aria-label="Notifications">
-                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
-                        </svg>
-                        <span class="notification-dot"></span>
-                    </button>
-
                     ${user ? `
                     <div class="top-header__user" id="userMenuBtn">
                         <div class="top-header__avatar">${initials}</div>
@@ -340,9 +347,11 @@ function getPageTitle(activeLink) {
         'dashboard': 'Dashboard',
         'app': 'Create Invoice',
         'invoices': 'Invoices',
-        'templates': 'Templates',
+        'companies': 'Companies',
         'consultants': 'Consultants',
+        'clients': 'Clients',
         'analytics': 'Analytics',
+        'activity': 'Activity Log',
         'timesheets': 'Timesheets',
         'profile': 'Profile',
         'onboarding': 'Onboarding Hub',

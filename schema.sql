@@ -163,12 +163,63 @@ CREATE POLICY "Users can manage their own templates"
 
 CREATE INDEX IF NOT EXISTS templates_user_id_idx ON public.templates(user_id);
 
+-- Clients Table (standalone client registry / CRM)
+CREATE TABLE IF NOT EXISTS public.clients (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    company TEXT,
+    email TEXT,
+    phone TEXT,
+    address TEXT,
+    notes TEXT,
+    status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'inactive'))
+);
+
+ALTER TABLE public.clients ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can manage their own clients"
+    ON public.clients
+    FOR ALL
+    USING (auth.uid() = user_id)
+    WITH CHECK (auth.uid() = user_id);
+
+CREATE INDEX IF NOT EXISTS clients_user_id_idx ON public.clients(user_id);
+
+-- Companies Table (standalone sender / "Bill From" registry, replaces invoice Templates)
+CREATE TABLE IF NOT EXISTS public.companies (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    email TEXT,
+    phone TEXT,
+    address TEXT,
+    logo TEXT,                              -- base64 data URL
+    brand_color TEXT NOT NULL DEFAULT '#000000',
+    currency TEXT NOT NULL DEFAULT 'USD',
+    tax_rate NUMERIC(5, 2) NOT NULL DEFAULT 0,
+    payment_instructions TEXT,
+    status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'inactive'))
+);
+
+ALTER TABLE public.companies ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can manage their own companies"
+    ON public.companies
+    FOR ALL
+    USING (auth.uid() = user_id)
+    WITH CHECK (auth.uid() = user_id);
+
+CREATE INDEX IF NOT EXISTS companies_user_id_idx ON public.companies(user_id);
+
 -- Audit Trail Table
 CREATE TABLE IF NOT EXISTS public.audit_events (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
     user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-    entity_type TEXT NOT NULL CHECK (entity_type IN ('consultant', 'timesheet', 'invoice', 'template')),
+    entity_type TEXT NOT NULL CHECK (entity_type IN ('consultant', 'timesheet', 'invoice', 'template', 'client', 'company')),
     entity_id UUID,
     entity_key TEXT,
     action TEXT NOT NULL,

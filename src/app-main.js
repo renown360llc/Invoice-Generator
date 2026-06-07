@@ -4,12 +4,16 @@
  */
 
 import { getCurrentUser, signOut } from './auth.js';
+import { supabase } from './config.js';
+import { buildInvoiceEmail, isValidEmail } from './modules/invoice-email.js';
+import { dbGetClients } from './modules/db-clients.js';
+import { formatClientOption, sortClientsByName } from './modules/clients.js';
+import { dbGetCompanies } from './modules/db-companies.js';
+import { formatCompanyOption, sortCompaniesByName } from './modules/companies.js';
 import {
     saveInvoice as dbSaveInvoice,
     getInvoice as dbGetInvoice,
-    getNextInvoiceNumber,
-    saveTemplate as dbSaveTemplate,
-    getTemplates as dbGetTemplates
+    getNextInvoiceNumber
 } from './database.js';
 import { dbGetConsultants } from './modules/db-consultants.js';
 import {
@@ -35,7 +39,6 @@ const state = {
     logo: null,
     subtotal: 0,
     total: 0,
-    currentTemplateName: null,
     isReadOnlyUser: false,
     isLocked: false,       // true when invoice is paid/sent — form is read-only
     isDirty: false,        // true when there are unsaved changes
@@ -172,8 +175,6 @@ function applyReadOnlyAccess() {
         'newBtn',
         'saveBtn',
         'invoiceUnlockBtn',
-        'saveTemplateBtn',
-        'updateTemplateBtn',
         'pullTimesheetsBtn',
         'loadTimesheetsBtn',
         'generateTimesheetBtn',
@@ -188,10 +189,10 @@ function applyReadOnlyAccess() {
         el.setAttribute('aria-disabled', 'true');
     });
 
-    const templateSelect = document.getElementById('templateSelect');
-    if (templateSelect) {
-        templateSelect.disabled = true;
-        templateSelect.title = getReadOnlyMessage('loading templates');
+    const companySelect = document.getElementById('companySelect');
+    if (companySelect) {
+        companySelect.disabled = true;
+        companySelect.title = getReadOnlyMessage('loading companies');
     }
 
     const form = document.getElementById('invoiceForm');
@@ -330,11 +331,6 @@ async function init() {
             }, 1000);
         }
     } else {
-        const templateUseId = urlParams.get('template_use')
-        if (templateUseId) {
-            await handleLoadTemplate(templateUseId)
-            showToast('Template applied ✓', 'success')
-        }
         setDefaultDates();
         await initializeInvoiceNumber();
         document.getElementById('notes').value = 'Thank you for your business!'; // Set default note
@@ -363,7 +359,8 @@ async function init() {
     }
 
     bindEventListeners();
-    await updateTemplateDropdown();
+    await updateCompanyDropdown();
+    await updateClientDropdown();
     applyReadOnlyAccess();
     if (state.isReadOnlyUser && !state.currentInvoiceNumber) {
         setLocked(false, 'draft');
@@ -518,29 +515,25 @@ function bindEventListeners() {
         generatePDF(data);
     });
 
-    // Email Button Handler (Mailto Fallback)
+    // Email Button Handler — sends the invoice PDF directly via the backend.
     const emailBtn = document.getElementById('emailBtn');
     if (emailBtn) {
-        emailBtn.addEventListener('click', () => {
-            const data = gatherFormData();
-            const subject = `Invoice ${data.invoice_number} from ${data.business_info.name}`;
-            const body = `Hi ${data.client_info.name},\n\nPlease find attached invoice ${data.invoice_number} for ${data.totals.totalDisplay}.\n\nDue Date: ${data.invoice_meta.dueDate}\n\nThank you,\n${data.business_info.name}`;
+        emailBtn.addEventListener('click', () => handleEmailInvoice(emailBtn));
+    }
 
-            const mailtoLink = `mailto:${data.client_info.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-            window.location.href = mailtoLink;
-            showToast('Opening email client...');
+    // Bill From: load a saved company into the form
+    const companySelect = document.getElementById('companySelect');
+    if (companySelect) {
+        companySelect.addEventListener('change', (e) => {
+            if (e.target.value) handleLoadCompany(e.target.value);
         });
     }
-
-    // Templates
-    document.getElementById('saveTemplateBtn').addEventListener('click', handleSaveTemplate);
-    const updateBtn = document.getElementById('updateTemplateBtn');
-    if (updateBtn) {
-        updateBtn.addEventListener('click', handleUpdateTemplate);
+    const clientSelect = document.getElementById('clientSelect');
+    if (clientSelect) {
+        clientSelect.addEventListener('change', (e) => {
+            if (e.target.value) handleLoadClient(e.target.value);
+        });
     }
-    document.getElementById('templateSelect').addEventListener('change', (e) => {
-        if (e.target.value) handleLoadTemplate(e.target.value);
-    });
 
     const printBtn = document.getElementById('printBtn');
     if (printBtn) {
@@ -560,29 +553,56 @@ function bindEventListeners() {
     });
 }
 
-async function handleUpdateTemplate() {
-    if (blockReadOnlyAction('updating templates')) return;
-    if (!state.currentTemplateName) return;
+async function handleEmailInvoice(btn) {
+    const data = gatherFormData();
+    if (state.logo) data.business_info.logo = state.logo;
 
-    setTimeout(async () => {
-        if (!confirm(`Overwrite template "${state.currentTemplateName}" with current data?`)) return;
+    const email = buildInvoiceEmail(data);
+    if (!isValidEmail(email.to)) {
+        showToast('Add a valid client email before sending', 'error');
+        return;
+    }
 
-        const formData = gatherFormData();
-        const templateData = {
-            name: state.currentTemplateName, // Use existing name
-            business: formData.business_info,
-            client: formData.client_info,
-            settings: formData.settings,
-            payment_instructions: formData.payment_instructions
-        };
+    const originalLabel = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'Sending…';
 
-        try {
-            await dbSaveTemplate(templateData);
-            showToast(`Template "${state.currentTemplateName}" updated`, 'success');
-        } catch (e) {
-            showToast('Error updating template', 'error');
+    try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.access_token) {
+            showToast('Your session expired — please sign in again', 'error');
+            return;
         }
-    }, 10);
+
+        const { base64 } = await generatePDF(data, { returnBytes: true });
+
+        const response = await fetch('/api/send-invoice', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                token: session.access_token,
+                to: email.to,
+                subject: email.subject,
+                html: email.html,
+                pdfBase64: base64,
+                filename: email.filename
+            })
+        });
+
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok) {
+            showToast(result.error || 'Could not send invoice', 'error');
+            return;
+        }
+
+        showToast(`Invoice emailed to ${email.to} ✓`, 'success');
+    } catch (err) {
+        console.error('Email invoice failed', err);
+        showToast('Could not send invoice — please try again', 'error');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = originalLabel;
+    }
 }
 
 // Helpers
@@ -853,101 +873,90 @@ function parsePeriodRange(periodStr, fallbackDateStr) {
     return { start: toIso(sDate), end: toIso(eDate) };
 }
 
-async function handleSaveTemplate() {
-    if (blockReadOnlyAction('saving templates')) return;
-    // Delay to fix Chrome dialog issue
-    setTimeout(async () => {
-        const name = prompt('Template Name:', 'New Template');
-        if (!name) return;
+let loadedCompanies = [];
 
-        // Check for duplicate
-        const existing = await dbGetTemplates();
-        const isDuplicate = existing.some(t => t.name.toLowerCase() === name.trim().toLowerCase());
-
-        if (isDuplicate) {
-            if (!confirm(`Template "${name}" already exists. Overwrite it?`)) {
-                return;
-            }
-        }
-
-        const formData = gatherFormData();
-        const templateData = {
-            name: name.trim(),
-            business: formData.business_info,
-            client: formData.client_info,
-            settings: formData.settings,
-            payment_instructions: formData.payment_instructions
-        };
-
-        try {
-            await dbSaveTemplate(templateData);
-            showToast('Template saved', 'success');
-            await updateTemplateDropdown();
-        } catch (e) {
-            showToast('Error saving template', 'error');
-        }
-    }, 10);
-}
-
-async function handleLoadTemplate(id) {
-    if (blockReadOnlyAction('loading templates')) return;
+async function updateCompanyDropdown() {
+    const select = document.getElementById('companySelect');
+    if (!select) return;
     try {
-        const templates = await dbGetTemplates();
-        console.log('DEBUG: All templates:', templates);
-
-        // Ensure type match for ID comparison
-        const template = templates.find(t => String(t.id) === String(id));
-        console.log('DEBUG: Found template:', template);
-
-        if (!template) {
-            console.error('Template not found for id:', id);
-            return;
-        }
-
-        // Map template structure to form data structure for fillFormWithData
-        const data = {
-            business_info: template.business_info,
-            client_info: template.client_info,
-            settings: template.settings,
-            items: [],
-            notes: '',
-            payment_instructions: template.settings?.payment_instructions || ''
-        };
-        console.log('DEBUG: Mapped data for fillForm:', data);
-
-        fillFormWithData(data);
-        if (template.business_info?.logo) state.logo = template.business_info.logo;
-
-        setDefaultDates(); // Reset dates for new invoice
-        updatePreview(state);
-        showToast('Applied template');
-    } catch (e) {
-        showToast('Error loading template', 'error');
-    }
-    document.getElementById('templateSelect').value = '';
-}
-
-async function updateTemplateDropdown() {
-    try {
-        const templates = await dbGetTemplates();
-        const select = document.getElementById('templateSelect');
-        select.innerHTML = '<option value="">Load template...</option>';
-        templates.forEach(t => {
+        loadedCompanies = sortCompaniesByName(await dbGetCompanies());
+        select.innerHTML = '<option value="">Bill from a saved company…</option>';
+        loadedCompanies.forEach((company) => {
             const opt = document.createElement('option');
-            opt.value = t.id;
-            opt.textContent = t.name; // DB field is 'name' in saveTemplate?
-            // Wait, existing code used 'template_name'. Let's check database.js or previous app.js
-            // Previous app.js line 482: option.textContent = t.template_name;
-            // database.js line 16: name: templateData.name.
-            // So DB column is name? Or template_name?
-            // database.js line 16 inserts into 'name'. 
-            // So t.name is likely correct if the DB schema matches the insert.
-            // Let's use t.name || t.template_name to be safe.
+            opt.value = company.id;
+            opt.textContent = formatCompanyOption(company);
             select.appendChild(opt);
         });
     } catch (e) {
-        console.warn('Templates error', e);
+        console.warn('Companies error', e);
     }
+}
+
+function handleLoadCompany(id) {
+    const company = loadedCompanies.find((c) => String(c.id) === String(id));
+    if (!company) return;
+
+    // Bill-From contact details
+    document.getElementById('businessName').value = company.name || '';
+    document.getElementById('businessEmail').value = company.email || '';
+    document.getElementById('businessPhone').value = company.phone || '';
+    document.getElementById('businessAddress').value = company.address || '';
+
+    if (company.logo) {
+        state.logo = company.logo;
+        const logoName = document.getElementById('logoFileName');
+        if (logoName) logoName.textContent = 'Active Branding Logo';
+    }
+
+    // Invoice defaults (these replace what templates used to carry)
+    if (company.brand_color) {
+        const brandColor = document.getElementById('brandColor');
+        if (brandColor) brandColor.value = company.brand_color;
+        const hex = document.getElementById('brandColorHex');
+        if (hex) hex.textContent = company.brand_color;
+    }
+    if (company.currency) document.getElementById('currency').value = company.currency;
+    if (company.tax_rate != null) document.getElementById('taxRate').value = company.tax_rate;
+    if (company.payment_instructions) {
+        document.getElementById('paymentInstructions').value = company.payment_instructions;
+    }
+
+    updatePreview(state);
+    showToast(`Loaded ${company.name || 'company'}`);
+    document.getElementById('companySelect').value = '';
+}
+
+let loadedClients = [];
+
+async function updateClientDropdown() {
+    const select = document.getElementById('clientSelect');
+    if (!select) return;
+    try {
+        loadedClients = sortClientsByName(await dbGetClients());
+        select.innerHTML = '<option value="">Select a client…</option>';
+        loadedClients.forEach((client) => {
+            const opt = document.createElement('option');
+            opt.value = client.id;
+            opt.textContent = formatClientOption(client);
+            select.appendChild(opt);
+        });
+    } catch (e) {
+        console.warn('Clients error', e);
+    }
+}
+
+function handleLoadClient(id) {
+    const client = loadedClients.find((c) => String(c.id) === String(id));
+    if (!client) return;
+
+    document.getElementById('clientName').value = client.name || '';
+    document.getElementById('clientEmail').value = client.email || '';
+    document.getElementById('clientPhone').value = client.phone || '';
+    document.getElementById('clientAddress').value = client.address || '';
+
+    updatePreview(state);
+    showToast(`Loaded ${client.name || 'client'}`);
+    document.getElementById('clientSelect').value = '';
 }
 
 // ── Timesheet Modal Logic ────────────────────────────────────────────────────

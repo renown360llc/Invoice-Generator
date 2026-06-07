@@ -7,7 +7,7 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { hexToRgb, formatCurrency } from './utils.js';
 
-export async function generatePDF(data) {
+export async function generatePDF(data, options = {}) {
     const doc = new jsPDF('p', 'mm', 'a4');
 
     // Config
@@ -214,5 +214,12 @@ export async function generatePDF(data) {
         doc.text(cleanText(data.payment_instructions), margin, y, { maxWidth: contentWidth });
     }
 
-    doc.save(`Invoice-${data.invoice_number}.pdf`);
+    const filename = `Invoice-${data.invoice_number}.pdf`;
+
+    // For emailing: return the PDF as a base64 string instead of triggering a download.
+    if (options.returnBytes) {
+        return { filename, base64: doc.output('datauristring').split(',')[1] };
+    }
+
+    doc.save(filename);
 }
