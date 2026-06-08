@@ -7,6 +7,8 @@ import { setSharedFilters, initFiltersForUser } from './modules/crm-filters.js'
 import { getProfileState } from './modules/user-profile.js'
 import { generatePDF } from './modules/pdf.js'
 import { formatCurrency } from './modules/utils.js'
+import { supabase } from './config.js'
+import { computeCollections, buildReminderEmail } from './modules/collections.js'
 import './security.js'
 
 let allInvoicesCache = []
@@ -851,6 +853,112 @@ function renderWorkflowQueue(data) {
     `).join('')
 }
 
+// ── Collections command center ───────────────────────────────────────────────
+function collectionsKpiTile(label, value, sub, danger = false) {
+    return `
+        <div style="background:var(--surface-card);border:1px solid var(--surface-glass-border);border-radius:var(--radius-md);padding:0.85rem 1rem;">
+            <div style="font-size:0.72rem;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.03em;">${escapeHtml(label)}</div>
+            <div style="font-size:1.25rem;font-weight:800;color:${danger ? '#dc2626' : 'var(--text-primary)'};margin-top:3px;">${escapeHtml(value)}</div>
+            <div style="font-size:0.72rem;color:var(--text-secondary);margin-top:2px;">${escapeHtml(sub)}</div>
+        </div>`
+}
+
+function collectionsWorklistRow(w) {
+    const btn = w.clientEmail
+        ? `<button type="button" class="btn btn--outline btn--sm" data-reminder-id="${escapeHtml(w.id)}">Send reminder</button>`
+        : `<button type="button" class="btn btn--outline btn--sm" disabled title="No client email on this invoice">No email</button>`
+    return `
+        <div style="display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;justify-content:space-between;padding:0.6rem 0.75rem;border:1px solid var(--surface-glass-border);border-radius:var(--radius-md);background:var(--surface-card);">
+            <div style="min-width:0;">
+                <div style="font-weight:700;color:var(--text-primary);font-size:0.875rem;">${escapeHtml(w.invoice_number || '—')} · ${escapeHtml(w.client || 'Unknown client')}</div>
+                <div style="font-size:0.75rem;color:#dc2626;font-weight:600;">${w.daysOverdue} day${w.daysOverdue === 1 ? '' : 's'} overdue · due ${escapeHtml(String(w.dueDate || '—'))}</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:0.75rem;">
+                <span style="font-weight:700;color:var(--text-primary);font-size:0.875rem;">${escapeHtml(formatCurrency(w.balance, w.currency))}</span>
+                ${btn}
+            </div>
+        </div>`
+}
+
+function renderCollections(invoices) {
+    const container = document.getElementById('collectionsCenter')
+    if (!container) return
+
+    const c = computeCollections(invoices || [])
+    const outStr = formatCurrencyBreakdown(c.outstanding.byCurrency) || formatCurrency(0, 'USD')
+    const overStr = formatCurrencyBreakdown(c.overdue.byCurrency) || formatCurrency(0, 'USD')
+    const dsoStr = c.dso === null ? '—' : `${c.dso} days`
+
+    const kpis = `
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:0.75rem;margin-bottom:1rem;">
+            ${collectionsKpiTile('Total Outstanding', outStr, `${c.outstanding.count} invoice${c.outstanding.count === 1 ? '' : 's'}`)}
+            ${collectionsKpiTile('Overdue', overStr, `${c.overdue.count} invoice${c.overdue.count === 1 ? '' : 's'}`, c.overdue.count > 0)}
+            ${collectionsKpiTile('Avg. days to pay (DSO)', dsoStr, 'across paid invoices')}
+        </div>`
+
+    const aging = `
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:0.5rem;margin-bottom:1.25rem;">
+            ${c.aging.map((b) => `
+                <div style="background:var(--surface-card);border:1px solid var(--surface-glass-border);border-radius:var(--radius-md);padding:0.6rem 0.75rem;">
+                    <div style="font-size:0.7rem;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.03em;">${escapeHtml(b.label)}</div>
+                    <div style="font-size:0.95rem;font-weight:700;color:var(--text-primary);margin-top:2px;">${escapeHtml(formatCurrencyBreakdown(b.byCurrency) || formatCurrency(0, 'USD'))}</div>
+                    <div style="font-size:0.7rem;color:var(--text-secondary);">${b.count} invoice${b.count === 1 ? '' : 's'}</div>
+                </div>`).join('')}
+        </div>`
+
+    const worklist = c.worklist.length === 0
+        ? `<div class="empty-state" style="padding:1.5rem 1rem;"><span class="empty-state__icon">✅</span><p class="empty-state__text">Nothing overdue — you're all caught up.</p></div>`
+        : `<div style="display:flex;flex-direction:column;gap:0.5rem;">${c.worklist.slice(0, 8).map(collectionsWorklistRow).join('')}</div>`
+
+    container.innerHTML = kpis + aging + worklist
+}
+
+async function handleCollectionsClick(e) {
+    const btn = e.target.closest('[data-reminder-id]')
+    if (!btn || btn.disabled) return
+
+    const invoice = allInvoicesCache.find((i) => String(i.id) === String(btn.dataset.reminderId))
+    if (!invoice) return
+
+    const email = buildReminderEmail(invoice)
+    if (!email.to) {
+        showToast('No client email on this invoice', 'error')
+        return
+    }
+
+    const original = btn.textContent
+    btn.disabled = true
+    btn.textContent = 'Sending…'
+    try {
+        const { data: { session } } = await supabase.auth.getSession()
+        if (!session?.access_token) {
+            showToast('Session expired — please sign in again', 'error')
+            btn.disabled = false
+            btn.textContent = original
+            return
+        }
+        const resp = await fetch('/api/send-invoice', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token: session.access_token, to: email.to, subject: email.subject, html: email.html })
+        })
+        const result = await resp.json().catch(() => ({}))
+        if (!resp.ok) {
+            showToast(result.error || 'Could not send reminder', 'error')
+            btn.disabled = false
+            btn.textContent = original
+            return
+        }
+        showToast(`Reminder sent to ${email.to} ✓`, 'success')
+        btn.textContent = 'Sent ✓'
+    } catch (err) {
+        console.error('Reminder failed', err)
+        showToast('Could not send reminder', 'error')
+        btn.disabled = false
+        btn.textContent = original
+    }
+}
+
 function renderCollectionsFeed(data) {
     const container = document.getElementById('collectionsFeed')
     if (!container) return
@@ -1471,6 +1579,7 @@ async function initDashboard() {
         renderExceptionCenter(operationsData)
         renderRecentActivity(auditEvents)
         renderCollectionsFeed(operationsData)
+        renderCollections(invoices)
 
         // Create revenue chart
         createRevenueChart(invoices, getActiveRevenueRange())
@@ -1478,7 +1587,8 @@ async function initDashboard() {
         // Wire up Modal Events once
         if (!window.modalWired) {
             window.modalWired = true
-            
+
+            document.getElementById('collectionsCenter')?.addEventListener('click', handleCollectionsClick);
             document.getElementById('closePaymentModal')?.addEventListener('click', closePaidModalDash);
             document.getElementById('cancelPaymentBtn')?.addEventListener('click', closePaidModalDash);
 

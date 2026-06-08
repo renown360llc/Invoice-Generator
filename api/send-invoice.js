@@ -55,8 +55,8 @@ export default async function handler(req, res) {
         res.status(400).json({ error: 'A valid recipient email is required.' });
         return;
     }
-    if (!subject || !html || !pdfBase64) {
-        res.status(400).json({ error: 'Missing subject, body, or PDF attachment.' });
+    if (!subject || !html) {
+        res.status(400).json({ error: 'Missing subject or body.' });
         return;
     }
 
@@ -80,9 +80,10 @@ export default async function handler(req, res) {
                 to: [String(to).trim()],
                 subject: String(subject),
                 html: String(html),
-                attachments: [
-                    { filename: filename || 'invoice.pdf', content: pdfBase64 }
-                ]
+                // Attachment is optional — invoices include the PDF, reminders don't.
+                ...(pdfBase64
+                    ? { attachments: [{ filename: filename || 'invoice.pdf', content: pdfBase64 }] }
+                    : {})
             })
         });
 
