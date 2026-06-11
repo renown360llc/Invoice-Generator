@@ -7,7 +7,8 @@ import {
     payoutAmountPaid,
     payoutBalance,
     receivedAmount,
-    summarizePayouts
+    summarizePayouts,
+    usdReceivedAmount
 } from '../src/modules/referrals.js';
 
 describe('computePayout', () => {
@@ -33,6 +34,21 @@ describe('receivedAmount', () => {
     it('falls back to total only when paid', () => {
         expect(receivedAmount({ status: 'paid', totals: { total: 1000 } })).toBe(1000);
         expect(receivedAmount({ status: 'sent', totals: { total: 1000 } })).toBe(0);
+    });
+});
+
+describe('usdReceivedAmount', () => {
+    it('uses the canonical usd_received_amount when present (even for CAD invoices)', () => {
+        const cad = { invoice_meta: { currency: 'CAD' }, totals: { total: 1000, amount_paid: 1000, usd_received_amount: 730 } };
+        expect(usdReceivedAmount(cad)).toBe(730);
+    });
+    it('falls back to received amount for native USD invoices', () => {
+        const usd = { status: 'paid', invoice_meta: { currency: 'USD' }, totals: { total: 500 } };
+        expect(usdReceivedAmount(usd)).toBe(500);
+    });
+    it('returns 0 for a non-USD invoice with no recorded USD', () => {
+        const cad = { invoice_meta: { currency: 'CAD' }, totals: { total: 1000 } };
+        expect(usdReceivedAmount(cad)).toBe(0);
     });
 });
 

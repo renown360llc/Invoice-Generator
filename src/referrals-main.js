@@ -11,6 +11,7 @@ import { dbGetReferralPayouts, dbSaveReferralPayout, dbDeleteReferralPayout } fr
 import {
     computePayout,
     receivedAmount,
+    usdReceivedAmount,
     summarizePayouts,
     filterPayouts,
     derivePayoutStatus,
@@ -51,6 +52,9 @@ async function init() {
     els.cancelBtn = document.getElementById('cancelBtn');
     els.modalTitle = document.getElementById('modalTitle');
     els.invoiceSelect = document.getElementById('invoiceSelect');
+    els.filterCompany = document.getElementById('filterCompany');
+    els.filterCurrency = document.getElementById('filterCurrency');
+    els.filterMonth = document.getElementById('filterMonth');
     els.deleteModal = document.getElementById('deletePayoutModal');
     els.deleteName = document.getElementById('deletePayoutName');
     els.deleteCancelBtn = document.getElementById('deleteCancelBtn');
@@ -71,7 +75,8 @@ async function init() {
     ]);
     payouts = payoutRows;
     invoices = invoiceRows || [];
-    populateInvoiceSelect();
+    populateInvoiceFilters();
+    applyInvoiceFilter();
     render();
 }
 
@@ -83,6 +88,9 @@ function bindEvents() {
     els.form?.addEventListener('submit', handleSave);
 
     els.invoiceSelect?.addEventListener('change', onInvoicePicked);
+    els.filterCompany?.addEventListener('change', applyInvoiceFilter);
+    els.filterCurrency?.addEventListener('change', applyInvoiceFilter);
+    els.filterMonth?.addEventListener('change', applyInvoiceFilter);
     document.getElementById('basisAmount')?.addEventListener('input', updatePreview);
     document.getElementById('cutPercent')?.addEventListener('input', updatePreview);
 
@@ -200,17 +208,61 @@ function renderRow(p) {
 }
 
 // ── Invoice picker ────────────────────────────────────────────────────────────
-function populateInvoiceSelect() {
+function invoiceCompany(inv) {
+    return (inv.business_info?.name || '').trim();
+}
+function invoiceMonthKey(inv) {
+    return String(inv.invoice_meta?.dateRaw || inv.created_at || '').slice(0, 7); // YYYY-MM
+}
+function monthLabel(key) {
+    const [y, m] = key.split('-');
+    const d = new Date(Number(y), Number(m) - 1, 1);
+    return Number.isNaN(d.getTime()) ? key : d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+}
+
+function populateInvoiceFilters() {
+    if (!els.filterCompany) return;
+    const companies = [...new Set(invoices.map(invoiceCompany).filter(Boolean))].sort();
+    const currencies = [...new Set(invoices.map((i) => i.invoice_meta?.currency || 'USD'))].sort();
+    const months = [...new Set(invoices.map(invoiceMonthKey).filter((k) => k.length === 7))].sort().reverse();
+
+    els.filterCompany.innerHTML = '<option value="">All companies</option>'
+        + companies.map((c) => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+    els.filterCurrency.innerHTML = '<option value="">All currencies</option>'
+        + currencies.map((c) => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+    els.filterMonth.innerHTML = '<option value="">All months</option>'
+        + months.map((m) => `<option value="${escapeHtml(m)}">${escapeHtml(monthLabel(m))}</option>`).join('');
+}
+
+function applyInvoiceFilter() {
+    const company = els.filterCompany?.value || '';
+    const currency = els.filterCurrency?.value || '';
+    const month = els.filterMonth?.value || '';
+    const filtered = invoices.filter((inv) => {
+        if (company && invoiceCompany(inv) !== company) return false;
+        if (currency && (inv.invoice_meta?.currency || 'USD') !== currency) return false;
+        if (month && invoiceMonthKey(inv) !== month) return false;
+        return true;
+    });
+    populateInvoiceSelect(filtered);
+}
+
+function populateInvoiceSelect(list = invoices) {
     if (!els.invoiceSelect) return;
+    const current = els.invoiceSelect.value;
     els.invoiceSelect.innerHTML = '<option value="">Select an invoice (optional)…</option>';
-    invoices.forEach((inv) => {
-        const currency = inv.invoice_meta?.currency || 'USD';
-        const recv = receivedAmount(inv);
+    list.forEach((inv) => {
+        const nativeCur = inv.invoice_meta?.currency || 'USD';
+        const usd = usdReceivedAmount(inv);
+        const native = nativeCur !== 'USD' ? ` (${money(receivedAmount(inv), nativeCur)})` : '';
         const opt = document.createElement('option');
         opt.value = inv.id;
-        opt.textContent = `${inv.invoice_number || 'Invoice'} · ${money(recv, currency)} · ${inv.client_info?.name || ''}`.trim();
+        opt.textContent = `${inv.invoice_number || 'Invoice'} · ${money(usd, 'USD')} USD${native} · ${inv.client_info?.name || ''}`.trim();
         els.invoiceSelect.appendChild(opt);
     });
+    if (current && [...els.invoiceSelect.options].some((o) => o.value === current)) {
+        els.invoiceSelect.value = current;
+    }
 }
 
 function onInvoicePicked() {
@@ -218,8 +270,9 @@ function onInvoicePicked() {
     if (!inv) return;
     document.getElementById('invoiceId').value = inv.id;
     document.getElementById('invoiceNumber').value = inv.invoice_number || '';
-    document.getElementById('currency').value = inv.invoice_meta?.currency || 'USD';
-    document.getElementById('basisAmount').value = receivedAmount(inv);
+    // Referrals are always settled in USD, on the amount actually received.
+    document.getElementById('currency').value = 'USD';
+    document.getElementById('basisAmount').value = usdReceivedAmount(inv);
     updatePreview();
 }
 
@@ -239,6 +292,7 @@ function openModal(id = null) {
     els.form.reset();
     document.getElementById('payoutId').value = '';
     document.getElementById('invoiceId').value = '';
+    applyInvoiceFilter(); // filters were reset by form.reset() — rebuild the full list
 
     const p = id ? payouts.find((x) => x.id === id) : null;
     if (p) {

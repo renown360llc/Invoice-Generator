@@ -33,6 +33,21 @@ export function receivedAmount(invoice = {}) {
     return String(invoice.status || '').toLowerCase() === 'paid' ? total : 0;
 }
 
+/**
+ * USD actually received for an invoice — the basis for a referral cut.
+ * Receivables are booked in USD even when the invoice is in CAD/EUR/etc, via
+ * totals.usd_received_amount (summed from each payment's usdAmount). For native
+ * USD invoices that field may be absent, so fall back to the received amount.
+ */
+export function usdReceivedAmount(invoice = {}) {
+    const totals = invoice.totals || {};
+    if (totals.usd_received_amount !== undefined && totals.usd_received_amount !== null) {
+        return Math.max(0, round2(Number(totals.usd_received_amount) || 0));
+    }
+    const currency = (invoice.invoice_meta?.currency || 'USD').toUpperCase();
+    return currency === 'USD' ? receivedAmount(invoice) : 0;
+}
+
 function addByCurrency(map, currency, amount) {
     map[currency] = round2((map[currency] || 0) + (Number(amount) || 0));
 }
