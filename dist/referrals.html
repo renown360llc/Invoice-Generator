@@ -104,16 +104,16 @@
             .modal-actions .btn { width: 100%; }
         }
     </style>
-  <script type="module" crossorigin src="/invoices/assets/referrals-CWpYzDrA.js"></script>
+  <script type="module" crossorigin src="/invoices/assets/referrals-D06yX57J.js"></script>
   <link rel="modulepreload" crossorigin href="/invoices/assets/config-c-jMUxvT.js">
   <link rel="modulepreload" crossorigin href="/invoices/assets/auth-De7W24vl.js">
   <link rel="modulepreload" crossorigin href="/invoices/assets/utils-C_5o-oWL.js">
-  <link rel="modulepreload" crossorigin href="/invoices/assets/layout-ByU-j2OP.js">
+  <link rel="modulepreload" crossorigin href="/invoices/assets/layout-kYLeMcut.js">
   <link rel="modulepreload" crossorigin href="/invoices/assets/audit-trail-YMdFfTFf.js">
   <link rel="modulepreload" crossorigin href="/invoices/assets/database-8GufR2El.js">
-  <link rel="modulepreload" crossorigin href="/invoices/assets/access-control-Ce9gUgcs.js">
+  <link rel="modulepreload" crossorigin href="/invoices/assets/access-control-BzQDlZig.js">
   <link rel="modulepreload" crossorigin href="/invoices/assets/utils-B5oGIJD7.js">
-  <link rel="stylesheet" crossorigin href="/invoices/assets/layout-BDlSXrWc.css">
+  <link rel="stylesheet" crossorigin href="/invoices/assets/layout-B4nm2RMD.css">
   <link rel="stylesheet" crossorigin href="/invoices/assets/dashboard-CTLGdJqp.css">
   <link rel="stylesheet" crossorigin href="/invoices/assets/mobile-RQyqJNrw.css">
 </head>
@@ -149,17 +149,17 @@
                         <tr>
                             <th>Invoice</th>
                             <th>Recipient</th>
-                            <th>Amount received</th>
+                            <th>Forwarded</th>
                             <th>My cut</th>
-                            <th>Passed through</th>
+                            <th>Paid</th>
+                            <th>Balance</th>
                             <th>Status</th>
-                            <th>Paid date</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody id="payoutsBody">
-                        <tr><td><div class="skeleton-line" style="width:60%"></div></td><td><div class="skeleton-line" style="width:70%"></div></td><td><div class="skeleton-line" style="width:55%"></div></td><td><div class="skeleton-line" style="width:45%"></div></td><td><div class="skeleton-line" style="width:55%"></div></td><td><div class="skeleton-line" style="width:40%"></div></td><td><div class="skeleton-line" style="width:50%"></div></td><td><div class="skeleton-line" style="width:60%"></div></td></tr>
-                        <tr><td><div class="skeleton-line" style="width:55%"></div></td><td><div class="skeleton-line" style="width:65%"></div></td><td><div class="skeleton-line" style="width:55%"></div></td><td><div class="skeleton-line" style="width:45%"></div></td><td><div class="skeleton-line" style="width:55%"></div></td><td><div class="skeleton-line" style="width:40%"></div></td><td><div class="skeleton-line" style="width:50%"></div></td><td><div class="skeleton-line" style="width:60%"></div></td></tr>
+                        <tr><td><div class="skeleton-line" style="width:60%"></div></td><td><div class="skeleton-line" style="width:70%"></div></td><td><div class="skeleton-line" style="width:55%"></div></td><td><div class="skeleton-line" style="width:45%"></div></td><td><div class="skeleton-line" style="width:55%"></div></td><td><div class="skeleton-line" style="width:45%"></div></td><td><div class="skeleton-line" style="width:40%"></div></td><td><div class="skeleton-line" style="width:60%"></div></td></tr>
+                        <tr><td><div class="skeleton-line" style="width:55%"></div></td><td><div class="skeleton-line" style="width:65%"></div></td><td><div class="skeleton-line" style="width:55%"></div></td><td><div class="skeleton-line" style="width:45%"></div></td><td><div class="skeleton-line" style="width:55%"></div></td><td><div class="skeleton-line" style="width:45%"></div></td><td><div class="skeleton-line" style="width:40%"></div></td><td><div class="skeleton-line" style="width:60%"></div></td></tr>
                     </tbody>
                 </table>
             </div>
@@ -235,16 +235,8 @@
                             </div>
                         </div>
 
-                        <div class="form-field">
-                            <label class="form-field__label">Status</label>
-                            <select id="status" class="form-field__select">
-                                <option value="pending">Pending</option>
-                                <option value="paid">Paid</option>
-                            </select>
-                        </div>
-                        <div class="form-field" id="paidDateField" style="display:none;">
-                            <label class="form-field__label">Paid date</label>
-                            <input type="date" id="paidDate" class="form-field__input">
+                        <div class="form-grid-full">
+                            <small style="font-size:0.72rem;color:var(--text-tertiary);">Status updates automatically as you record payments to the partner (Record payment on the ledger).</small>
                         </div>
 
                         <div class="form-field form-grid-full">
@@ -272,6 +264,52 @@
             <div style="display:flex; gap:0.75rem; justify-content:flex-end;">
                 <button id="deleteCancelBtn" class="btn btn--outline">Cancel</button>
                 <button id="deleteConfirmBtn" class="btn" style="background:#dc2626; color:#fff; border:none;">Delete</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Record Payment Modal -->
+    <div id="paymentModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="paymentModalTitle">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div>
+                    <h3 class="modal-title" id="paymentModalTitle">Record Payment</h3>
+                    <p class="modal-subtitle" id="paymentModalSubtitle">Log an installment forwarded to the partner.</p>
+                </div>
+                <button class="modal-close" id="closePaymentBtn" aria-label="Close modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="paymentPayoutId">
+                <div class="payout-preview" style="margin-top:0;margin-bottom:1.25rem;">
+                    <div class="payout-preview__item"><div class="payout-preview__label">Forwarded</div><div class="payout-preview__val" id="payForwarded">—</div></div>
+                    <div class="payout-preview__item"><div class="payout-preview__label">Paid</div><div class="payout-preview__val" id="payPaid">—</div></div>
+                    <div class="payout-preview__item"><div class="payout-preview__label">Balance</div><div class="payout-preview__val" id="payBalance">—</div></div>
+                </div>
+
+                <div class="form-grid">
+                    <div class="form-field">
+                        <label class="form-field__label">Amount</label>
+                        <input type="number" id="payAmount" class="form-field__input" min="0" step="0.01" value="0">
+                        <div id="payAmountError" class="form-field__error"></div>
+                    </div>
+                    <div class="form-field">
+                        <label class="form-field__label">Date</label>
+                        <input type="date" id="payDate" class="form-field__input">
+                    </div>
+                    <div class="form-field form-grid-full">
+                        <label class="form-field__label">Note (optional)</label>
+                        <input type="text" id="payNote" class="form-field__input" placeholder="e.g. Wire ref #1234">
+                    </div>
+                </div>
+                <button type="button" id="addPaymentBtn" class="btn btn--primary btn--sm" style="margin-top:1rem;">Add payment</button>
+
+                <div style="margin-top:1.5rem;">
+                    <div class="form-field__label" style="margin-bottom:0.5rem;">Payment history</div>
+                    <div id="paymentHistory" style="display:flex;flex-direction:column;gap:0.4rem;"></div>
+                </div>
+            </div>
+            <div class="modal-actions" style="margin-top:0;padding:1.25rem 1.75rem;">
+                <button type="button" id="closePaymentDoneBtn" class="btn btn--primary">Done</button>
             </div>
         </div>
     </div>
