@@ -9,7 +9,8 @@ export const ENTITY_LABELS = {
     invoice: 'Invoice',
     template: 'Template',
     client: 'Client',
-    company: 'Company'
+    company: 'Company',
+    referral: 'Referral'
 };
 
 export function getEntityLabel(entityType) {

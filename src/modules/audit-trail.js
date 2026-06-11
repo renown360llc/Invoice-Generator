@@ -85,6 +85,19 @@ function compactCompany(record = {}) {
     };
 }
 
+function compactReferral(record = {}) {
+    return {
+        id: record.id || null,
+        invoice_number: record.invoice_number || null,
+        recipient: record.recipient || null,
+        currency: record.currency || null,
+        my_cut: Number(record.my_cut || 0),
+        pass_through_amount: Number(record.pass_through_amount || 0),
+        status: record.status || 'pending',
+        paid_date: record.paid_date || null
+    };
+}
+
 function compactRecord(entityType, record) {
     if (!record) return null;
     if (entityType === 'invoice') return compactInvoice(record);
@@ -93,6 +106,7 @@ function compactRecord(entityType, record) {
     if (entityType === 'template') return compactTemplate(record);
     if (entityType === 'client') return compactClient(record);
     if (entityType === 'company') return compactCompany(record);
+    if (entityType === 'referral') return compactReferral(record);
     return record;
 }
 

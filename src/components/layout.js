@@ -113,6 +113,13 @@ export async function loadLayout(activeLink = '') {
                     Invoices
                 </a>
 
+                <a href="referrals.html" class="sidebar__link ${activeLink === 'referrals' ? 'sidebar__link--active' : ''}">
+                    <svg class="sidebar__icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M8 7h12m0 0l-4-4m4 4l-4 4m4 6H4m0 0l4 4m-4-4l4-4"/>
+                    </svg>
+                    Referrals
+                </a>
+
                 <div class="sidebar__section-label">Insights</div>
 
                 <a href="analytics.html" class="sidebar__link ${activeLink === 'analytics' ? 'sidebar__link--active' : ''}">
@@ -347,6 +354,7 @@ function getPageTitle(activeLink) {
         'dashboard': 'Dashboard',
         'app': 'Create Invoice',
         'invoices': 'Invoices',
+        'referrals': 'Referrals',
         'companies': 'Companies',
         'consultants': 'Consultants',
         'clients': 'Clients',

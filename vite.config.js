@@ -11,6 +11,7 @@ export default defineConfig({
                 dashboard: resolve(__dirname, 'dashboard.html'),
                 app: resolve(__dirname, 'app.html'),
                 invoices: resolve(__dirname, 'invoices.html'),
+                referrals: resolve(__dirname, 'referrals.html'),
                 consultants: resolve(__dirname, 'consultants.html'),
                 clients: resolve(__dirname, 'clients.html'),
                 companies: resolve(__dirname, 'companies.html'),

@@ -214,12 +214,43 @@ CREATE POLICY "Users can manage their own companies"
 
 CREATE INDEX IF NOT EXISTS companies_user_id_idx ON public.companies(user_id);
 
+-- Referral Pass-Through Payouts
+-- For pass-through invoices: you keep cut_percent% of the received amount and
+-- forward the remainder (pass_through_amount) to a referral partner.
+CREATE TABLE IF NOT EXISTS public.referral_payouts (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    invoice_id UUID REFERENCES public.invoices(id) ON DELETE SET NULL,
+    invoice_number TEXT,
+    recipient TEXT NOT NULL,
+    currency TEXT NOT NULL DEFAULT 'USD',
+    basis_amount NUMERIC(12, 2) NOT NULL DEFAULT 0,   -- amount received that the cut is based on
+    cut_percent NUMERIC(5, 2) NOT NULL DEFAULT 0,     -- percentage YOU keep
+    my_cut NUMERIC(12, 2) NOT NULL DEFAULT 0,         -- basis_amount * cut_percent
+    pass_through_amount NUMERIC(12, 2) NOT NULL DEFAULT 0, -- basis_amount - my_cut
+    status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'paid')),
+    paid_date DATE,
+    notes TEXT
+);
+
+ALTER TABLE public.referral_payouts ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can manage their own referral payouts"
+    ON public.referral_payouts
+    FOR ALL
+    USING (auth.uid() = user_id)
+    WITH CHECK (auth.uid() = user_id);
+
+CREATE INDEX IF NOT EXISTS referral_payouts_user_id_idx ON public.referral_payouts(user_id);
+CREATE INDEX IF NOT EXISTS referral_payouts_invoice_idx ON public.referral_payouts(invoice_id);
+
 -- Audit Trail Table
 CREATE TABLE IF NOT EXISTS public.audit_events (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
     user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-    entity_type TEXT NOT NULL CHECK (entity_type IN ('consultant', 'timesheet', 'invoice', 'template', 'client', 'company')),
+    entity_type TEXT NOT NULL CHECK (entity_type IN ('consultant', 'timesheet', 'invoice', 'template', 'client', 'company', 'referral')),
     entity_id UUID,
     entity_key TEXT,
     action TEXT NOT NULL,
