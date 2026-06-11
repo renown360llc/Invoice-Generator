@@ -3,9 +3,28 @@ import { getInvoices, updateInvoiceStatus, recordInvoicePayment, deleteInvoicePa
 import { supabase } from './config.js';
 import { generatePDF } from './modules/pdf.js';
 import { dbGetConsultants } from './modules/db-consultants.js';
+import { dbGetReferralPayouts } from './modules/db-referrals.js';
+import { derivePayoutStatus } from './modules/referrals.js';
 import { getAccessContext, getReadOnlyMessage } from './modules/access-control.js';
 import { debounce, showToast } from './modules/utils.js';
 import './security.js';
+
+// invoice id / number -> derived referral payout status (paid|partially_paid|pending)
+let referralStatusByInvoice = new Map();
+
+const REFERRAL_CHIP_META = {
+    paid: { label: 'Referral: paid', cls: 'status-active' },
+    partially_paid: { label: 'Referral: partial', cls: 'status-partial' },
+    pending: { label: 'Referral: pending', cls: 'status-pending' }
+};
+
+function referralChipFor(invoice) {
+    const status = referralStatusByInvoice.get(String(invoice.id))
+        || referralStatusByInvoice.get(`num:${invoice.invoice_number}`);
+    if (!status) return '';
+    const meta = REFERRAL_CHIP_META[status] || REFERRAL_CHIP_META.pending;
+    return `<span class="status-badge ${meta.cls}" style="font-size:0.6rem;padding:2px 7px;margin-top:4px;display:inline-flex;">${meta.label}</span>`;
+}
 
 // ── Linked timesheets helper ──────────────────────────────────────────────────
 async function fetchLinkedTimesheets(invoiceId, invoiceNumber) {
@@ -710,6 +729,16 @@ async function loadInvoices() {
         state.consultantsById = new Map((consultants || []).map((consultant) => [String(consultant.id), consultant]));
         normalizeConsultantFilterSelection();
 
+        // Referral pass-through status, keyed by invoice id and number.
+        const referralPayouts = await dbGetReferralPayouts().catch(() => []);
+        if (requestId !== state.loadRequestId) return;
+        referralStatusByInvoice = new Map();
+        (referralPayouts || []).forEach((p) => {
+            const status = derivePayoutStatus(p);
+            if (p.invoice_id) referralStatusByInvoice.set(String(p.invoice_id), status);
+            if (p.invoice_number) referralStatusByInvoice.set(`num:${p.invoice_number}`, status);
+        });
+
         const invoicesResult = await getInvoices(state.user, {
             page: state.currentPage,
             pageSize: ITEMS_PER_PAGE,
@@ -961,6 +990,7 @@ function renderTable() {
                         </svg>
                         <strong>${escapeHtml(invoice.invoice_number || '—')}</strong>
                     </div>
+                    ${referralChipFor(invoice)}
                 </td>
                 <td class="invoice-cell--client" title="${clientName}">
                     <div class="invoice-client">
@@ -1058,6 +1088,7 @@ function renderTable() {
                         <span class="m-card__title">${escapeHtml(invoice.invoice_number || '—')}</span>
                         ${renderStatusChip(status)}
                     </div>
+                    ${referralChipFor(invoice)}
                     <div class="m-card__subtitle">
                         ${mobileSubtitle}
                         <span>•</span>
