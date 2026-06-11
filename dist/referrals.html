@@ -104,14 +104,14 @@
             .modal-actions .btn { width: 100%; }
         }
     </style>
-  <script type="module" crossorigin src="/invoices/assets/referrals-tyRbYeqS.js"></script>
+  <script type="module" crossorigin src="/invoices/assets/referrals-D4Cb4a-M.js"></script>
   <link rel="modulepreload" crossorigin href="/invoices/assets/config-c-jMUxvT.js">
   <link rel="modulepreload" crossorigin href="/invoices/assets/auth-De7W24vl.js">
   <link rel="modulepreload" crossorigin href="/invoices/assets/utils-C_5o-oWL.js">
   <link rel="modulepreload" crossorigin href="/invoices/assets/layout-kYLeMcut.js">
   <link rel="modulepreload" crossorigin href="/invoices/assets/audit-trail-YMdFfTFf.js">
   <link rel="modulepreload" crossorigin href="/invoices/assets/database-8GufR2El.js">
-  <link rel="modulepreload" crossorigin href="/invoices/assets/referrals-Ct2QvPoQ.js">
+  <link rel="modulepreload" crossorigin href="/invoices/assets/referrals-Dfmer3tH.js">
   <link rel="modulepreload" crossorigin href="/invoices/assets/access-control-BzQDlZig.js">
   <link rel="modulepreload" crossorigin href="/invoices/assets/utils-B5oGIJD7.js">
   <link rel="stylesheet" crossorigin href="/invoices/assets/layout-B4nm2RMD.css">
@@ -184,11 +184,19 @@
                     <input type="hidden" id="invoiceId">
                     <div class="form-grid">
                         <div class="form-field form-grid-full">
+                            <label class="form-field__label">Find invoice</label>
+                            <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0.5rem;">
+                                <select id="filterCompany" class="form-field__select"><option value="">All companies</option></select>
+                                <select id="filterCurrency" class="form-field__select"><option value="">All currencies</option></select>
+                                <select id="filterMonth" class="form-field__select"><option value="">All months</option></select>
+                            </div>
+                        </div>
+                        <div class="form-field form-grid-full">
                             <label class="form-field__label">Invoice</label>
                             <select id="invoiceSelect" class="form-field__select">
                                 <option value="">Select an invoice (optional)…</option>
                             </select>
-                            <small style="font-size:0.72rem;color:var(--text-tertiary);">Picking an invoice fills the received amount &amp; currency. You can also enter them manually.</small>
+                            <small style="font-size:0.72rem;color:var(--text-tertiary);">Picking an invoice fills the <strong>USD received</strong> amount. The referral cut is computed in USD.</small>
                         </div>
 
                         <div class="form-field">
@@ -214,7 +222,7 @@
                         </div>
 
                         <div class="form-field">
-                            <label class="form-field__label">Amount received <span class="form-field__required">*</span></label>
+                            <label class="form-field__label">Amount received (USD) <span class="form-field__required">*</span></label>
                             <input type="number" id="basisAmount" class="form-field__input" min="0" step="0.01" value="0">
                             <div id="basisError" class="form-field__error"></div>
                         </div>
