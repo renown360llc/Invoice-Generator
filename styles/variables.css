@@ -89,6 +89,7 @@
 .status-badge.status-inactive { background: var(--status-danger-bg); color: var(--status-danger); }
 .status-badge.status-pending,
 .status-badge.status-missing { background: var(--status-warning-bg); color: var(--status-warning); }
+.status-badge.status-partial { background: var(--status-info-bg); color: var(--status-info); }
 
 /* Skeleton shimmer — used in table/list loading states */
 .skeleton-line {

@@ -8,7 +8,16 @@ import { loadLayout } from './components/layout.js';
 import { getCurrentUser } from './config.js';
 import { getInvoices } from './database.js';
 import { dbGetReferralPayouts, dbSaveReferralPayout, dbDeleteReferralPayout } from './modules/db-referrals.js';
-import { computePayout, receivedAmount, summarizePayouts, filterPayouts } from './modules/referrals.js';
+import {
+    computePayout,
+    receivedAmount,
+    summarizePayouts,
+    filterPayouts,
+    derivePayoutStatus,
+    payoutAmountPaid,
+    payoutBalance,
+    paymentsTotal
+} from './modules/referrals.js';
 import { getAccessContext, getReadOnlyMessage } from './modules/access-control.js';
 import { formatCurrency } from './modules/utils.js';
 import { escapeHtml } from './utils.js';
@@ -17,6 +26,7 @@ let payouts = [];
 let invoices = [];
 let searchQuery = '';
 let payoutToDelete = null;
+let currentPaymentPayout = null;
 let isReadOnly = false;
 
 const els = {};
@@ -41,8 +51,6 @@ async function init() {
     els.cancelBtn = document.getElementById('cancelBtn');
     els.modalTitle = document.getElementById('modalTitle');
     els.invoiceSelect = document.getElementById('invoiceSelect');
-    els.statusSel = document.getElementById('status');
-    els.paidDateField = document.getElementById('paidDateField');
     els.deleteModal = document.getElementById('deletePayoutModal');
     els.deleteName = document.getElementById('deletePayoutName');
     els.deleteCancelBtn = document.getElementById('deleteCancelBtn');
@@ -77,9 +85,6 @@ function bindEvents() {
     els.invoiceSelect?.addEventListener('change', onInvoicePicked);
     document.getElementById('basisAmount')?.addEventListener('input', updatePreview);
     document.getElementById('cutPercent')?.addEventListener('input', updatePreview);
-    els.statusSel?.addEventListener('change', () => {
-        els.paidDateField.style.display = els.statusSel.value === 'paid' ? 'flex' : 'none';
-    });
 
     els.search?.addEventListener('input', (e) => { searchQuery = e.target.value; render(); });
 
@@ -89,15 +94,27 @@ function bindEvents() {
         const id = btn.dataset.id;
         if (btn.dataset.action === 'edit') openModal(id);
         if (btn.dataset.action === 'delete') openDeleteModal(id);
-        if (btn.dataset.action === 'mark-paid') markPaid(id);
+        if (btn.dataset.action === 'record-payment') openPaymentModal(id);
     });
 
     els.deleteCancelBtn?.addEventListener('click', closeDeleteModal);
     els.deleteConfirmBtn?.addEventListener('click', handleDelete);
 
+    // Payment modal
+    document.getElementById('closePaymentBtn')?.addEventListener('click', closePaymentModal);
+    document.getElementById('closePaymentDoneBtn')?.addEventListener('click', closePaymentModal);
+    document.getElementById('addPaymentBtn')?.addEventListener('click', handleAddPayment);
+    els.paymentModal = document.getElementById('paymentModal');
+    els.paymentModal?.addEventListener('click', (e) => { if (e.target === els.paymentModal) closePaymentModal(); });
+    document.getElementById('paymentHistory')?.addEventListener('click', (e) => {
+        const rm = e.target.closest('[data-remove-payment]');
+        if (rm) handleRemovePayment(rm.dataset.removePayment);
+    });
+
     document.addEventListener('keydown', (e) => {
         if (e.key !== 'Escape') return;
         if (els.modal?.classList.contains('is-open')) closeModal();
+        if (els.paymentModal?.classList.contains('is-open')) closePaymentModal();
         if (els.deleteModal?.style.display === 'flex') closeDeleteModal();
     });
 }
@@ -125,10 +142,10 @@ function summaryTile(label, value, sub) {
 function renderSummary() {
     const s = summarizePayouts(payouts);
     els.summary.innerHTML = [
-        summaryTile('Passed through', byCurrencyStr(s.passThrough), `${payouts.length} payout${payouts.length === 1 ? '' : 's'}`),
+        summaryTile('To forward', byCurrencyStr(s.forwarded), `${payouts.length} payout${payouts.length === 1 ? '' : 's'}`),
         summaryTile('My cut (total)', byCurrencyStr(s.myCut), 'kept across payouts'),
-        summaryTile('Pending', byCurrencyStr(s.pending.byCurrency), `${s.pending.count} to pay`),
-        summaryTile('Paid so far', byCurrencyStr(s.paid.byCurrency), `${s.paid.count} paid`)
+        summaryTile('Paid to partners', byCurrencyStr(s.paid), 'forwarded so far'),
+        summaryTile('Outstanding', byCurrencyStr(s.outstanding.byCurrency), `${s.outstanding.count} owing`)
     ].join('');
 }
 
@@ -150,26 +167,32 @@ function render() {
     els.body.innerHTML = visible.map(renderRow).join('');
 }
 
+const STATUS_META = {
+    paid: { label: 'Paid', cls: 'status-active' },
+    partially_paid: { label: 'Partial', cls: 'status-partial' },
+    pending: { label: 'Pending', cls: 'status-pending' }
+};
+
 function renderRow(p) {
-    const status = String(p.status || 'pending').toLowerCase();
-    const statusLabel = status === 'paid' ? 'Paid' : 'Pending';
-    const statusCls = status === 'paid' ? 'status-active' : 'status-pending';
+    const status = derivePayoutStatus(p);
+    const meta = STATUS_META[status] || STATUS_META.pending;
+    const balance = payoutBalance(p);
     const dis = isReadOnly ? 'disabled' : '';
-    const markPaidBtn = (status !== 'paid' && !isReadOnly)
-        ? `<button class="btn btn--outline btn--sm" data-action="mark-paid" data-id="${escapeHtml(p.id)}">Mark paid</button>`
+    const recordBtn = (balance > 0 && !isReadOnly)
+        ? `<button class="btn btn--outline btn--sm" data-action="record-payment" data-id="${escapeHtml(p.id)}">Record payment</button>`
         : '';
 
     return `
         <tr>
             <td data-label="Invoice">${escapeHtml(p.invoice_number || '—')}</td>
             <td data-label="Recipient"><strong>${escapeHtml(p.recipient || '—')}</strong></td>
-            <td data-label="Amount received">${escapeHtml(money(p.basis_amount, p.currency))}</td>
+            <td data-label="Forwarded"><strong>${escapeHtml(money(p.pass_through_amount, p.currency))}</strong></td>
             <td data-label="My cut">${escapeHtml(money(p.my_cut, p.currency))} <span style="color:var(--text-tertiary);font-size:0.75rem;">(${escapeHtml(String(p.cut_percent ?? 0))}%)</span></td>
-            <td data-label="Passed through"><strong>${escapeHtml(money(p.pass_through_amount, p.currency))}</strong></td>
-            <td data-label="Status"><span class="status-badge ${statusCls}">${statusLabel}</span></td>
-            <td data-label="Paid date">${escapeHtml(p.paid_date || '—')}</td>
+            <td data-label="Paid">${escapeHtml(money(payoutAmountPaid(p), p.currency))}</td>
+            <td data-label="Balance">${escapeHtml(money(balance, p.currency))}</td>
+            <td data-label="Status"><span class="status-badge ${meta.cls}">${meta.label}</span></td>
             <td data-label="Actions">
-                ${markPaidBtn}
+                ${recordBtn}
                 <button class="btn btn--outline btn--sm" data-action="edit" data-id="${escapeHtml(p.id)}" ${dis}>Edit</button>
                 <button class="btn btn--ghost btn--sm" data-action="delete" data-id="${escapeHtml(p.id)}" ${dis}>Delete</button>
             </td>
@@ -216,7 +239,6 @@ function openModal(id = null) {
     els.form.reset();
     document.getElementById('payoutId').value = '';
     document.getElementById('invoiceId').value = '';
-    els.paidDateField.style.display = 'none';
 
     const p = id ? payouts.find((x) => x.id === id) : null;
     if (p) {
@@ -228,11 +250,8 @@ function openModal(id = null) {
         document.getElementById('recipient').value = p.recipient || '';
         document.getElementById('basisAmount').value = p.basis_amount ?? 0;
         document.getElementById('cutPercent').value = p.cut_percent ?? 0;
-        els.statusSel.value = p.status || 'pending';
-        document.getElementById('paidDate').value = p.paid_date || '';
         document.getElementById('notes').value = p.notes || '';
         if (p.invoice_id) els.invoiceSelect.value = p.invoice_id;
-        els.paidDateField.style.display = els.statusSel.value === 'paid' ? 'flex' : 'none';
     } else {
         els.modalTitle.textContent = 'New Referral Payout';
         document.getElementById('cutPercent').value = '15';
@@ -265,7 +284,12 @@ async function handleSave(event) {
 
     const cutPercent = Number(document.getElementById('cutPercent').value) || 0;
     const { myCut, passThrough } = computePayout(basis, cutPercent);
-    const status = els.statusSel.value || 'pending';
+
+    const id = document.getElementById('payoutId').value;
+    const existing = id ? payouts.find((x) => x.id === id) : null;
+    // Status is derived from what's already been paid to the partner.
+    const amountPaid = existing ? payoutAmountPaid(existing) : 0;
+    const status = derivePayoutStatus({ pass_through_amount: passThrough, amount_paid: amountPaid });
 
     const payload = {
         invoice_id: document.getElementById('invoiceId').value || null,
@@ -277,11 +301,10 @@ async function handleSave(event) {
         my_cut: myCut,
         pass_through_amount: passThrough,
         status,
-        paid_date: status === 'paid' ? (document.getElementById('paidDate').value || new Date().toISOString().slice(0, 10)) : null,
+        paid_date: status === 'paid' ? (existing?.paid_date || new Date().toISOString().slice(0, 10)) : null,
         notes: document.getElementById('notes').value.trim() || null
     };
 
-    const id = document.getElementById('payoutId').value;
     if (id) payload.id = id;
 
     const saveBtn = document.getElementById('saveBtn');
@@ -306,21 +329,106 @@ async function handleSave(event) {
     }
 }
 
-async function markPaid(id) {
+// ── Partial payments ──────────────────────────────────────────────────────────
+function openPaymentModal(id) {
+    if (isReadOnly) { showToast(getReadOnlyMessage('referrals'), 'info'); return; }
     const p = payouts.find((x) => x.id === id);
     if (!p) return;
+    currentPaymentPayout = { ...p, payments: Array.isArray(p.payments) ? [...p.payments] : [] };
+    document.getElementById('paymentPayoutId').value = p.id;
+    document.getElementById('paymentModalSubtitle').textContent = `Installment forwarded to ${p.recipient || 'the partner'}.`;
+    document.getElementById('payDate').value = new Date().toISOString().slice(0, 10);
+    document.getElementById('payNote').value = '';
+    renderPaymentModalState();
+    els.paymentModal.classList.add('is-open');
+    document.body.classList.add('modal-open');
+}
+
+function closePaymentModal() {
+    currentPaymentPayout = null;
+    els.paymentModal?.classList.remove('is-open');
+    document.body.classList.remove('modal-open');
+}
+
+function renderPaymentModalState() {
+    const p = currentPaymentPayout;
+    if (!p) return;
+    const balance = payoutBalance(p);
+    document.getElementById('payForwarded').textContent = money(p.pass_through_amount, p.currency);
+    document.getElementById('payPaid').textContent = money(payoutAmountPaid(p), p.currency);
+    document.getElementById('payBalance').textContent = money(balance, p.currency);
+    document.getElementById('payAmount').value = balance > 0 ? balance : 0;
+
+    const history = document.getElementById('paymentHistory');
+    const payments = p.payments || [];
+    if (payments.length === 0) {
+        history.innerHTML = `<div style="color:var(--text-tertiary);font-size:0.8125rem;">No payments yet.</div>`;
+        return;
+    }
+    history.innerHTML = payments.map((pay) => `
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:0.75rem;padding:0.5rem 0.75rem;border:1px solid var(--surface-glass-border);border-radius:var(--radius-sm);">
+            <div>
+                <strong>${escapeHtml(money(pay.amount, p.currency))}</strong>
+                <span style="color:var(--text-tertiary);font-size:0.78rem;"> · ${escapeHtml(pay.date || '')}${pay.note ? ` · ${escapeHtml(pay.note)}` : ''}</span>
+            </div>
+            <button type="button" class="btn btn--ghost btn--sm" data-remove-payment="${escapeHtml(pay.id)}" ${isReadOnly ? 'disabled' : ''}>Remove</button>
+        </div>`).join('');
+}
+
+async function persistPaymentChange(payments) {
+    const p = currentPaymentPayout;
+    const amount_paid = paymentsTotal(payments);
+    const status = derivePayoutStatus({ ...p, amount_paid });
+    const lastDate = payments.length ? payments[payments.length - 1].date : null;
+    const paid_date = status === 'paid' ? (lastDate || new Date().toISOString().slice(0, 10)) : null;
+
+    const saved = await dbSaveReferralPayout({ ...p, payments, amount_paid, status, paid_date });
+    payouts = payouts.map((x) => (x.id === saved.id ? saved : x));
+    currentPaymentPayout = { ...saved, payments: Array.isArray(saved.payments) ? [...saved.payments] : [] };
+    renderPaymentModalState();
+    render();
+    return saved;
+}
+
+async function handleAddPayment() {
+    if (!currentPaymentPayout) return;
+    const amountEl = document.getElementById('payAmount');
+    const errEl = document.getElementById('payAmountError');
+    errEl.textContent = '';
+    const amount = Number(amountEl.value) || 0;
+    if (amount <= 0) { errEl.textContent = 'Enter an amount greater than zero.'; return; }
+
+    const payment = {
+        id: Math.random().toString(36).substring(2, 11),
+        date: document.getElementById('payDate').value || new Date().toISOString().slice(0, 10),
+        amount,
+        note: document.getElementById('payNote').value.trim()
+    };
+    const payments = [...(currentPaymentPayout.payments || []), payment];
+
+    const btn = document.getElementById('addPaymentBtn');
+    btn.disabled = true;
     try {
-        const saved = await dbSaveReferralPayout({
-            ...p,
-            status: 'paid',
-            paid_date: p.paid_date || new Date().toISOString().slice(0, 10)
-        });
-        payouts = payouts.map((x) => (x.id === id ? saved : x));
-        render();
-        showToast('Marked as paid ✓', 'success');
+        await persistPaymentChange(payments);
+        document.getElementById('payNote').value = '';
+        showToast('Payment recorded ✓', 'success');
     } catch (err) {
-        console.error('Mark paid failed', err);
-        showToast(err.message || 'Could not update payout', 'error');
+        console.error('Add payment failed', err);
+        showToast(err.message || 'Could not record payment', 'error');
+    } finally {
+        btn.disabled = false;
+    }
+}
+
+async function handleRemovePayment(paymentId) {
+    if (!currentPaymentPayout || isReadOnly) return;
+    const payments = (currentPaymentPayout.payments || []).filter((p) => String(p.id) !== String(paymentId));
+    try {
+        await persistPaymentChange(payments);
+        showToast('Payment removed', 'success');
+    } catch (err) {
+        console.error('Remove payment failed', err);
+        showToast(err.message || 'Could not remove payment', 'error');
     }
 }
 

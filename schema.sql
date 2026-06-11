@@ -229,8 +229,10 @@ CREATE TABLE IF NOT EXISTS public.referral_payouts (
     cut_percent NUMERIC(5, 2) NOT NULL DEFAULT 0,     -- percentage YOU keep
     my_cut NUMERIC(12, 2) NOT NULL DEFAULT 0,         -- basis_amount * cut_percent
     pass_through_amount NUMERIC(12, 2) NOT NULL DEFAULT 0, -- basis_amount - my_cut
-    status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'paid')),
-    paid_date DATE,
+    amount_paid NUMERIC(12, 2) NOT NULL DEFAULT 0,    -- total paid to the partner so far
+    payments JSONB NOT NULL DEFAULT '[]'::jsonb,      -- installment history [{id,date,amount,note}]
+    status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'partially_paid', 'paid')),
+    paid_date DATE,                                   -- date fully paid
     notes TEXT
 );
 

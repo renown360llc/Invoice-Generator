@@ -37,30 +37,57 @@ function addByCurrency(map, currency, amount) {
     map[currency] = round2((map[currency] || 0) + (Number(amount) || 0));
 }
 
+/** Sum of installment payments made to the referral partner. */
+export function paymentsTotal(payments = []) {
+    return round2((payments || []).reduce((sum, p) => sum + (Number(p?.amount) || 0), 0));
+}
+
+/** How much of a payout has been paid to the partner (prefers stored amount_paid). */
+export function payoutAmountPaid(payout = {}) {
+    if (payout.amount_paid !== undefined && payout.amount_paid !== null) {
+        return Math.max(0, Number(payout.amount_paid) || 0);
+    }
+    return paymentsTotal(payout.payments);
+}
+
+/** Remaining balance still owed to the partner (never negative). */
+export function payoutBalance(payout = {}) {
+    const owed = Number(payout.pass_through_amount) || 0;
+    return Math.max(0, round2(owed - payoutAmountPaid(payout)));
+}
+
+/** Derived status from amounts: pending -> partially_paid -> paid. */
+export function derivePayoutStatus(payout = {}) {
+    const owed = Number(payout.pass_through_amount) || 0;
+    const paid = payoutAmountPaid(payout);
+    if (owed <= 0 || paid >= owed) return 'paid';
+    if (paid <= 0) return 'pending';
+    return 'partially_paid';
+}
+
 /**
- * Roll up a list of payouts: total passed-through and kept (per currency),
- * plus pending vs paid breakdown. Amounts stay per-currency.
+ * Roll up payouts (per currency): total owed to partners, your kept cut,
+ * how much has actually been paid to partners, and what's still outstanding.
  */
 export function summarizePayouts(payouts = []) {
-    const passThrough = {};
+    const forwarded = {};
     const myCut = {};
-    const pending = { count: 0, byCurrency: {} };
-    const paid = { count: 0, byCurrency: {} };
+    const paid = {};
+    const outstanding = { count: 0, byCurrency: {} };
 
     (payouts || []).forEach((p) => {
         const currency = (p.currency || 'USD').toUpperCase();
-        addByCurrency(passThrough, currency, p.pass_through_amount);
+        addByCurrency(forwarded, currency, p.pass_through_amount);
         addByCurrency(myCut, currency, p.my_cut);
-        if (String(p.status || 'pending').toLowerCase() === 'paid') {
-            paid.count += 1;
-            addByCurrency(paid.byCurrency, currency, p.pass_through_amount);
-        } else {
-            pending.count += 1;
-            addByCurrency(pending.byCurrency, currency, p.pass_through_amount);
+        addByCurrency(paid, currency, payoutAmountPaid(p));
+        const balance = payoutBalance(p);
+        if (balance > 0) {
+            outstanding.count += 1;
+            addByCurrency(outstanding.byCurrency, currency, balance);
         }
     });
 
-    return { passThrough, myCut, pending, paid };
+    return { forwarded, myCut, paid, outstanding };
 }
 
 /** Filter payouts by a free-text query across recipient and invoice number. */

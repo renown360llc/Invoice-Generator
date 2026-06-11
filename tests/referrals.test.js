@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { computePayout, filterPayouts, receivedAmount, summarizePayouts } from '../src/modules/referrals.js';
+import {
+    computePayout,
+    derivePayoutStatus,
+    filterPayouts,
+    paymentsTotal,
+    payoutAmountPaid,
+    payoutBalance,
+    receivedAmount,
+    summarizePayouts
+} from '../src/modules/referrals.js';
 
 describe('computePayout', () => {
     it('keeps the cut % and passes the rest', () => {
@@ -27,28 +36,47 @@ describe('receivedAmount', () => {
     });
 });
 
+describe('partial payments', () => {
+    it('sums installment payments', () => {
+        expect(paymentsTotal([{ amount: 400 }, { amount: 250.5 }])).toBe(650.5);
+        expect(paymentsTotal([])).toBe(0);
+    });
+    it('prefers stored amount_paid, falls back to payments sum', () => {
+        expect(payoutAmountPaid({ amount_paid: 300 })).toBe(300);
+        expect(payoutAmountPaid({ payments: [{ amount: 100 }, { amount: 50 }] })).toBe(150);
+    });
+    it('computes the remaining balance', () => {
+        expect(payoutBalance({ pass_through_amount: 850, amount_paid: 400 })).toBe(450);
+        expect(payoutBalance({ pass_through_amount: 850, amount_paid: 900 })).toBe(0);
+    });
+    it('derives status from amounts', () => {
+        expect(derivePayoutStatus({ pass_through_amount: 850, amount_paid: 0 })).toBe('pending');
+        expect(derivePayoutStatus({ pass_through_amount: 850, amount_paid: 400 })).toBe('partially_paid');
+        expect(derivePayoutStatus({ pass_through_amount: 850, amount_paid: 850 })).toBe('paid');
+    });
+});
+
 describe('summarizePayouts', () => {
     const payouts = [
-        { currency: 'USD', my_cut: 150, pass_through_amount: 850, status: 'paid' },
-        { currency: 'USD', my_cut: 120, pass_through_amount: 880, status: 'pending' },
-        { currency: 'CAD', my_cut: 50, pass_through_amount: 450, status: 'pending' }
+        { currency: 'USD', my_cut: 150, pass_through_amount: 850, amount_paid: 850 },   // fully paid
+        { currency: 'USD', my_cut: 120, pass_through_amount: 880, amount_paid: 300 },   // partial -> 580 outstanding
+        { currency: 'CAD', my_cut: 50, pass_through_amount: 450, amount_paid: 0 }       // pending -> 450 outstanding
     ];
-    it('totals pass-through and my-cut per currency', () => {
+    it('totals forwarded and my-cut per currency', () => {
         const s = summarizePayouts(payouts);
-        expect(s.passThrough.USD).toBe(1730);
+        expect(s.forwarded.USD).toBe(1730);
         expect(s.myCut.USD).toBe(270);
-        expect(s.passThrough.CAD).toBe(450);
+        expect(s.forwarded.CAD).toBe(450);
     });
-    it('splits pending vs paid', () => {
+    it('tracks paid-to-partners and outstanding', () => {
         const s = summarizePayouts(payouts);
-        expect(s.paid.count).toBe(1);
-        expect(s.paid.byCurrency.USD).toBe(850);
-        expect(s.pending.count).toBe(2);
-        expect(s.pending.byCurrency.USD).toBe(880);
-        expect(s.pending.byCurrency.CAD).toBe(450);
+        expect(s.paid.USD).toBe(1150);          // 850 + 300
+        expect(s.outstanding.byCurrency.USD).toBe(580);
+        expect(s.outstanding.byCurrency.CAD).toBe(450);
+        expect(s.outstanding.count).toBe(2);
     });
     it('handles empty input', () => {
-        expect(summarizePayouts([])).toEqual({ passThrough: {}, myCut: {}, pending: { count: 0, byCurrency: {} }, paid: { count: 0, byCurrency: {} } });
+        expect(summarizePayouts([])).toEqual({ forwarded: {}, myCut: {}, paid: {}, outstanding: { count: 0, byCurrency: {} } });
     });
 });
 
