@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <base href="/invoices/">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Referrals - Invoice Generator Pro</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+
+    <style>
+        body { display: none; }
+
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 0.75rem;
+            margin-bottom: 1.5rem;
+        }
+        .summary-tile {
+            background: var(--surface-card);
+            border: 1px solid var(--surface-glass-border);
+            border-radius: var(--radius-md);
+            padding: 0.85rem 1rem;
+        }
+        .summary-tile__label {
+            font-size: 0.72rem; font-weight: 600; color: var(--text-tertiary);
+            text-transform: uppercase; letter-spacing: 0.03em;
+        }
+        .summary-tile__value { font-size: 1.25rem; font-weight: 800; color: var(--text-primary); margin-top: 3px; }
+        .summary-tile__sub { font-size: 0.72rem; color: var(--text-secondary); margin-top: 2px; }
+
+        .payout-preview {
+            display: flex; gap: 1.5rem; padding: 0.75rem 1rem; margin-top: 0.5rem;
+            background: var(--surface-hover); border-radius: var(--radius-md);
+        }
+        .payout-preview__item { font-size: 0.8125rem; }
+        .payout-preview__label { color: var(--text-tertiary); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.03em; }
+        .payout-preview__val { font-weight: 800; color: var(--text-primary); }
+
+        /* Modal + form (mirrors the registry pages) */
+        body.modal-open { overflow: hidden; }
+        .modal {
+            display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.45);
+            backdrop-filter: blur(4px); z-index: 1000; align-items: center; justify-content: center;
+            padding: 1.5rem; animation: modalOverlayIn 0.2s ease-out;
+        }
+        .modal.is-open { display: flex; }
+        .modal-content {
+            width: min(640px, 100%); max-height: min(92vh, 760px); background: #ffffff;
+            border: 1px solid var(--surface-glass-border); border-radius: 20px;
+            box-shadow: 0 24px 70px rgba(15, 23, 42, 0.2); overflow: hidden;
+            transform: translateY(16px) scale(0.98); opacity: 0;
+            transition: transform 0.2s ease, opacity 0.2s ease; display: flex; flex-direction: column;
+        }
+        .modal.is-open .modal-content { transform: translateY(0) scale(1); opacity: 1; }
+        .modal-header {
+            display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem;
+            padding: 1.5rem 1.75rem 1.125rem; border-bottom: 1px solid var(--surface-border-subtle);
+            background: linear-gradient(180deg, #fff8f6 0%, #ffffff 100%);
+        }
+        .modal-title { font-size: 1.625rem; line-height: 1.15; font-weight: 800; color: var(--text-primary); letter-spacing: -0.02em; }
+        .modal-subtitle { margin-top: 0.25rem; font-size: 0.8125rem; color: var(--text-secondary); }
+        .modal-close {
+            width: 38px; height: 38px; border-radius: 999px; border: 1px solid var(--surface-glass-border);
+            background: #ffffff; font-size: 1.75rem; line-height: 1; cursor: pointer; color: var(--text-secondary);
+            display: inline-flex; align-items: center; justify-content: center; transition: all 0.15s ease;
+        }
+        .modal-close:hover { color: var(--text-primary); border-color: #d1d5db; background: #f9fafb; }
+        .modal-body { padding: 1.5rem 1.75rem 1.625rem; overflow-y: auto; max-height: calc(92vh - 110px); }
+        .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem 1.125rem; }
+        .form-grid-full { grid-column: 1 / -1; }
+        .form-field { min-width: 0; display: flex; flex-direction: column; gap: 0.45rem; }
+        .form-field__label { font-size: 0.8125rem; font-weight: 600; color: var(--text-secondary); letter-spacing: 0.01em; }
+        .form-field__required { color: var(--primary); }
+        .form-field__input, .form-field__select {
+            width: 100%; height: 42px; border: 1px solid var(--surface-glass-border); border-radius: 10px;
+            background: #ffffff; padding: 0 0.875rem; font-size: 0.875rem; color: var(--text-primary);
+            font-family: var(--font-sans); transition: border-color 0.15s ease, box-shadow 0.15s ease;
+        }
+        .form-field__input:hover, .form-field__select:hover { border-color: #d1d5db; }
+        .form-field__input:focus, .form-field__select:focus {
+            outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(255, 107, 74, 0.12);
+        }
+        .form-field__error { font-size: 0.75rem; color: #dc2626; }
+        .modal-actions {
+            display: flex; justify-content: flex-end; gap: 0.75rem; margin-top: 1.375rem;
+            padding-top: 1.125rem; border-top: 1px solid var(--surface-border-subtle);
+        }
+        .modal-actions .btn { height: 42px; min-width: 138px; font-size: 0.875rem; font-weight: 600; }
+        .modal-actions .btn--outline { min-width: 112px; }
+        #payoutForm { display: flex; flex-direction: column; overflow: hidden; flex: 1; }
+        @keyframes modalOverlayIn { from { opacity: 0; } to { opacity: 1; } }
+        @media (max-width: 768px) {
+            .modal { padding: 0.75rem; }
+            .modal-content { max-height: calc(100vh - 1.5rem); border-radius: 16px; }
+            .modal-body { padding: 1rem; max-height: calc(100vh - 132px); }
+            .form-grid { grid-template-columns: 1fr; }
+            .modal-actions { flex-direction: column-reverse; }
+            .modal-actions .btn { width: 100%; }
+        }
+    </style>
+  <script type="module" crossorigin src="/invoices/assets/referrals-CWpYzDrA.js"></script>
+  <link rel="modulepreload" crossorigin href="/invoices/assets/config-c-jMUxvT.js">
+  <link rel="modulepreload" crossorigin href="/invoices/assets/auth-De7W24vl.js">
+  <link rel="modulepreload" crossorigin href="/invoices/assets/utils-C_5o-oWL.js">
+  <link rel="modulepreload" crossorigin href="/invoices/assets/layout-ByU-j2OP.js">
+  <link rel="modulepreload" crossorigin href="/invoices/assets/audit-trail-YMdFfTFf.js">
+  <link rel="modulepreload" crossorigin href="/invoices/assets/database-8GufR2El.js">
+  <link rel="modulepreload" crossorigin href="/invoices/assets/access-control-Ce9gUgcs.js">
+  <link rel="modulepreload" crossorigin href="/invoices/assets/utils-B5oGIJD7.js">
+  <link rel="stylesheet" crossorigin href="/invoices/assets/layout-BDlSXrWc.css">
+  <link rel="stylesheet" crossorigin href="/invoices/assets/dashboard-CTLGdJqp.css">
+  <link rel="stylesheet" crossorigin href="/invoices/assets/mobile-RQyqJNrw.css">
+</head>
+
+<body>
+    <main class="dashboard">
+        <div class="dashboard__container">
+            <div class="dashboard__header invoice-header">
+                <div class="invoice-header__content">
+                    <h1 class="dashboard__title">Referrals</h1>
+                    <p class="dashboard__subtitle">Pass-through payouts — your cut, what was forwarded, and what's been paid</p>
+                </div>
+                <div class="invoice-header__actions">
+                    <button id="addPayoutBtn" class="btn btn--primary">
+                        <svg class="btn-icon" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd" />
+                        </svg>
+                        <span class="btn-text">New Payout</span>
+                    </button>
+                </div>
+            </div>
+
+            <div id="summaryGrid" class="summary-grid"></div>
+
+            <div class="search-box" style="margin-bottom: 1.5rem;">
+                <svg class="search-box__icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                <input type="search" id="searchInput" class="form-field__input" placeholder="Search by recipient or invoice #…">
+            </div>
+
+            <div class="table-container">
+                <table class="table" id="payoutsTable">
+                    <thead>
+                        <tr>
+                            <th>Invoice</th>
+                            <th>Recipient</th>
+                            <th>Amount received</th>
+                            <th>My cut</th>
+                            <th>Passed through</th>
+                            <th>Status</th>
+                            <th>Paid date</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="payoutsBody">
+                        <tr><td><div class="skeleton-line" style="width:60%"></div></td><td><div class="skeleton-line" style="width:70%"></div></td><td><div class="skeleton-line" style="width:55%"></div></td><td><div class="skeleton-line" style="width:45%"></div></td><td><div class="skeleton-line" style="width:55%"></div></td><td><div class="skeleton-line" style="width:40%"></div></td><td><div class="skeleton-line" style="width:50%"></div></td><td><div class="skeleton-line" style="width:60%"></div></td></tr>
+                        <tr><td><div class="skeleton-line" style="width:55%"></div></td><td><div class="skeleton-line" style="width:65%"></div></td><td><div class="skeleton-line" style="width:55%"></div></td><td><div class="skeleton-line" style="width:45%"></div></td><td><div class="skeleton-line" style="width:55%"></div></td><td><div class="skeleton-line" style="width:40%"></div></td><td><div class="skeleton-line" style="width:50%"></div></td><td><div class="skeleton-line" style="width:60%"></div></td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+
+    <!-- Payout Form Modal -->
+    <div id="payoutModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div>
+                    <h3 class="modal-title" id="modalTitle">New Referral Payout</h3>
+                    <p class="modal-subtitle">Record a pass-through: your cut and what's forwarded to the partner.</p>
+                </div>
+                <button class="modal-close" id="closeModalBtn" aria-label="Close modal">&times;</button>
+            </div>
+
+            <form id="payoutForm">
+                <div class="modal-body">
+                    <input type="hidden" id="payoutId">
+                    <input type="hidden" id="invoiceId">
+                    <div class="form-grid">
+                        <div class="form-field form-grid-full">
+                            <label class="form-field__label">Invoice</label>
+                            <select id="invoiceSelect" class="form-field__select">
+                                <option value="">Select an invoice (optional)…</option>
+                            </select>
+                            <small style="font-size:0.72rem;color:var(--text-tertiary);">Picking an invoice fills the received amount &amp; currency. You can also enter them manually.</small>
+                        </div>
+
+                        <div class="form-field">
+                            <label class="form-field__label">Invoice #</label>
+                            <input type="text" id="invoiceNumber" class="form-field__input" placeholder="INV-0001">
+                        </div>
+                        <div class="form-field">
+                            <label class="form-field__label">Currency</label>
+                            <select id="currency" class="form-field__select">
+                                <option value="USD">USD</option>
+                                <option value="EUR">EUR</option>
+                                <option value="GBP">GBP</option>
+                                <option value="CAD">CAD</option>
+                                <option value="AUD">AUD</option>
+                                <option value="INR">INR</option>
+                            </select>
+                        </div>
+
+                        <div class="form-field form-grid-full">
+                            <label class="form-field__label">Referral recipient <span class="form-field__required">*</span></label>
+                            <input type="text" id="recipient" class="form-field__input" placeholder="e.g. Globex Partners">
+                            <div id="recipientError" class="form-field__error"></div>
+                        </div>
+
+                        <div class="form-field">
+                            <label class="form-field__label">Amount received <span class="form-field__required">*</span></label>
+                            <input type="number" id="basisAmount" class="form-field__input" min="0" step="0.01" value="0">
+                            <div id="basisError" class="form-field__error"></div>
+                        </div>
+                        <div class="form-field">
+                            <label class="form-field__label">My cut (%) <span class="form-field__required">*</span></label>
+                            <input type="number" id="cutPercent" class="form-field__input" min="0" max="100" step="0.5" value="15">
+                        </div>
+
+                        <div class="form-grid-full">
+                            <div class="payout-preview">
+                                <div class="payout-preview__item">
+                                    <div class="payout-preview__label">My cut</div>
+                                    <div class="payout-preview__val" id="previewMyCut">—</div>
+                                </div>
+                                <div class="payout-preview__item">
+                                    <div class="payout-preview__label">Passed through</div>
+                                    <div class="payout-preview__val" id="previewPassThrough">—</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="form-field">
+                            <label class="form-field__label">Status</label>
+                            <select id="status" class="form-field__select">
+                                <option value="pending">Pending</option>
+                                <option value="paid">Paid</option>
+                            </select>
+                        </div>
+                        <div class="form-field" id="paidDateField" style="display:none;">
+                            <label class="form-field__label">Paid date</label>
+                            <input type="date" id="paidDate" class="form-field__input">
+                        </div>
+
+                        <div class="form-field form-grid-full">
+                            <label class="form-field__label">Notes</label>
+                            <textarea id="notes" class="form-field__input" rows="2" style="height:auto;padding-top:0.5rem;" placeholder="Optional notes"></textarea>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="modal-actions" style="margin-top:0;padding:1.25rem 1.75rem;">
+                    <button type="button" id="cancelBtn" class="btn btn--outline">Cancel</button>
+                    <button type="submit" id="saveBtn" class="btn btn--primary">Save Payout</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Delete Confirmation Modal -->
+    <div id="deletePayoutModal" style="display:none; position:fixed; inset:0; background:rgba(15,23,42,0.5); backdrop-filter:blur(4px); z-index:2000; align-items:center; justify-content:center; padding:1.5rem;">
+        <div style="background:#fff; border-radius:16px; box-shadow:0 24px 70px rgba(15,23,42,0.2); width:min(440px,100%); padding:2rem;">
+            <h3 style="font-size:1.125rem; font-weight:800; color:#111827; margin:0 0 0.5rem;">Delete Payout?</h3>
+            <p style="font-size:0.8125rem; color:#374151; margin-bottom:1.5rem;">
+                Delete the referral payout to <strong id="deletePayoutName">—</strong>? This cannot be undone.
+            </p>
+            <div style="display:flex; gap:0.75rem; justify-content:flex-end;">
+                <button id="deleteCancelBtn" class="btn btn--outline">Cancel</button>
+                <button id="deleteConfirmBtn" class="btn" style="background:#dc2626; color:#fff; border:none;">Delete</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="toastContainer" class="toast-container"></div>
+
+</body>
+
+</html>
