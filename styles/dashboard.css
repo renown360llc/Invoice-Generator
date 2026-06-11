@@ -4347,3 +4347,36 @@ canvas#revenueChart {
     visibility: visible;
 }
 
+/* ── Page header with right-aligned actions (shared: clients, companies,
+   referrals, invoices) — keeps the primary "Add" button in the top-right ── */
+.invoice-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    gap: 1rem;
+}
+
+.invoice-header__content {
+    min-width: 0;
+}
+
+.invoice-header__actions {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    justify-content: flex-end;
+    flex-shrink: 0;
+}
+
+@media (max-width: 768px) {
+    .invoice-header {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .invoice-header__actions {
+        justify-content: flex-start;
+        flex-wrap: wrap;
+    }
+}
+
