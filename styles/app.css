@@ -1013,3 +1013,18 @@ body {
         padding: 1rem;
     }
 }
+
+/* ── Inline validation feedback ─────────────────────────────────────────── */
+.form-field__input.is-invalid,
+.form-field__select.is-invalid,
+.form-field__textarea.is-invalid {
+    border-color: #dc2626 !important;
+    box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.12) !important;
+}
+
+.field-error {
+    color: #dc2626;
+    font-size: 0.75rem;
+    font-weight: 500;
+    margin-top: 4px;
+}

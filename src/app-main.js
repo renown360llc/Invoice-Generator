@@ -10,6 +10,7 @@ import { dbGetClients } from './modules/db-clients.js';
 import { formatClientOption, sortClientsByName } from './modules/clients.js';
 import { dbGetCompanies } from './modules/db-companies.js';
 import { formatCompanyOption, sortCompaniesByName } from './modules/companies.js';
+import { validateInvoiceData } from './modules/invoice-validation.js';
 import {
     saveInvoice as dbSaveInvoice,
     getInvoice as dbGetInvoice,
@@ -535,6 +536,15 @@ function bindEventListeners() {
         });
     }
 
+    // Clear a field's validation error as soon as the user edits it.
+    document.getElementById('invoiceForm')?.addEventListener('input', (e) => {
+        const el = e.target;
+        if (el?.classList?.contains('is-invalid')) {
+            el.classList.remove('is-invalid');
+            (el.closest('.form-field') || el.parentElement)?.querySelector('.field-error')?.remove();
+        }
+    });
+
     const printBtn = document.getElementById('printBtn');
     if (printBtn) {
         printBtn.addEventListener('click', () => {
@@ -628,10 +638,62 @@ async function initializeInvoiceNumber() {
 }
 
 // Handler functions
+// Maps validation field keys to the DOM element to highlight.
+const VALIDATION_FIELD_IDS = {
+    clientName: 'clientName',
+    invoiceNumber: 'invoiceNumber',
+    dueDate: 'dueDate',
+    items: 'itemsContainer',
+    total: 'totalDisplay'
+};
+
+function clearValidationErrors() {
+    document.querySelectorAll('.is-invalid').forEach((el) => el.classList.remove('is-invalid'));
+    document.querySelectorAll('.field-error').forEach((el) => el.remove());
+}
+
+function showValidationErrors(errors = []) {
+    let firstEl = null;
+    errors.forEach(({ field, message }) => {
+        const el = document.getElementById(VALIDATION_FIELD_IDS[field] || field);
+        if (!el) return;
+
+        if (['INPUT', 'SELECT', 'TEXTAREA'].includes(el.tagName)) {
+            el.classList.add('is-invalid');
+        }
+
+        const anchor = el.closest('.form-field') || el.closest('.totals-display')
+            || el.closest('.form-section') || el.parentElement || el;
+        const msg = document.createElement('div');
+        msg.className = 'field-error';
+        msg.textContent = message;
+        anchor.appendChild(msg);
+
+        if (!firstEl) firstEl = el;
+    });
+
+    if (firstEl) {
+        firstEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        if (typeof firstEl.focus === 'function') firstEl.focus({ preventScroll: true });
+    }
+}
+
 async function handleSave() {
     if (blockReadOnlyAction('saving invoices')) return;
     if (state.isLocked) {
         showToast('Invoice is locked. Unlock it first to save changes.', 'error');
+        return;
+    }
+
+    const data = gatherFormData();
+    if (state.logo) data.business_info.logo = state.logo;
+
+    // ── Validation gate — block save on an invalid financial document ────────
+    clearValidationErrors();
+    const validation = validateInvoiceData(data);
+    if (!validation.isValid) {
+        showValidationErrors(validation.errors);
+        showToast(`Please fix ${validation.errors.length} issue${validation.errors.length === 1 ? '' : 's'} before saving`, 'error');
         return;
     }
 
@@ -640,9 +702,6 @@ async function handleSave() {
     btn.textContent = 'Saving...';
 
     try {
-        const data = gatherFormData();
-        if (state.logo) data.business_info.logo = state.logo;
-
         // ── Race condition fix & Custom Invoice Logic ────────────────────────
         const invNumEl = document.getElementById('invoiceNumber');
         const currentNum = String(invNumEl?.value || '').trim();
