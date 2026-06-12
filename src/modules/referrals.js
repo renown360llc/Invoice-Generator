@@ -104,6 +104,31 @@ export function payoutPaidMonths(payout = {}) {
     return [...new Set(months)].sort();
 }
 
+/** Installments forwarded to the partner within a single YYYY-MM month. */
+export function paidInMonth(payout = {}, month = '') {
+    if (!month) return payoutAmountPaid(payout);
+    const payments = payout.payments || [];
+    if (!payments.length) {
+        return String(payout.paid_date || '').slice(0, 7) === month ? payoutAmountPaid(payout) : 0;
+    }
+    return round2(payments
+        .filter((p) => String(p?.date || '').slice(0, 7) === month)
+        .reduce((sum, p) => sum + (Number(p?.amount) || 0), 0));
+}
+
+/** Cumulative installments forwarded up to and including a given YYYY-MM month. */
+export function paidThroughMonth(payout = {}, month = '') {
+    if (!month) return payoutAmountPaid(payout);
+    const payments = payout.payments || [];
+    if (!payments.length) {
+        const pd = String(payout.paid_date || '').slice(0, 7);
+        return pd && pd <= month ? payoutAmountPaid(payout) : 0;
+    }
+    return round2(payments
+        .filter((p) => String(p?.date || '').slice(0, 7) <= month)
+        .reduce((sum, p) => sum + (Number(p?.amount) || 0), 0));
+}
+
 /** Derived status from amounts: pending -> partially_paid -> paid. */
 export function derivePayoutStatus(payout = {}) {
     const owed = Number(payout.pass_through_amount) || 0;
@@ -116,8 +141,13 @@ export function derivePayoutStatus(payout = {}) {
 /**
  * Roll up payouts (per currency): total owed to partners, your kept cut,
  * how much has actually been paid to partners, and what's still outstanding.
+ *
+ * With { month } set, the figures are scoped to that month's installments so a
+ * split payout isn't counted whole: paid = installments in the month, forwarded
+ * and myCut prorate to that month's share, and outstanding is the balance still
+ * owed at the month's end (owed minus everything paid through that month).
  */
-export function summarizePayouts(payouts = []) {
+export function summarizePayouts(payouts = [], { month = '' } = {}) {
     const forwarded = {};
     const myCut = {};
     const paid = {};
@@ -125,7 +155,23 @@ export function summarizePayouts(payouts = []) {
 
     (payouts || []).forEach((p) => {
         const currency = (p.currency || 'USD').toUpperCase();
-        addByCurrency(forwarded, currency, p.pass_through_amount);
+        const owed = Number(p.pass_through_amount) || 0;
+
+        if (month) {
+            const pim = paidInMonth(p, month);
+            const frac = owed > 0 ? pim / owed : 0;
+            addByCurrency(forwarded, currency, round2(owed * frac));
+            addByCurrency(myCut, currency, round2((Number(p.my_cut) || 0) * frac));
+            addByCurrency(paid, currency, pim);
+            const balance = Math.max(0, round2(owed - paidThroughMonth(p, month)));
+            if (balance > 0) {
+                outstanding.count += 1;
+                addByCurrency(outstanding.byCurrency, currency, balance);
+            }
+            return;
+        }
+
+        addByCurrency(forwarded, currency, owed);
         addByCurrency(myCut, currency, p.my_cut);
         addByCurrency(paid, currency, payoutAmountPaid(p));
         const balance = payoutBalance(p);

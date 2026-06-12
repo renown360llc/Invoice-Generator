@@ -190,12 +190,14 @@ function summaryTile(label, value, sub) {
 }
 
 function renderSummary(list = payouts) {
-    const s = summarizePayouts(list);
+    const month = ledgerFilters.month !== 'all' ? ledgerFilters.month : '';
+    const s = summarizePayouts(list, { month });
+    const scope = month ? `in ${monthLabel(month)}` : '';
     els.summary.innerHTML = [
-        summaryTile('To forward', byCurrencyStr(s.forwarded), `${list.length} payout${list.length === 1 ? '' : 's'}`),
-        summaryTile('My cut (total)', byCurrencyStr(s.myCut), 'kept across payouts'),
-        summaryTile('Paid to partners', byCurrencyStr(s.paid), 'forwarded so far'),
-        summaryTile('Outstanding', byCurrencyStr(s.outstanding.byCurrency), `${s.outstanding.count} owing`)
+        summaryTile('To forward', byCurrencyStr(s.forwarded), `${list.length} payout${list.length === 1 ? '' : 's'}${scope ? ` ${scope}` : ''}`),
+        summaryTile('My cut', byCurrencyStr(s.myCut), month ? scope : 'kept across payouts'),
+        summaryTile('Paid to partners', byCurrencyStr(s.paid), month ? `forwarded ${scope}` : 'forwarded so far'),
+        summaryTile('Outstanding', byCurrencyStr(s.outstanding.byCurrency), month ? `${s.outstanding.count} owing at month end` : `${s.outstanding.count} owing`)
     ].join('');
 }
 

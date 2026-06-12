@@ -4,6 +4,8 @@ import {
     derivePayoutStatus,
     filterPayouts,
     invoiceFeesTotal,
+    paidInMonth,
+    paidThroughMonth,
     paymentsTotal,
     payoutPaidMonths,
     referralBasis,
@@ -140,6 +142,60 @@ describe('summarizePayouts', () => {
     });
     it('handles empty input', () => {
         expect(summarizePayouts([])).toEqual({ forwarded: {}, myCut: {}, paid: {}, outstanding: { count: 0, byCurrency: {} } });
+    });
+});
+
+describe('month-scoped payment math', () => {
+    const split = { currency: 'USD', my_cut: 15, pass_through_amount: 100,
+        payments: [{ date: '2026-03-10', amount: 30 }, { date: '2026-05-02', amount: 70 }] };
+
+    it('paidInMonth counts only that month, paidThroughMonth is cumulative', () => {
+        expect(paidInMonth(split, '2026-03')).toBe(30);
+        expect(paidInMonth(split, '2026-05')).toBe(70);
+        expect(paidInMonth(split, '2026-04')).toBe(0);
+        expect(paidThroughMonth(split, '2026-03')).toBe(30);
+        expect(paidThroughMonth(split, '2026-05')).toBe(100);
+    });
+
+    it('with no month falls back to the whole amount paid', () => {
+        expect(paidInMonth(split, '')).toBe(100);
+        expect(paidThroughMonth(split, '')).toBe(100);
+    });
+
+    it('falls back to paid_date when there are no installments', () => {
+        const legacy = { pass_through_amount: 50, amount_paid: 50, paid_date: '2026-02-15' };
+        expect(paidInMonth(legacy, '2026-02')).toBe(50);
+        expect(paidInMonth(legacy, '2026-03')).toBe(0);
+        expect(paidThroughMonth(legacy, '2026-03')).toBe(50);
+    });
+});
+
+describe('summarizePayouts (month-scoped)', () => {
+    const split = [{ currency: 'USD', my_cut: 15, pass_through_amount: 100,
+        payments: [{ date: '2026-03-10', amount: 30 }, { date: '2026-05-02', amount: 70 }] }];
+
+    it('counts only March installment, prorates the cut, balance still owed', () => {
+        const s = summarizePayouts(split, { month: '2026-03' });
+        expect(s.paid.USD).toBe(30);
+        expect(s.forwarded.USD).toBe(30);
+        expect(s.myCut.USD).toBe(4.5);              // 15 * 0.30
+        expect(s.outstanding.byCurrency.USD).toBe(70);
+        expect(s.outstanding.count).toBe(1);
+    });
+
+    it('counts only May installment and clears the balance', () => {
+        const s = summarizePayouts(split, { month: '2026-05' });
+        expect(s.paid.USD).toBe(70);
+        expect(s.myCut.USD).toBe(10.5);             // 15 * 0.70
+        expect(s.outstanding.byCurrency.USD ?? 0).toBe(0);
+        expect(s.outstanding.count).toBe(0);
+    });
+
+    it('without a month, sums whole-payout amounts (back-compat)', () => {
+        const s = summarizePayouts(split);
+        expect(s.paid.USD).toBe(100);
+        expect(s.forwarded.USD).toBe(100);
+        expect(s.myCut.USD).toBe(15);
     });
 });
 
