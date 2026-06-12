@@ -368,13 +368,13 @@
             }
         }
     </style>
-  <script type="module" crossorigin src="/invoices/assets/invoices-R6h8oaU_.js"></script>
+  <script type="module" crossorigin src="/invoices/assets/invoices-CkuDFMt1.js"></script>
   <link rel="modulepreload" crossorigin href="/invoices/assets/config-c-jMUxvT.js">
   <link rel="modulepreload" crossorigin href="/invoices/assets/auth-De7W24vl.js">
   <link rel="modulepreload" crossorigin href="/invoices/assets/utils-C_5o-oWL.js">
   <link rel="modulepreload" crossorigin href="/invoices/assets/layout-kYLeMcut.js">
   <link rel="modulepreload" crossorigin href="/invoices/assets/audit-trail-YMdFfTFf.js">
-  <link rel="modulepreload" crossorigin href="/invoices/assets/database-8GufR2El.js">
+  <link rel="modulepreload" crossorigin href="/invoices/assets/database-DYZKRoM0.js">
   <link rel="modulepreload" crossorigin href="/invoices/assets/preload-helper-CON-e7xv.js">
   <link rel="modulepreload" crossorigin href="/invoices/assets/utils-B5oGIJD7.js">
   <link rel="modulepreload" crossorigin href="/invoices/assets/pdf-CzGad022.js">
@@ -462,12 +462,11 @@
                         <option value="next-30">Due in 30 Days</option>
                         <option value="no-due">No Due Date</option>
                     </select>
-                    <select id="amountFilter" class="sort-select" aria-label="Filter by amount">
-                        <option value="all">All Amounts</option>
-                        <option value="under-1000">Under 1,000</option>
-                        <option value="1000-5000">1,000 to 5,000</option>
-                        <option value="5000-10000">5,000 to 10,000</option>
-                        <option value="over-10000">Over 10,000</option>
+                    <select id="companyFilter" class="sort-select" aria-label="Filter by company">
+                        <option value="all">All Companies</option>
+                    </select>
+                    <select id="clientFilter" class="sort-select" aria-label="Filter by client">
+                        <option value="all">All Clients</option>
                     </select>
                     <input type="text" id="searchInput" class="search-input"
                         placeholder="Search invoice # or client...">
@@ -713,13 +712,15 @@
                     </select>
                 </div>
                 <div class="mfs-group">
-                    <label class="mfs-group__label">Amount</label>
-                    <select class="mfs-select" id="mfsAmountFilter">
-                        <option value="all">All Amounts</option>
-                        <option value="under-1000">Under 1,000</option>
-                        <option value="1000-5000">1,000 to 5,000</option>
-                        <option value="5000-10000">5,000 to 10,000</option>
-                        <option value="over-10000">Over 10,000</option>
+                    <label class="mfs-group__label">From Company</label>
+                    <select class="mfs-select" id="mfsCompanyFilter">
+                        <option value="all">All Companies</option>
+                    </select>
+                </div>
+                <div class="mfs-group">
+                    <label class="mfs-group__label">Client</label>
+                    <select class="mfs-select" id="mfsClientFilter">
+                        <option value="all">All Clients</option>
                     </select>
                 </div>
                 <div class="mfs-group">
@@ -765,7 +766,8 @@
         const desktopStatus  = document.getElementById('statusFilter');
         const desktopConsul  = document.getElementById('consultantFilter');
         const desktopDue     = document.getElementById('dueFilter');
-        const desktopAmt     = document.getElementById('amountFilter');
+        const desktopCompany = document.getElementById('companyFilter');
+        const desktopClient  = document.getElementById('clientFilter');
         const desktopCurr    = document.getElementById('currencyFilter');
         const desktopSort    = document.getElementById('sortSelect');
 
@@ -775,15 +777,17 @@
         const mfsApply  = document.getElementById('mfsApplyBtn');
         const mfsConsul = document.getElementById('mfsConsultantFilter');
         const mfsDue    = document.getElementById('mfsDueFilter');
-        const mfsAmt    = document.getElementById('mfsAmountFilter');
+        const mfsCompany = document.getElementById('mfsCompanyFilter');
+        const mfsClient  = document.getElementById('mfsClientFilter');
         const mfsCurr   = document.getElementById('mfsCurrencyFilter');
         const mfsSort   = document.getElementById('mfsSortSelect');
 
         function openSheet() {
             if (mfsConsul && desktopConsul) copySelectOptions(desktopConsul, mfsConsul);
+            if (mfsCompany && desktopCompany) copySelectOptions(desktopCompany, mfsCompany);
+            if (mfsClient && desktopClient) copySelectOptions(desktopClient, mfsClient);
             if (mfsCurr && desktopCurr)     copySelectOptions(desktopCurr, mfsCurr);
             if (mfsDue && desktopDue)       mfsDue.value = desktopDue.value;
-            if (mfsAmt && desktopAmt)       mfsAmt.value = desktopAmt.value;
             if (mfsSort && desktopSort)     mfsSort.value = desktopSort.value;
             
             const val = desktopStatus?.value || 'all';
@@ -816,8 +820,8 @@
                 desktopStatus.dispatchEvent(new Event('change', { bubbles: true }));
             }
             [['mfsConsultantFilter','consultantFilter'],['mfsDueFilter','dueFilter'],
-             ['mfsAmountFilter','amountFilter'],['mfsCurrencyFilter','currencyFilter'],
-             ['mfsSortSelect','sortSelect']]
+             ['mfsCompanyFilter','companyFilter'],['mfsClientFilter','clientFilter'],
+             ['mfsCurrencyFilter','currencyFilter'],['mfsSortSelect','sortSelect']]
               .forEach(([mId, dId]) => {
                 const m = document.getElementById(mId), d = document.getElementById(dId);
                 if (m && d) { d.value = m.value; d.dispatchEvent(new Event('change', { bubbles: true })); }
@@ -841,8 +845,11 @@
             if (desktopDue?.value && desktopDue.value !== 'all') {
                 chips.push({ key: 'due', label: desktopDue.options[desktopDue.selectedIndex]?.text });
             }
-            if (desktopAmt?.value && desktopAmt.value !== 'all') {
-                chips.push({ key: 'amount', label: desktopAmt.options[desktopAmt.selectedIndex]?.text });
+            if (desktopCompany?.value && desktopCompany.value !== 'all') {
+                chips.push({ key: 'company', label: desktopCompany.options[desktopCompany.selectedIndex]?.text });
+            }
+            if (desktopClient?.value && desktopClient.value !== 'all') {
+                chips.push({ key: 'client', label: desktopClient.options[desktopClient.selectedIndex]?.text });
             }
             if (desktopCurr?.value && desktopCurr.value !== 'all') {
                 chips.push({ key: 'currency', label: desktopCurr.value });
@@ -864,7 +871,8 @@
             );
             if (mfsConsul) mfsConsul.value = 'all';
             if (mfsDue)    mfsDue.value    = 'all';
-            if (mfsAmt)    mfsAmt.value    = 'all';
+            if (mfsCompany) mfsCompany.value = 'all';
+            if (mfsClient)  mfsClient.value  = 'all';
             if (mfsCurr)   mfsCurr.value   = 'all';
             if (mfsSort)   mfsSort.value   = 'date-desc';
         }
@@ -892,7 +900,7 @@
         chipsRow?.addEventListener('click', e => {
             const chip = e.target.closest('.mobile-filter-bar__chip');
             if (!chip) return;
-            const map = { status: desktopStatus, consultant: desktopConsul, due: desktopDue, amount: desktopAmt, currency: desktopCurr };
+            const map = { status: desktopStatus, consultant: desktopConsul, due: desktopDue, company: desktopCompany, client: desktopClient, currency: desktopCurr };
             const el = map[chip.dataset.chipKey];
             if (el) { el.value = 'all'; el.dispatchEvent(new Event('change', { bubbles: true })); }
             updateChips();
@@ -900,11 +908,15 @@
 
         const syncDropdowns = () => {
             if (mfsConsul && desktopConsul) copySelectOptions(desktopConsul, mfsConsul);
+            if (mfsCompany && desktopCompany) copySelectOptions(desktopCompany, mfsCompany);
+            if (mfsClient && desktopClient) copySelectOptions(desktopClient, mfsClient);
             if (mfsCurr && desktopCurr)     copySelectOptions(desktopCurr, mfsCurr);
         };
         const selectObserver = new MutationObserver(syncDropdowns);
-        if (desktopConsul) selectObserver.observe(desktopConsul, { childList: true });
-        if (desktopCurr)   selectObserver.observe(desktopCurr,   { childList: true });
+        if (desktopConsul)  selectObserver.observe(desktopConsul,  { childList: true });
+        if (desktopCompany) selectObserver.observe(desktopCompany, { childList: true });
+        if (desktopClient)  selectObserver.observe(desktopClient,  { childList: true });
+        if (desktopCurr)    selectObserver.observe(desktopCurr,    { childList: true });
 
         setInterval(updateChips, 600);
     })();
