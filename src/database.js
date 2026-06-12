@@ -507,17 +507,14 @@ function applyInvoiceFilters(query, filters = {}) {
         }
     }
 
-    const amount = String(filters.amount || 'all')
-    if (amount !== 'all') {
-        if (amount === 'under-1000') {
-            query = query.lt('totals->total', 1000)
-        } else if (amount === '1000-5000') {
-            query = query.gte('totals->total', 1000).lte('totals->total', 5000)
-        } else if (amount === '5000-10000') {
-            query = query.gt('totals->total', 5000).lte('totals->total', 10000)
-        } else if (amount === 'over-10000') {
-            query = query.gt('totals->total', 10000)
-        }
+    const company = String(filters.company || 'all')
+    if (company !== 'all') {
+        query = query.eq('business_info->>name', company)
+    }
+
+    const client = String(filters.client || 'all')
+    if (client !== 'all') {
+        query = query.eq('client_info->>name', client)
     }
 
     return query

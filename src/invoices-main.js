@@ -76,7 +76,8 @@ const DEFAULT_FILTERS = {
     status: 'all',
     currency: 'all',
     due: 'all',
-    amount: 'all',
+    company: 'all',
+    client: 'all',
     sort: 'date-desc'
 };
 
@@ -160,7 +161,8 @@ function cacheElements() {
     els.statusFilter = document.getElementById('statusFilter');
     els.currencyFilter = document.getElementById('currencyFilter');
     els.dueFilter = document.getElementById('dueFilter');
-    els.amountFilter = document.getElementById('amountFilter');
+    els.companyFilter = document.getElementById('companyFilter');
+    els.clientFilter = document.getElementById('clientFilter');
     els.sortSelect = document.getElementById('sortSelect');
     els.clearFiltersBtn = document.getElementById('clearFiltersBtn');
     els.filtersMeta = document.getElementById('filtersMeta');
@@ -313,7 +315,8 @@ function hydrateFilterControls() {
     if (els.statusFilter) els.statusFilter.value = state.filters.status;
     if (els.currencyFilter) els.currencyFilter.value = state.filters.currency;
     if (els.dueFilter) els.dueFilter.value = state.filters.due;
-    if (els.amountFilter) els.amountFilter.value = state.filters.amount;
+    if (els.companyFilter) els.companyFilter.value = state.filters.company;
+    if (els.clientFilter) els.clientFilter.value = state.filters.client;
     if (els.sortSelect) els.sortSelect.value = state.filters.sort;
 }
 
@@ -360,8 +363,15 @@ function bindEvents() {
         applyFiltersAndRender();
     });
 
-    els.amountFilter?.addEventListener('change', (event) => {
-        state.filters.amount = event.target.value;
+    els.companyFilter?.addEventListener('change', (event) => {
+        state.filters.company = event.target.value;
+        state.currentPage = 1;
+        persistFilters();
+        applyFiltersAndRender();
+    });
+
+    els.clientFilter?.addEventListener('change', (event) => {
+        state.filters.client = event.target.value;
         state.currentPage = 1;
         persistFilters();
         applyFiltersAndRender();
@@ -373,6 +383,8 @@ function bindEvents() {
         hydrateFilterControls();
         populateConsultantFilterOptions();
         populateCurrencyFilterOptions();
+        populateCompanyFilterOptions();
+        populateClientFilterOptions();
         persistFilters();
         applyFiltersAndRender();
     });
@@ -772,6 +784,8 @@ async function loadInvoices() {
 
         populateConsultantFilterOptions();
         populateCurrencyFilterOptions();
+        populateCompanyFilterOptions();
+        populateClientFilterOptions();
         renderTable();
         renderPagination();
         renderFiltersMeta();
@@ -831,6 +845,35 @@ function populateCurrencyFilterOptions() {
     }
 
     els.currencyFilter.value = state.filters.currency;
+}
+
+function populateDistinctNameFilter(selectEl, accessor, filterKey, allLabel) {
+    if (!selectEl) return;
+    const names = new Set();
+    state.allInvoices.forEach((invoice) => {
+        const name = String(accessor(invoice) || '').trim();
+        if (name) names.add(name);
+    });
+    const sorted = Array.from(names).sort((a, b) => a.localeCompare(b));
+    const html = [`<option value="all">${allLabel}</option>`];
+    sorted.forEach((name) => {
+        html.push(`<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`);
+    });
+    selectEl.innerHTML = html.join('');
+
+    if (state.filters[filterKey] !== 'all' && !names.has(state.filters[filterKey])) {
+        state.filters[filterKey] = 'all';
+        persistFilters();
+    }
+    selectEl.value = state.filters[filterKey];
+}
+
+function populateCompanyFilterOptions() {
+    populateDistinctNameFilter(els.companyFilter, (inv) => inv.business_info?.name, 'company', 'All Companies');
+}
+
+function populateClientFilterOptions() {
+    populateDistinctNameFilter(els.clientFilter, (inv) => inv.client_info?.name, 'client', 'All Clients');
 }
 
 function applyFiltersAndRender() {
@@ -1198,7 +1241,8 @@ function renderFiltersMeta() {
         state.filters.status !== 'all' ? state.filters.status : '',
         state.filters.currency !== 'all' ? state.filters.currency : '',
         state.filters.due !== 'all' ? state.filters.due : '',
-        state.filters.amount !== 'all' ? state.filters.amount : ''
+        state.filters.company !== 'all' ? state.filters.company : '',
+        state.filters.client !== 'all' ? state.filters.client : ''
     ].filter(Boolean).length;
 
     const loadedCount = state.filteredInvoices.length;
