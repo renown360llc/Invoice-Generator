@@ -89,13 +89,19 @@ export function payoutBalance(payout = {}) {
 }
 
 /**
- * The date a payout was actually paid to the partner — its latest installment
- * date, falling back to a stored paid_date. Empty string when nothing is paid.
+ * Distinct YYYY-MM months in which a payout received installments, sorted.
+ * Partial payments can land in different months (e.g. $30 paid in March, $70
+ * in May => ['2026-03', '2026-05']), so a payout can belong to several. Falls
+ * back to a stored paid_date's month; empty array when nothing has been paid.
  */
-export function payoutPaidDate(payout = {}) {
-    const dates = (payout.payments || []).map((p) => p?.date).filter(Boolean);
-    if (dates.length) return dates.reduce((a, b) => (b > a ? b : a));
-    return payout.paid_date || '';
+export function payoutPaidMonths(payout = {}) {
+    const months = (payout.payments || [])
+        .map((p) => String(p?.date || '').slice(0, 7))
+        .filter((m) => m.length === 7);
+    if (!months.length && payout.paid_date) {
+        months.push(String(payout.paid_date).slice(0, 7));
+    }
+    return [...new Set(months)].sort();
 }
 
 /** Derived status from amounts: pending -> partially_paid -> paid. */

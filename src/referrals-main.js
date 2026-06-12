@@ -12,7 +12,7 @@ import {
     computePayout,
     receivedAmount,
     referralBasis,
-    payoutPaidDate,
+    payoutPaidMonths,
     summarizePayouts,
     filterPayouts,
     derivePayoutStatus,
@@ -211,17 +211,13 @@ function payoutClient(p) {
 function payoutCompany(p) {
     return (payoutInvoice(p)?.business_info?.name || '').trim();
 }
-function payoutMonth(p) {
-    // Group by when the referral was actually paid, not the invoice's date.
-    return String(payoutPaidDate(p) || '').slice(0, 7); // YYYY-MM
-}
 
 function populateLedgerFilters() {
     const companies = [...new Set(payouts.map(payoutCompany).filter(Boolean))].sort();
     const clients = [...new Set(payouts.map(payoutClient).filter(Boolean))].sort();
     const recipients = [...new Set(payouts.map((p) => (p.recipient || '').trim()).filter(Boolean))].sort();
     const currencies = [...new Set(payouts.map((p) => (p.currency || 'USD')))].sort();
-    const months = [...new Set(payouts.map(payoutMonth).filter((k) => k.length === 7))].sort().reverse();
+    const months = [...new Set(payouts.flatMap(payoutPaidMonths))].sort().reverse();
 
     const fill = (sel, items, allLabel, labeler = (x) => x) => {
         if (!sel) return;
@@ -246,7 +242,7 @@ function getVisiblePayouts() {
     if (ledgerFilters.company !== 'all') list = list.filter((p) => payoutCompany(p) === ledgerFilters.company);
     if (ledgerFilters.client !== 'all') list = list.filter((p) => payoutClient(p) === ledgerFilters.client);
     if (ledgerFilters.recipient !== 'all') list = list.filter((p) => (p.recipient || '').trim() === ledgerFilters.recipient);
-    if (ledgerFilters.month !== 'all') list = list.filter((p) => payoutMonth(p) === ledgerFilters.month);
+    if (ledgerFilters.month !== 'all') list = list.filter((p) => payoutPaidMonths(p).includes(ledgerFilters.month));
     return list;
 }
 

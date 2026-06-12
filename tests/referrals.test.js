@@ -5,7 +5,7 @@ import {
     filterPayouts,
     invoiceFeesTotal,
     paymentsTotal,
-    payoutPaidDate,
+    payoutPaidMonths,
     referralBasis,
     payoutAmountPaid,
     payoutBalance,
@@ -75,17 +75,25 @@ describe('partial payments', () => {
     });
 });
 
-describe('payoutPaidDate', () => {
-    it('uses the latest installment date', () => {
-        const p = { payments: [{ date: '2026-03-10' }, { date: '2026-05-02' }, { date: '2026-04-01' }] };
-        expect(payoutPaidDate(p)).toBe('2026-05-02');
+describe('payoutPaidMonths', () => {
+    it('returns every month that received an installment (split payment)', () => {
+        const p = { payments: [{ date: '2026-03-10', amount: 30 }, { date: '2026-05-02', amount: 70 }] };
+        expect(payoutPaidMonths(p)).toEqual(['2026-03', '2026-05']);
+    });
+    it('dedupes multiple installments in the same month', () => {
+        const p = { payments: [{ date: '2026-04-02' }, { date: '2026-04-20' }] };
+        expect(payoutPaidMonths(p)).toEqual(['2026-04']);
+    });
+    it('sorts months regardless of payment order (early payments)', () => {
+        const p = { payments: [{ date: '2026-05-02' }, { date: '2026-02-11' }] };
+        expect(payoutPaidMonths(p)).toEqual(['2026-02', '2026-05']);
     });
     it('falls back to stored paid_date when no installments', () => {
-        expect(payoutPaidDate({ paid_date: '2026-02-15' })).toBe('2026-02-15');
+        expect(payoutPaidMonths({ paid_date: '2026-02-15' })).toEqual(['2026-02']);
     });
     it('is empty when nothing has been paid', () => {
-        expect(payoutPaidDate({})).toBe('');
-        expect(payoutPaidDate({ payments: [] })).toBe('');
+        expect(payoutPaidMonths({})).toEqual([]);
+        expect(payoutPaidMonths({ payments: [] })).toEqual([]);
     });
 });
 
