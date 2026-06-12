@@ -5,6 +5,7 @@ import {
     filterPayouts,
     invoiceFeesTotal,
     paymentsTotal,
+    payoutPaidDate,
     referralBasis,
     payoutAmountPaid,
     payoutBalance,
@@ -71,6 +72,20 @@ describe('partial payments', () => {
         expect(derivePayoutStatus({ pass_through_amount: 850, amount_paid: 0 })).toBe('pending');
         expect(derivePayoutStatus({ pass_through_amount: 850, amount_paid: 400 })).toBe('partially_paid');
         expect(derivePayoutStatus({ pass_through_amount: 850, amount_paid: 850 })).toBe('paid');
+    });
+});
+
+describe('payoutPaidDate', () => {
+    it('uses the latest installment date', () => {
+        const p = { payments: [{ date: '2026-03-10' }, { date: '2026-05-02' }, { date: '2026-04-01' }] };
+        expect(payoutPaidDate(p)).toBe('2026-05-02');
+    });
+    it('falls back to stored paid_date when no installments', () => {
+        expect(payoutPaidDate({ paid_date: '2026-02-15' })).toBe('2026-02-15');
+    });
+    it('is empty when nothing has been paid', () => {
+        expect(payoutPaidDate({})).toBe('');
+        expect(payoutPaidDate({ payments: [] })).toBe('');
     });
 });
 

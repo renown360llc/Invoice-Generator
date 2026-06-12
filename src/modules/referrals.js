@@ -88,6 +88,16 @@ export function payoutBalance(payout = {}) {
     return Math.max(0, round2(owed - payoutAmountPaid(payout)));
 }
 
+/**
+ * The date a payout was actually paid to the partner — its latest installment
+ * date, falling back to a stored paid_date. Empty string when nothing is paid.
+ */
+export function payoutPaidDate(payout = {}) {
+    const dates = (payout.payments || []).map((p) => p?.date).filter(Boolean);
+    if (dates.length) return dates.reduce((a, b) => (b > a ? b : a));
+    return payout.paid_date || '';
+}
+
 /** Derived status from amounts: pending -> partially_paid -> paid. */
 export function derivePayoutStatus(payout = {}) {
     const owed = Number(payout.pass_through_amount) || 0;

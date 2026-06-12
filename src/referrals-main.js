@@ -12,6 +12,7 @@ import {
     computePayout,
     receivedAmount,
     referralBasis,
+    payoutPaidDate,
     summarizePayouts,
     filterPayouts,
     derivePayoutStatus,
@@ -211,8 +212,8 @@ function payoutCompany(p) {
     return (payoutInvoice(p)?.business_info?.name || '').trim();
 }
 function payoutMonth(p) {
-    const inv = payoutInvoice(p);
-    return String(inv?.invoice_meta?.dateRaw || p.created_at || '').slice(0, 7); // YYYY-MM
+    // Group by when the referral was actually paid, not the invoice's date.
+    return String(payoutPaidDate(p) || '').slice(0, 7); // YYYY-MM
 }
 
 function populateLedgerFilters() {
