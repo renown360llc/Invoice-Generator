@@ -29,6 +29,11 @@ let searchQuery = '';
 let payoutToDelete = null;
 let currentPaymentPayout = null;
 let isReadOnly = false;
+let editingInvoiceId = ''; // invoice of the payout being edited (kept selectable in the picker)
+
+const ledgerFilters = { status: 'all', client: 'all', currency: 'all', month: 'all' };
+let invoiceById = new Map();
+let invoiceByNumber = new Map();
 
 const els = {};
 
@@ -59,6 +64,11 @@ async function init() {
     els.deleteName = document.getElementById('deletePayoutName');
     els.deleteCancelBtn = document.getElementById('deleteCancelBtn');
     els.deleteConfirmBtn = document.getElementById('deleteConfirmBtn');
+    els.ledgerStatus = document.getElementById('ledgerStatus');
+    els.ledgerClient = document.getElementById('ledgerClient');
+    els.ledgerCurrency = document.getElementById('ledgerCurrency');
+    els.ledgerMonth = document.getElementById('ledgerMonth');
+    els.ledgerClear = document.getElementById('ledgerClear');
 
     const user = await getCurrentUser();
     if (!user) return;
@@ -75,6 +85,8 @@ async function init() {
     ]);
     payouts = payoutRows;
     invoices = invoiceRows || [];
+    invoiceById = new Map(invoices.map((i) => [String(i.id), i]));
+    invoiceByNumber = new Map(invoices.filter((i) => i.invoice_number).map((i) => [String(i.invoice_number), i]));
     populateInvoiceFilters();
     applyInvoiceFilter();
     render();
@@ -95,6 +107,18 @@ function bindEvents() {
     document.getElementById('cutPercent')?.addEventListener('input', updatePreview);
 
     els.search?.addEventListener('input', (e) => { searchQuery = e.target.value; render(); });
+
+    els.ledgerStatus?.addEventListener('change', (e) => { ledgerFilters.status = e.target.value || 'all'; render(); });
+    els.ledgerClient?.addEventListener('change', (e) => { ledgerFilters.client = e.target.value || 'all'; render(); });
+    els.ledgerCurrency?.addEventListener('change', (e) => { ledgerFilters.currency = e.target.value || 'all'; render(); });
+    els.ledgerMonth?.addEventListener('change', (e) => { ledgerFilters.month = e.target.value || 'all'; render(); });
+    els.ledgerClear?.addEventListener('click', () => {
+        ledgerFilters.status = 'all'; ledgerFilters.client = 'all'; ledgerFilters.currency = 'all'; ledgerFilters.month = 'all';
+        searchQuery = '';
+        if (els.search) els.search.value = '';
+        [els.ledgerStatus, els.ledgerClient, els.ledgerCurrency, els.ledgerMonth].forEach((s) => { if (s) s.value = ''; });
+        render();
+    });
 
     els.body?.addEventListener('click', (e) => {
         const btn = e.target.closest('[data-action]');
@@ -147,24 +171,67 @@ function summaryTile(label, value, sub) {
         </div>`;
 }
 
-function renderSummary() {
-    const s = summarizePayouts(payouts);
+function renderSummary(list = payouts) {
+    const s = summarizePayouts(list);
     els.summary.innerHTML = [
-        summaryTile('To forward', byCurrencyStr(s.forwarded), `${payouts.length} payout${payouts.length === 1 ? '' : 's'}`),
+        summaryTile('To forward', byCurrencyStr(s.forwarded), `${list.length} payout${list.length === 1 ? '' : 's'}`),
         summaryTile('My cut (total)', byCurrencyStr(s.myCut), 'kept across payouts'),
         summaryTile('Paid to partners', byCurrencyStr(s.paid), 'forwarded so far'),
         summaryTile('Outstanding', byCurrencyStr(s.outstanding.byCurrency), `${s.outstanding.count} owing`)
     ].join('');
 }
 
-function render() {
-    renderSummary();
+// ── Resolve a payout's client / month from its linked invoice ─────────────────
+function payoutInvoice(p) {
+    return (p.invoice_id && invoiceById.get(String(p.invoice_id)))
+        || (p.invoice_number && invoiceByNumber.get(String(p.invoice_number)))
+        || null;
+}
+function payoutClient(p) {
+    return (payoutInvoice(p)?.client_info?.name || '').trim();
+}
+function payoutMonth(p) {
+    const inv = payoutInvoice(p);
+    return String(inv?.invoice_meta?.dateRaw || p.created_at || '').slice(0, 7); // YYYY-MM
+}
 
-    const visible = filterPayouts(payouts, searchQuery);
+function populateLedgerFilters() {
+    const clients = [...new Set(payouts.map(payoutClient).filter(Boolean))].sort();
+    const currencies = [...new Set(payouts.map((p) => (p.currency || 'USD')))].sort();
+    const months = [...new Set(payouts.map(payoutMonth).filter((k) => k.length === 7))].sort().reverse();
+
+    const fill = (sel, items, allLabel, labeler = (x) => x) => {
+        if (!sel) return;
+        const keep = sel.value;
+        sel.innerHTML = `<option value="">${allLabel}</option>`
+            + items.map((v) => `<option value="${escapeHtml(v)}">${escapeHtml(labeler(v))}</option>`).join('');
+        if (keep && items.includes(keep)) sel.value = keep;
+    };
+    fill(els.ledgerClient, clients, 'All clients');
+    fill(els.ledgerCurrency, currencies, 'All currencies');
+    fill(els.ledgerMonth, months, 'All months', monthLabel);
+}
+
+function getVisiblePayouts() {
+    let list = filterPayouts(payouts, {
+        query: searchQuery,
+        status: ledgerFilters.status,
+        currency: ledgerFilters.currency
+    });
+    if (ledgerFilters.client !== 'all') list = list.filter((p) => payoutClient(p) === ledgerFilters.client);
+    if (ledgerFilters.month !== 'all') list = list.filter((p) => payoutMonth(p) === ledgerFilters.month);
+    return list;
+}
+
+function render() {
+    populateLedgerFilters();
+    const visible = getVisiblePayouts();
+    renderSummary(visible);
+
     if (visible.length === 0) {
         const msg = payouts.length === 0
             ? 'No referral payouts yet. Click "New Payout" to record one.'
-            : 'No payouts match your search.';
+            : 'No payouts match your filters.';
         els.body.innerHTML = `
             <tr><td colspan="8" class="table__empty">
                 <div class="empty-state"><span class="empty-state__icon">🔁</span>
@@ -247,11 +314,29 @@ function applyInvoiceFilter() {
     populateInvoiceSelect(filtered);
 }
 
+// Invoices that already have a referral payout (so we don't double-create).
+function usedInvoiceKeys() {
+    const set = new Set();
+    payouts.forEach((p) => {
+        if (p.invoice_id) set.add(`id:${p.invoice_id}`);
+        if (p.invoice_number) set.add(`num:${p.invoice_number}`);
+    });
+    return set;
+}
+
 function populateInvoiceSelect(list = invoices) {
     if (!els.invoiceSelect) return;
     const current = els.invoiceSelect.value;
+    const used = usedInvoiceKeys();
+    const selectable = list.filter((inv) => {
+        if (String(inv.id) === String(editingInvoiceId)) return true; // keep the edited payout's invoice
+        if (used.has(`id:${inv.id}`)) return false;
+        if (inv.invoice_number && used.has(`num:${inv.invoice_number}`)) return false;
+        return true;
+    });
+
     els.invoiceSelect.innerHTML = '<option value="">Select an invoice (optional)…</option>';
-    list.forEach((inv) => {
+    selectable.forEach((inv) => {
         const nativeCur = inv.invoice_meta?.currency || 'USD';
         const usd = usdReceivedAmount(inv);
         const native = nativeCur !== 'USD' ? ` (${money(receivedAmount(inv), nativeCur)})` : '';
@@ -289,12 +374,14 @@ function updatePreview() {
 function openModal(id = null) {
     if (isReadOnly) { showToast(getReadOnlyMessage('referrals'), 'info'); return; }
 
+    const p = id ? payouts.find((x) => x.id === id) : null;
+    editingInvoiceId = p?.invoice_id || '';
+
     els.form.reset();
     document.getElementById('payoutId').value = '';
     document.getElementById('invoiceId').value = '';
-    applyInvoiceFilter(); // filters were reset by form.reset() — rebuild the full list
+    applyInvoiceFilter(); // filters were reset by form.reset() — rebuild the (exclusion-aware) list
 
-    const p = id ? payouts.find((x) => x.id === id) : null;
     if (p) {
         els.modalTitle.textContent = 'Edit Referral Payout';
         document.getElementById('payoutId').value = p.id;

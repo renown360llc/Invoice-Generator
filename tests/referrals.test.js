@@ -101,9 +101,22 @@ describe('filterPayouts', () => {
         { recipient: 'Globex Partners', invoice_number: 'INV-0001' },
         { recipient: 'Initech', invoice_number: 'INV-0002' }
     ];
-    it('matches recipient or invoice number', () => {
+    it('matches recipient or invoice number (string back-compat)', () => {
         expect(filterPayouts(payouts, 'globex')).toHaveLength(1);
         expect(filterPayouts(payouts, 'inv-0002')).toHaveLength(1);
         expect(filterPayouts(payouts, '')).toHaveLength(2);
+    });
+
+    it('filters by derived status and currency', () => {
+        const rows = [
+            { recipient: 'A', invoice_number: '1', currency: 'USD', pass_through_amount: 100, amount_paid: 0 },   // pending
+            { recipient: 'B', invoice_number: '2', currency: 'USD', pass_through_amount: 100, amount_paid: 50 },  // partial
+            { recipient: 'C', invoice_number: '3', currency: 'CAD', pass_through_amount: 100, amount_paid: 100 } // paid
+        ];
+        expect(filterPayouts(rows, { status: 'pending' })).toHaveLength(1);
+        expect(filterPayouts(rows, { status: 'partially_paid' })).toHaveLength(1);
+        expect(filterPayouts(rows, { currency: 'USD' })).toHaveLength(2);
+        expect(filterPayouts(rows, { status: 'paid', currency: 'CAD' })).toHaveLength(1);
+        expect(filterPayouts(rows, {})).toHaveLength(3);
     });
 });

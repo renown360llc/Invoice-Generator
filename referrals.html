@@ -134,9 +134,21 @@
 
             <div id="summaryGrid" class="summary-grid"></div>
 
-            <div class="search-box" style="margin-bottom: 1.5rem;">
-                <svg class="search-box__icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-                <input type="search" id="searchInput" class="form-field__input" placeholder="Search by recipient or invoice #…">
+            <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center;margin-bottom:1.5rem;">
+                <div class="search-box" style="flex:1;min-width:200px;">
+                    <svg class="search-box__icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                    <input type="search" id="searchInput" class="form-field__input" placeholder="Search by recipient or invoice #…">
+                </div>
+                <select id="ledgerStatus" class="form-field__select" style="max-width:160px;">
+                    <option value="">All statuses</option>
+                    <option value="pending">Pending</option>
+                    <option value="partially_paid">Partial</option>
+                    <option value="paid">Paid</option>
+                </select>
+                <select id="ledgerClient" class="form-field__select" style="max-width:190px;"><option value="">All clients</option></select>
+                <select id="ledgerCurrency" class="form-field__select" style="max-width:150px;"><option value="">All currencies</option></select>
+                <select id="ledgerMonth" class="form-field__select" style="max-width:160px;"><option value="">All months</option></select>
+                <button type="button" id="ledgerClear" class="btn btn--outline btn--sm">Clear</button>
             </div>
 
             <div class="table-container">

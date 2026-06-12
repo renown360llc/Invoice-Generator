@@ -105,12 +105,23 @@ export function summarizePayouts(payouts = []) {
     return { forwarded, myCut, paid, outstanding };
 }
 
-/** Filter payouts by a free-text query across recipient and invoice number. */
-export function filterPayouts(payouts = [], query = '') {
-    const q = String(query || '').trim().toLowerCase();
-    if (!q) return [...(payouts || [])];
+/**
+ * Filter payouts. `criteria` may be a query string (back-compat) or an object
+ * { query, status, currency }. Status is the derived status; 'all' matches any.
+ */
+export function filterPayouts(payouts = [], criteria = {}) {
+    const c = typeof criteria === 'string' ? { query: criteria } : (criteria || {});
+    const q = String(c.query || '').trim().toLowerCase();
+    const status = String(c.status || 'all').toLowerCase();
+    const currency = String(c.currency || 'all').toLowerCase();
+
     return (payouts || []).filter((p) => {
-        const haystack = `${p.recipient || ''} ${p.invoice_number || ''}`.toLowerCase();
-        return haystack.includes(q);
+        if (status !== 'all' && derivePayoutStatus(p) !== status) return false;
+        if (currency !== 'all' && String(p.currency || 'USD').toLowerCase() !== currency) return false;
+        if (q) {
+            const haystack = `${p.recipient || ''} ${p.invoice_number || ''}`.toLowerCase();
+            if (!haystack.includes(q)) return false;
+        }
+        return true;
     });
 }
