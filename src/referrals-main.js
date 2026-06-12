@@ -127,11 +127,23 @@ function bindEvents() {
 
     els.body?.addEventListener('click', (e) => {
         const btn = e.target.closest('[data-action]');
-        if (!btn) return;
-        const id = btn.dataset.id;
-        if (btn.dataset.action === 'edit') openModal(id);
-        if (btn.dataset.action === 'delete') openDeleteModal(id);
-        if (btn.dataset.action === 'record-payment') openPaymentModal(id);
+        if (btn) {
+            const id = btn.dataset.id;
+            if (btn.dataset.action === 'edit') openModal(id);
+            if (btn.dataset.action === 'delete') openDeleteModal(id);
+            if (btn.dataset.action === 'record-payment') openPaymentModal(id);
+            return;
+        }
+        // Click a row to expand its partial-payment breakdown.
+        const row = e.target.closest('tr.ref-payout-row.is-expandable');
+        if (row) {
+            const panel = document.getElementById(`payments-panel-${row.dataset.payoutId}`);
+            if (panel) {
+                const open = panel.style.display !== 'none';
+                panel.style.display = open ? 'none' : 'table-row';
+                row.classList.toggle('is-expanded', !open);
+            }
+        }
     });
 
     els.deleteCancelBtn?.addEventListener('click', closeDeleteModal);
@@ -271,13 +283,19 @@ function renderRow(p) {
         ? `<button class="btn btn--outline btn--sm" data-action="record-payment" data-id="${escapeHtml(p.id)}">Record payment</button>`
         : '';
 
-    return `
-        <tr>
-            <td data-label="Invoice">${escapeHtml(p.invoice_number || '—')}</td>
+    const payments = Array.isArray(p.payments) ? p.payments : [];
+    const expandable = payments.length > 0;
+    const chevron = expandable
+        ? `<svg class="ref-chevron" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="13" height="13" style="color:#94a3b8;flex-shrink:0;transition:transform 0.2s ease;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7"/></svg>`
+        : '';
+
+    const mainRow = `
+        <tr class="ref-payout-row${expandable ? ' is-expandable' : ''}" data-payout-id="${escapeHtml(p.id)}"${expandable ? ' style="cursor:pointer;"' : ''}>
+            <td data-label="Invoice"><span style="display:inline-flex;align-items:center;gap:0.4rem;">${chevron}${escapeHtml(p.invoice_number || '—')}</span></td>
             <td data-label="Recipient"><strong>${escapeHtml(p.recipient || '—')}</strong></td>
             <td data-label="Forwarded"><strong>${escapeHtml(money(p.pass_through_amount, p.currency))}</strong></td>
             <td data-label="My cut">${escapeHtml(money(p.my_cut, p.currency))} <span style="color:var(--text-tertiary);font-size:0.75rem;">(${escapeHtml(String(p.cut_percent ?? 0))}%)</span></td>
-            <td data-label="Paid">${escapeHtml(money(payoutAmountPaid(p), p.currency))}</td>
+            <td data-label="Paid">${escapeHtml(money(payoutAmountPaid(p), p.currency))}${expandable ? ` <span style="color:var(--text-tertiary);font-size:0.72rem;">· ${payments.length} payment${payments.length === 1 ? '' : 's'}</span>` : ''}</td>
             <td data-label="Balance">${escapeHtml(money(balance, p.currency))}</td>
             <td data-label="Status"><span class="status-badge ${meta.cls}">${meta.label}</span></td>
             <td data-label="Actions">
@@ -286,6 +304,24 @@ function renderRow(p) {
                 <button class="btn btn--ghost btn--sm" data-action="delete" data-id="${escapeHtml(p.id)}" ${dis}>Delete</button>
             </td>
         </tr>`;
+
+    if (!expandable) return mainRow;
+
+    const rows = payments.map((pay) => `
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:1rem;font-size:0.8125rem;padding:0.3rem 0;border-bottom:1px solid var(--surface-border-subtle);">
+            <span style="color:var(--text-secondary);">${escapeHtml(pay.date || '—')}${pay.note ? ` · ${escapeHtml(pay.note)}` : ''}</span>
+            <strong>${escapeHtml(money(pay.amount, p.currency))}</strong>
+        </div>`).join('');
+
+    const panel = `
+        <tr id="payments-panel-${escapeHtml(p.id)}" class="ref-payments-panel" style="display:none;">
+            <td colspan="8" style="background:var(--surface-hover);padding:0.75rem 1.25rem;">
+                <div style="font-weight:600;font-size:0.72rem;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.03em;margin-bottom:0.4rem;">Partial payments</div>
+                ${rows}
+            </td>
+        </tr>`;
+
+    return mainRow + panel;
 }
 
 // ── Invoice picker ────────────────────────────────────────────────────────────
