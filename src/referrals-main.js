@@ -11,7 +11,7 @@ import { dbGetReferralPayouts, dbSaveReferralPayout, dbDeleteReferralPayout } fr
 import {
     computePayout,
     receivedAmount,
-    usdReceivedAmount,
+    referralBasis,
     summarizePayouts,
     filterPayouts,
     derivePayoutStatus,
@@ -388,7 +388,7 @@ function populateInvoiceSelect(list = invoices) {
     els.invoiceSelect.innerHTML = '<option value="">Select an invoice (optional)…</option>';
     selectable.forEach((inv) => {
         const nativeCur = inv.invoice_meta?.currency || 'USD';
-        const usd = usdReceivedAmount(inv);
+        const usd = referralBasis(inv);
         const native = nativeCur !== 'USD' ? ` (${money(receivedAmount(inv), nativeCur)})` : '';
         const opt = document.createElement('option');
         opt.value = inv.id;
@@ -407,7 +407,7 @@ function onInvoicePicked() {
     document.getElementById('invoiceNumber').value = inv.invoice_number || '';
     // Referrals are always settled in USD, on the amount actually received.
     document.getElementById('currency').value = 'USD';
-    document.getElementById('basisAmount').value = usdReceivedAmount(inv);
+    document.getElementById('basisAmount').value = referralBasis(inv);
     updatePreview();
 }
 

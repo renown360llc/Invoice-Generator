@@ -309,6 +309,7 @@ export async function recordInvoicePayment(invoiceId, paymentData) {
         date: paymentData.date || new Date().toISOString().split('T')[0],
         amount: Number(paymentData.amount) || 0,
         usdAmount: paymentData.usdAmount ? Number(paymentData.usdAmount) : null,
+        fee: paymentData.fee ? Number(paymentData.fee) : null,
         note: (paymentData.note || '').trim()
     }
 
@@ -322,11 +323,13 @@ export async function recordInvoicePayment(invoiceId, paymentData) {
     const totalAmount = Number(totals.total) || 0
     const amountPaid = payments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0)
     const usdReceivedTotal = payments.reduce((sum, p) => sum + (Number(p.usdAmount) || 0), 0)
+    const feesTotal = payments.reduce((sum, p) => sum + (Number(p.fee) || 0), 0)
 
     totals.payments = payments
     totals.amount_paid = amountPaid
     totals.balance_due = Math.max(0, totalAmount - amountPaid)
     totals.usd_received_amount = usdReceivedTotal > 0 ? usdReceivedTotal : null
+    totals.total_fees = feesTotal > 0 ? feesTotal : null
 
     // Status Resolution
     let nextStatus = invoice.status
@@ -388,11 +391,13 @@ export async function deleteInvoicePayment(invoiceId, paymentId) {
     const totalAmount = Number(totals.total) || 0
     const amountPaid = payments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0)
     const usdReceivedTotal = payments.reduce((sum, p) => sum + (Number(p.usdAmount) || 0), 0)
+    const feesTotal = payments.reduce((sum, p) => sum + (Number(p.fee) || 0), 0)
 
     totals.payments = payments
     totals.amount_paid = amountPaid
     totals.balance_due = Math.max(0, totalAmount - amountPaid)
     totals.usd_received_amount = usdReceivedTotal > 0 ? usdReceivedTotal : null
+    totals.total_fees = feesTotal > 0 ? feesTotal : null
 
     // Status Resolution
     let nextStatus = invoice.status

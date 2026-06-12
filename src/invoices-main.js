@@ -671,6 +671,7 @@ function bindEvents() {
         const date = document.getElementById('newPaymentDate')?.value;
         const amount = document.getElementById('newPaymentAmount')?.value;
         const usdAmount = document.getElementById('newPaymentUsd')?.value;
+        const fee = document.getElementById('newPaymentFee')?.value;
         const note = document.getElementById('newPaymentNote')?.value;
 
         if (!amount || Number(amount) <= 0) {
@@ -689,6 +690,7 @@ function bindEvents() {
                 date,
                 amount,
                 usdAmount,
+                fee,
                 note
             });
             
@@ -1487,6 +1489,7 @@ function startEditingPayment(paymentId) {
     if (document.getElementById('newPaymentDate')) document.getElementById('newPaymentDate').value = payment.date;
     if (document.getElementById('newPaymentAmount')) document.getElementById('newPaymentAmount').value = payment.amount;
     if (document.getElementById('newPaymentUsd')) document.getElementById('newPaymentUsd').value = payment.usdAmount || '';
+    if (document.getElementById('newPaymentFee')) document.getElementById('newPaymentFee').value = payment.fee || '';
     if (document.getElementById('newPaymentNote')) document.getElementById('newPaymentNote').value = payment.note || '';
 
     // UI Feedback
@@ -1502,6 +1505,7 @@ function resetPaymentForm() {
     if (document.getElementById('newPaymentDate')) document.getElementById('newPaymentDate').value = new Date().toISOString().split('T')[0];
     if (document.getElementById('newPaymentAmount')) document.getElementById('newPaymentAmount').value = '';
     if (document.getElementById('newPaymentUsd')) document.getElementById('newPaymentUsd').value = '';
+    if (document.getElementById('newPaymentFee')) document.getElementById('newPaymentFee').value = '';
     if (document.getElementById('newPaymentNote')) document.getElementById('newPaymentNote').value = '';
 
     // Reset UI
@@ -1547,6 +1551,14 @@ function renderPaymentLedger(invoice) {
             usdLine.style.color = 'var(--text-secondary)';
             usdLine.textContent = `USD ${payment.usdAmount}`;
             amountCell.appendChild(usdLine);
+        }
+
+        if (payment.fee) {
+            const feeLine = document.createElement('div');
+            feeLine.style.fontSize = '0.7rem';
+            feeLine.style.color = 'var(--text-secondary)';
+            feeLine.textContent = `− ${formatMoney(payment.fee, 'USD')} wire fee`;
+            amountCell.appendChild(feeLine);
         }
 
         const actionCell = document.createElement('td');

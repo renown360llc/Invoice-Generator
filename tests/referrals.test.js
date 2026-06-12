@@ -3,7 +3,9 @@ import {
     computePayout,
     derivePayoutStatus,
     filterPayouts,
+    invoiceFeesTotal,
     paymentsTotal,
+    referralBasis,
     payoutAmountPaid,
     payoutBalance,
     receivedAmount,
@@ -69,6 +71,28 @@ describe('partial payments', () => {
         expect(derivePayoutStatus({ pass_through_amount: 850, amount_paid: 0 })).toBe('pending');
         expect(derivePayoutStatus({ pass_through_amount: 850, amount_paid: 400 })).toBe('partially_paid');
         expect(derivePayoutStatus({ pass_through_amount: 850, amount_paid: 850 })).toBe('paid');
+    });
+});
+
+describe('referral basis (net of wire fees)', () => {
+    it('sums per-payment fees when total_fees is absent', () => {
+        const inv = { totals: { payments: [{ fee: 15 }, { fee: 15 }] } };
+        expect(invoiceFeesTotal(inv)).toBe(30);
+    });
+    it('prefers stored total_fees', () => {
+        expect(invoiceFeesTotal({ totals: { total_fees: 15, payments: [{ fee: 99 }] } })).toBe(15);
+    });
+    it('treats no fees as zero', () => {
+        expect(invoiceFeesTotal({ totals: { usd_received_amount: 1000 } })).toBe(0);
+    });
+    it('subtracts fees from USD received', () => {
+        expect(referralBasis({ totals: { usd_received_amount: 1000, total_fees: 15 } })).toBe(985);
+    });
+    it('never goes below zero', () => {
+        expect(referralBasis({ totals: { usd_received_amount: 10, total_fees: 50 } })).toBe(0);
+    });
+    it('equals USD received when there are no fees', () => {
+        expect(referralBasis({ totals: { usd_received_amount: 730 } })).toBe(730);
     });
 });
 

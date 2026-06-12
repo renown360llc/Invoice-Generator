@@ -832,9 +832,19 @@
                         <input type="number" id="newPaymentUsd" placeholder="0.00" step="0.01" style="width: 100%; padding: 0.45rem; border: 1.5px solid var(--surface-glass-border); border-radius: 6px; font-size: 0.8rem;">
                     </div>
                     <div>
-                        <label style="display: block; font-size: 0.65rem; font-weight: 700; margin-bottom: 0.25rem; color: var(--text-secondary); text-transform: uppercase;">Ref / Note</label>
-                        <input type="text" id="newPaymentNote" placeholder="e.g. Check #..." style="width: 100%; padding: 0.45rem; border: 1.5px solid var(--surface-glass-border); border-radius: 6px; font-size: 0.8rem;">
+                        <label style="display: block; font-size: 0.65rem; font-weight: 700; margin-bottom: 0.25rem; color: var(--text-secondary); text-transform: uppercase;">
+                            Wire Fee
+                            <div class="info-tooltip-container">
+                                <span class="info-tooltip-trigger">i</span>
+                                <div class="info-tooltip-box">Optional. Bank wire/transfer fee deducted (USD). The referral cut is based on USD received minus this fee.</div>
+                            </div>
+                        </label>
+                        <input type="number" id="newPaymentFee" placeholder="0.00" step="0.01" style="width: 100%; padding: 0.45rem; border: 1.5px solid var(--surface-glass-border); border-radius: 6px; font-size: 0.8rem;">
                     </div>
+                </div>
+                <div style="margin-bottom: 0.875rem;">
+                    <label style="display: block; font-size: 0.65rem; font-weight: 700; margin-bottom: 0.25rem; color: var(--text-secondary); text-transform: uppercase;">Ref / Note</label>
+                    <input type="text" id="newPaymentNote" placeholder="e.g. Check #..." style="width: 100%; padding: 0.45rem; border: 1.5px solid var(--surface-glass-border); border-radius: 6px; font-size: 0.8rem;">
                 </div>
                 <button id="addPaymentBtn" class="btn btn--primary" style="width: 100%; padding: 0.5rem; font-weight: 700; font-size: 0.85rem;">Record Transaction</button>
             </div>

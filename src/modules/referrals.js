@@ -48,6 +48,23 @@ export function usdReceivedAmount(invoice = {}) {
     return currency === 'USD' ? receivedAmount(invoice) : 0;
 }
 
+/** Total wire/transfer fees deducted across an invoice's payments (USD). */
+export function invoiceFeesTotal(invoice = {}) {
+    const totals = invoice.totals || {};
+    if (totals.total_fees !== undefined && totals.total_fees !== null) {
+        return Math.max(0, round2(Number(totals.total_fees) || 0));
+    }
+    return round2((totals.payments || []).reduce((sum, p) => sum + (Number(p?.fee) || 0), 0));
+}
+
+/**
+ * Referral basis: USD actually received minus wire-transfer fees. The referral
+ * cut is taken on what you net after the bank's fee, never below zero.
+ */
+export function referralBasis(invoice = {}) {
+    return Math.max(0, round2(usdReceivedAmount(invoice) - invoiceFeesTotal(invoice)));
+}
+
 function addByCurrency(map, currency, amount) {
     map[currency] = round2((map[currency] || 0) + (Number(amount) || 0));
 }
