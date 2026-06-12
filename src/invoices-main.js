@@ -78,6 +78,8 @@ const DEFAULT_FILTERS = {
     due: 'all',
     company: 'all',
     client: 'all',
+    billingYear: 'all',
+    billingMonth: 'all',
     sort: 'date-desc'
 };
 
@@ -163,6 +165,8 @@ function cacheElements() {
     els.dueFilter = document.getElementById('dueFilter');
     els.companyFilter = document.getElementById('companyFilter');
     els.clientFilter = document.getElementById('clientFilter');
+    els.billingYearFilter  = document.getElementById('billingYearFilter');
+    els.billingMonthFilter = document.getElementById('billingMonthFilter');
     els.sortSelect = document.getElementById('sortSelect');
     els.clearFiltersBtn = document.getElementById('clearFiltersBtn');
     els.filtersMeta = document.getElementById('filtersMeta');
@@ -317,7 +321,13 @@ function hydrateFilterControls() {
     if (els.dueFilter) els.dueFilter.value = state.filters.due;
     if (els.companyFilter) els.companyFilter.value = state.filters.company;
     if (els.clientFilter) els.clientFilter.value = state.filters.client;
+    if (els.billingYearFilter)  els.billingYearFilter.value  = state.filters.billingYear;
+    if (els.billingMonthFilter) els.billingMonthFilter.value = state.filters.billingMonth;
     if (els.sortSelect) els.sortSelect.value = state.filters.sort;
+    // Sync the period picker widget label with restored filter state
+    if (typeof window.syncInvPeriodPicker === 'function') {
+        window.syncInvPeriodPicker(state.filters.billingYear, state.filters.billingMonth);
+    }
 }
 
 function bindEvents() {
@@ -377,6 +387,20 @@ function bindEvents() {
         applyFiltersAndRender();
     });
 
+    els.billingYearFilter?.addEventListener('change', (event) => {
+        state.filters.billingYear = event.target.value;
+        state.currentPage = 1;
+        persistFilters();
+        applyFiltersAndRender();
+    });
+
+    els.billingMonthFilter?.addEventListener('change', (event) => {
+        state.filters.billingMonth = event.target.value;
+        state.currentPage = 1;
+        persistFilters();
+        applyFiltersAndRender();
+    });
+
     els.clearFiltersBtn?.addEventListener('click', () => {
         state.filters = { ...DEFAULT_FILTERS };
         state.currentPage = 1;
@@ -385,6 +409,7 @@ function bindEvents() {
         populateCurrencyFilterOptions();
         populateCompanyFilterOptions();
         populateClientFilterOptions();
+        populateBillingYearOptions();
         persistFilters();
         applyFiltersAndRender();
     });
@@ -786,6 +811,31 @@ async function loadInvoices() {
         populateCurrencyFilterOptions();
         populateCompanyFilterOptions();
         populateClientFilterOptions();
+        populateBillingYearOptions();
+
+        // Client-side billing period filter (year + month based on timesheet work period)
+        const bYear  = state.filters.billingYear  || 'all';
+        const bMonth = state.filters.billingMonth || 'all';
+        if (bYear !== 'all' || bMonth !== 'all') {
+            state.allInvoices = state.allInvoices.filter((invoice) => {
+                const items = Array.isArray(invoice.items) ? invoice.items : [];
+                return items.some((item) => {
+                    const period = String(item.period || '').trim();
+                    if (!period) return false;
+                    const startDate = period.split(/\s+to\s+/i)[0].trim();
+                    if (!startDate) return false;
+                    const d = new Date(startDate);
+                    if (isNaN(d.getTime())) return false;
+                    const itemYear  = String(d.getFullYear());
+                    const itemMonth = String(d.getMonth() + 1).padStart(2, '0');
+                    if (bYear  !== 'all' && itemYear  !== bYear)  return false;
+                    if (bMonth !== 'all' && itemMonth !== bMonth) return false;
+                    return true;
+                });
+            });
+            state.filteredInvoices = state.allInvoices;
+        }
+
         renderTable();
         renderPagination();
         renderFiltersMeta();
@@ -874,6 +924,38 @@ function populateCompanyFilterOptions() {
 
 function populateClientFilterOptions() {
     populateDistinctNameFilter(els.clientFilter, (inv) => inv.client_info?.name, 'client', 'All Clients');
+}
+
+/**
+ * Populates the billing year dropdown from items[].period across all loaded invoices.
+ * Month is a static list; year is dynamic from data, sorted newest first.
+ */
+function populateBillingYearOptions() {
+    if (!els.billingYearFilter) return;
+
+    const years = new Set();
+    state.allInvoices.forEach((invoice) => {
+        const items = Array.isArray(invoice.items) ? invoice.items : [];
+        items.forEach((item) => {
+            const period = String(item.period || '').trim();
+            if (!period) return;
+            const startDate = period.split(/\s+to\s+/i)[0].trim();
+            if (!startDate) return;
+            const d = new Date(startDate);
+            if (!isNaN(d.getTime())) years.add(String(d.getFullYear()));
+        });
+    });
+
+    const sorted = Array.from(years).sort((a, b) => b.localeCompare(a)); // newest first
+    const html = ['<option value="all">All Years</option>'];
+    sorted.forEach((yr) => html.push(`<option value="${escapeHtml(yr)}">${escapeHtml(yr)}</option>`));
+    els.billingYearFilter.innerHTML = html.join('');
+
+    if (state.filters.billingYear !== 'all' && !years.has(state.filters.billingYear)) {
+        state.filters.billingYear = 'all';
+        persistFilters();
+    }
+    els.billingYearFilter.value = state.filters.billingYear;
 }
 
 function applyFiltersAndRender() {
