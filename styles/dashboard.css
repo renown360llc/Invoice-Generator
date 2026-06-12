@@ -1948,6 +1948,14 @@ canvas#revenueChart {
     display: flex;
 }
 
+/* Row action menu floats as a fixed popover (positioned in JS) so it isn't
+   clipped by the invoices table's horizontal scroll container. */
+.invoice-row-menu {
+    position: fixed;
+    top: auto;
+    right: auto;
+}
+
 .dropdown-item {
     display: flex;
     align-items: center;

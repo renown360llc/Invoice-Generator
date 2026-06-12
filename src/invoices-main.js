@@ -199,11 +199,35 @@ function cacheElements() {
 function closeAllRowMenus() {
     document.querySelectorAll('.invoice-row-menu.show').forEach((menu) => {
         menu.classList.remove('show');
+        menu.style.top = '';
+        menu.style.left = '';
     });
 
     document.querySelectorAll('[data-action="toggle-menu"][aria-expanded="true"]').forEach((button) => {
         button.setAttribute('aria-expanded', 'false');
     });
+}
+
+// Position an open row menu as a fixed popover anchored to its button, so it
+// escapes the table's horizontal-scroll clipping and flips up near the bottom.
+function positionRowMenu(menu, button) {
+    const btn = button.getBoundingClientRect();
+    const margin = 4;
+    const menuW = menu.offsetWidth;
+    const menuH = menu.offsetHeight;
+
+    let left = btn.right - menuW;            // right-align to the button
+    if (left < 8) left = 8;
+    if (left + menuW > window.innerWidth - 8) left = window.innerWidth - 8 - menuW;
+
+    let top = btn.bottom + margin;           // below by default
+    if (top + menuH > window.innerHeight - 8) {
+        const above = btn.top - margin - menuH;
+        top = above >= 8 ? above : Math.max(8, window.innerHeight - 8 - menuH);
+    }
+
+    menu.style.left = `${left}px`;
+    menu.style.top = `${top}px`;
 }
 
 function blockReadOnlyAction(feature = 'this action') {
@@ -311,6 +335,7 @@ function toggleRowMenu(invoiceId, button) {
     if (!shouldOpen) return;
 
     menu.classList.add('show');
+    positionRowMenu(menu, button);
     button.setAttribute('aria-expanded', 'true');
 }
 
@@ -756,6 +781,10 @@ function bindEvents() {
         closeDeleteModal();
         closePaidModal();
     });
+
+    // A fixed popover would detach from its button on scroll/resize — just close it.
+    window.addEventListener('scroll', closeAllRowMenus, true);
+    window.addEventListener('resize', closeAllRowMenus);
 }
 
 async function loadInvoices() {
