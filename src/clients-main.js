@@ -1,3 +1,4 @@
+import './modules/searchable-select.js';
 /**
  * Clients Page — Main Script
  * Standalone client registry: list, search, add/edit/delete.

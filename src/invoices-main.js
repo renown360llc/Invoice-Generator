@@ -1,3 +1,4 @@
+import './modules/searchable-select.js';
 import { getCurrentUser } from './auth.js';
 import { getInvoices, updateInvoiceStatus, recordInvoicePayment, deleteInvoicePayment } from './database.js';
 import { supabase } from './config.js';

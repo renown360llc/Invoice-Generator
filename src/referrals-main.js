@@ -1,3 +1,4 @@
+import './modules/searchable-select.js';
 /**
  * Referrals Page — Main Script
  * Pass-through payout ledger: record your cut, what was forwarded to the

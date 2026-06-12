@@ -1,3 +1,4 @@
+import './modules/searchable-select.js';
 /**
  * Invoice Generator Pro - Application Orchestrator
  * Coordinates modules: Auth, Database, UI, PDF.

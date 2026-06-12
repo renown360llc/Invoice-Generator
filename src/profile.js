@@ -1,3 +1,4 @@
+import './modules/searchable-select.js';
 import { getCurrentUser, signOut } from './auth.js';
 import { showToast } from './utils.js';
 import {

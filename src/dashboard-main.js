@@ -1,3 +1,4 @@
+import './modules/searchable-select.js';
 import { getCurrentUser, signOut } from './auth.js'
 import { getInvoices, getInvoice, updateInvoiceStatus, recordInvoicePayment, deleteInvoicePayment } from './database.js'
 import { dbGetConsultants } from './modules/db-consultants.js'

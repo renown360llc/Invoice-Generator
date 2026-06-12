@@ -1,3 +1,4 @@
+import './modules/searchable-select.js';
 import { getCurrentUser } from './auth.js'
 import { loadLayout } from './components/layout.js'
 

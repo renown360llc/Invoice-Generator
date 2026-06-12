@@ -1,3 +1,4 @@
+import './modules/searchable-select.js';
 /**
  * Activity Log Page — Main Script
  * Lists the audit trail newest-first with entity-type filtering, free-text

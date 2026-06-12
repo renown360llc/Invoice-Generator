@@ -1,3 +1,4 @@
+import './modules/searchable-select.js';
 /**
  * Companies Page — Main Script
  * "Bill From" sender registry: list, search, add/edit/delete, with branding
