@@ -31,7 +31,7 @@ let currentPaymentPayout = null;
 let isReadOnly = false;
 let editingInvoiceId = ''; // invoice of the payout being edited (kept selectable in the picker)
 
-const ledgerFilters = { status: 'all', client: 'all', currency: 'all', month: 'all' };
+const ledgerFilters = { status: 'all', company: 'all', client: 'all', recipient: 'all', currency: 'all', month: 'all' };
 let invoiceById = new Map();
 let invoiceByNumber = new Map();
 
@@ -65,7 +65,9 @@ async function init() {
     els.deleteCancelBtn = document.getElementById('deleteCancelBtn');
     els.deleteConfirmBtn = document.getElementById('deleteConfirmBtn');
     els.ledgerStatus = document.getElementById('ledgerStatus');
+    els.ledgerCompany = document.getElementById('ledgerCompany');
     els.ledgerClient = document.getElementById('ledgerClient');
+    els.ledgerRecipient = document.getElementById('ledgerRecipient');
     els.ledgerCurrency = document.getElementById('ledgerCurrency');
     els.ledgerMonth = document.getElementById('ledgerMonth');
     els.ledgerClear = document.getElementById('ledgerClear');
@@ -109,14 +111,17 @@ function bindEvents() {
     els.search?.addEventListener('input', (e) => { searchQuery = e.target.value; render(); });
 
     els.ledgerStatus?.addEventListener('change', (e) => { ledgerFilters.status = e.target.value || 'all'; render(); });
+    els.ledgerCompany?.addEventListener('change', (e) => { ledgerFilters.company = e.target.value || 'all'; render(); });
     els.ledgerClient?.addEventListener('change', (e) => { ledgerFilters.client = e.target.value || 'all'; render(); });
+    els.ledgerRecipient?.addEventListener('change', (e) => { ledgerFilters.recipient = e.target.value || 'all'; render(); });
     els.ledgerCurrency?.addEventListener('change', (e) => { ledgerFilters.currency = e.target.value || 'all'; render(); });
     els.ledgerMonth?.addEventListener('change', (e) => { ledgerFilters.month = e.target.value || 'all'; render(); });
     els.ledgerClear?.addEventListener('click', () => {
-        ledgerFilters.status = 'all'; ledgerFilters.client = 'all'; ledgerFilters.currency = 'all'; ledgerFilters.month = 'all';
+        Object.keys(ledgerFilters).forEach((k) => { ledgerFilters[k] = 'all'; });
         searchQuery = '';
         if (els.search) els.search.value = '';
-        [els.ledgerStatus, els.ledgerClient, els.ledgerCurrency, els.ledgerMonth].forEach((s) => { if (s) s.value = ''; });
+        [els.ledgerStatus, els.ledgerCompany, els.ledgerClient, els.ledgerRecipient, els.ledgerCurrency, els.ledgerMonth]
+            .forEach((s) => { if (s) s.value = ''; });
         render();
     });
 
@@ -190,13 +195,18 @@ function payoutInvoice(p) {
 function payoutClient(p) {
     return (payoutInvoice(p)?.client_info?.name || '').trim();
 }
+function payoutCompany(p) {
+    return (payoutInvoice(p)?.business_info?.name || '').trim();
+}
 function payoutMonth(p) {
     const inv = payoutInvoice(p);
     return String(inv?.invoice_meta?.dateRaw || p.created_at || '').slice(0, 7); // YYYY-MM
 }
 
 function populateLedgerFilters() {
+    const companies = [...new Set(payouts.map(payoutCompany).filter(Boolean))].sort();
     const clients = [...new Set(payouts.map(payoutClient).filter(Boolean))].sort();
+    const recipients = [...new Set(payouts.map((p) => (p.recipient || '').trim()).filter(Boolean))].sort();
     const currencies = [...new Set(payouts.map((p) => (p.currency || 'USD')))].sort();
     const months = [...new Set(payouts.map(payoutMonth).filter((k) => k.length === 7))].sort().reverse();
 
@@ -207,7 +217,9 @@ function populateLedgerFilters() {
             + items.map((v) => `<option value="${escapeHtml(v)}">${escapeHtml(labeler(v))}</option>`).join('');
         if (keep && items.includes(keep)) sel.value = keep;
     };
+    fill(els.ledgerCompany, companies, 'All companies');
     fill(els.ledgerClient, clients, 'All clients');
+    fill(els.ledgerRecipient, recipients, 'All recipients');
     fill(els.ledgerCurrency, currencies, 'All currencies');
     fill(els.ledgerMonth, months, 'All months', monthLabel);
 }
@@ -218,7 +230,9 @@ function getVisiblePayouts() {
         status: ledgerFilters.status,
         currency: ledgerFilters.currency
     });
+    if (ledgerFilters.company !== 'all') list = list.filter((p) => payoutCompany(p) === ledgerFilters.company);
     if (ledgerFilters.client !== 'all') list = list.filter((p) => payoutClient(p) === ledgerFilters.client);
+    if (ledgerFilters.recipient !== 'all') list = list.filter((p) => (p.recipient || '').trim() === ledgerFilters.recipient);
     if (ledgerFilters.month !== 'all') list = list.filter((p) => payoutMonth(p) === ledgerFilters.month);
     return list;
 }
