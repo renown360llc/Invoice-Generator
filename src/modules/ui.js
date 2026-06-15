@@ -73,7 +73,7 @@ export function gatherFormData() {
             email: document.getElementById('businessEmail').value,
             phone: document.getElementById('businessPhone').value,
             address: document.getElementById('businessAddress').value,
-            logo: document.querySelector('.paper-logo')?.src
+            logo: document.querySelector('.pv-logo')?.src || null
         },
         client_info: {
             name: document.getElementById('clientName').value,
@@ -169,8 +169,11 @@ function renderPaper(state) {
     const rawColor = (document.getElementById('brandColor')?.value || '').trim();
     const brandColor = /^#[0-9a-fA-F]{3,8}$/.test(rawColor) ? rawColor : '#3b82f6';
     const data = gatherFormData();
+    // state.logo is the source of truth for the active company's logo.
+    if (state?.logo) data.business_info.logo = state.logo;
     const cur = data.invoice_meta.currency;
     const safeInvoiceNumber = escapeHtml(data.invoice_number);
+    const safeLogo = data.business_info.logo ? escapeHtml(data.business_info.logo) : '';
     const safeBusinessName = escapeHtml(data.business_info.name || 'Your Company');
     const safeBusinessEmail = escapeHtml(data.business_info.email || '');
     const safeBusinessPhone = escapeHtml(data.business_info.phone || '');
@@ -271,6 +274,7 @@ function renderPaper(state) {
     <div class="pv-header">
         <div class="pv-brand-section">
             <div class="pv-logo-name-row">
+                ${safeLogo ? `<img class="pv-logo" src="${safeLogo}" alt="${safeBusinessName} logo">` : ''}
                 <div class="pv-company-name">${safeBusinessName}</div>
             </div>
             <div class="pv-company-details">

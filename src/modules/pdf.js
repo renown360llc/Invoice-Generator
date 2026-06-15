@@ -20,7 +20,21 @@ export async function generatePDF(data, options = {}) {
     const brandColor = data.settings.brandColor || '#3b82f6';
     const rgb = hexToRgb(brandColor);
 
-    // --- Header (Company Name Row) ---
+    // --- Header (Logo + Company Name Row) ---
+    // Logo (optional) — drawn top-left above the company name, aspect preserved.
+    if (data.business_info?.logo) {
+        try {
+            const props = doc.getImageProperties(data.business_info.logo);
+            const maxW = 50;
+            const maxH = 18;
+            const scale = Math.min(maxW / props.width, maxH / props.height);
+            const w = props.width * scale;
+            const h = props.height * scale;
+            doc.addImage(data.business_info.logo, props.fileType || 'PNG', margin, y, w, h);
+            y += h + 4; // push the company name below the logo
+        } catch (_) { /* logo is optional — skip on any decode failure */ }
+    }
+
     doc.setFontSize(15);
     doc.setTextColor(rgb.r, rgb.g, rgb.b);
     doc.setFont('helvetica', 'bold');

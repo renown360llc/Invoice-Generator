@@ -338,17 +338,9 @@ async function init() {
         document.getElementById('notes').value = 'Thank you for your business!'; // Set default note
         addItem(); // UI module
 
-        // ── Auto-restore logo from most recent invoice ──────────────────
-        try {
-            const { getInvoices } = await import('./database.js');
-            const recentInvoices = await getInvoices(state.user);
-            const lastWithLogo = recentInvoices.find(inv => inv.business_info?.logo);
-            if (lastWithLogo?.business_info?.logo) {
-                state.logo = lastWithLogo.business_info.logo;
-                showToast('Logo auto-loaded from your last invoice ✓', 'info');
-            }
-        } catch (_) { /* non-fatal — logo is optional */ }
-        // ── End auto-restore ─────────────────────────────────────────────
+        // A new invoice starts with no logo — it's set from the "Bill from"
+        // company you pick (or a manual upload), so logos never bleed between
+        // companies.
 
         // ── Supplemental billing: auto-open timesheet picker for a specific consultant ──
         // Arriving via timesheets page "Invoice Xh Pending" button sets consultant_id param.
@@ -962,11 +954,11 @@ function handleLoadCompany(id) {
     document.getElementById('businessPhone').value = company.phone || '';
     document.getElementById('businessAddress').value = company.address || '';
 
-    if (company.logo) {
-        state.logo = company.logo;
-        const logoName = document.getElementById('logoFileName');
-        if (logoName) logoName.textContent = 'Active Branding Logo';
-    }
+    // Always adopt the selected company's logo (or clear it) so one company's
+    // branding never carries over to another.
+    state.logo = company.logo || null;
+    const logoName = document.getElementById('logoFileName');
+    if (logoName) logoName.textContent = company.logo ? 'Active Branding Logo' : 'Choose Logo';
 
     // Invoice defaults (these replace what templates used to carry)
     if (company.brand_color) {
