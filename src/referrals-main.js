@@ -128,6 +128,8 @@ function bindEvents() {
     });
 
     els.body?.addEventListener('click', (e) => {
+        // Let the invoice link navigate without toggling the row.
+        if (e.target.closest('a')) return;
         const btn = e.target.closest('[data-action]');
         if (btn) {
             const id = btn.dataset.id;
@@ -274,6 +276,15 @@ const STATUS_META = {
     pending: { label: 'Pending', cls: 'status-pending' }
 };
 
+// The invoice number links to the related invoice (opens in a new tab so the
+// ledger context isn't lost). Plain text when there's no linked invoice.
+function invoiceLink(p) {
+    const num = p.invoice_number;
+    if (!num) return '—';
+    const href = `app.html?invoice_number=${encodeURIComponent(num)}`;
+    return `<a class="ref-invoice-link" href="${href}" target="_blank" rel="noopener" title="View invoice ${escapeHtml(num)}">${escapeHtml(num)}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" width="11" height="11" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5h5m0 0v5m0-5L10 14M9 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-3"/></svg></a>`;
+}
+
 function renderRow(p) {
     const status = derivePayoutStatus(p);
     const meta = STATUS_META[status] || STATUS_META.pending;
@@ -291,7 +302,7 @@ function renderRow(p) {
 
     const mainRow = `
         <tr class="ref-payout-row${expandable ? ' is-expandable' : ''}" data-payout-id="${escapeHtml(p.id)}"${expandable ? ' style="cursor:pointer;"' : ''}>
-            <td data-label="Invoice"><span style="display:inline-flex;align-items:center;gap:0.4rem;">${chevron}${escapeHtml(p.invoice_number || '—')}</span></td>
+            <td data-label="Invoice"><span style="display:inline-flex;align-items:center;gap:0.4rem;">${chevron}${invoiceLink(p)}</span></td>
             <td data-label="Recipient"><strong>${escapeHtml(p.recipient || '—')}</strong></td>
             <td data-label="Forwarded"><strong>${escapeHtml(money(p.pass_through_amount, p.currency))}</strong></td>
             <td data-label="My cut">${escapeHtml(money(p.my_cut, p.currency))} <span style="color:var(--text-tertiary);font-size:0.75rem;">(${escapeHtml(String(p.cut_percent ?? 0))}%)</span></td>

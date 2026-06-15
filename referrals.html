@@ -50,6 +50,9 @@
 
         .ref-payout-row.is-expandable:hover { background: var(--surface-hover); }
         .ref-payout-row.is-expanded .ref-chevron { transform: rotate(90deg); }
+        .ref-invoice-link { display: inline-flex; align-items: center; gap: 0.25rem; color: var(--primary); font-weight: 600; text-decoration: none; }
+        .ref-invoice-link:hover { text-decoration: underline; }
+        .ref-invoice-link svg { opacity: 0.6; flex-shrink: 0; }
 
         /* Modal + form (mirrors the registry pages) */
         body.modal-open { overflow: hidden; }
