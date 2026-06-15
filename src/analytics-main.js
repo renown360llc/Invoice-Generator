@@ -1498,16 +1498,25 @@ function renderActualRevenue() {
 /* ============================================================
    1b. Cash Flow KPI (Payments Received)
    ============================================================ */
+// USD that actually landed for an invoice: USD invoices contribute their total;
+// non-USD invoices contribute the recorded usd_received_amount (the cash that
+// hit the bank), never their native amount — payments are only ever in USD.
+function usdReceivedForInvoice(inv) {
+    const curr = String(inv.invoice_meta?.currency || 'USD').toUpperCase();
+    if (curr === 'USD') return Number(inv.totals?.total) || 0;
+    return Number(inv.totals?.usd_received_amount) || 0;
+}
+
 function renderCashFlowKPI() {
     if (!els.cashFlowCard) return;
     if (els.cashFlowLabelMeta) {
         els.cashFlowLabelMeta.textContent = `(${getSelectedPeriodShortLabel()})`;
     }
 
+    // Cash flow is always USD — every payment is received in USD, so even CAD
+    // invoices contribute only their recorded usd_received_amount.
     const paidInvoices = rawInvoices.filter(inv => String(inv.status || '').toLowerCase() === 'paid');
-    const byCurrency = {};
     let totalUsdInBank = 0;
-    let hasNonUsdPaid = false;
 
     paidInvoices.forEach(inv => {
         const paidTs = String(inv.paid_date || inv.invoice_meta?.dateRaw || inv.created_at || '').trim();
@@ -1525,34 +1534,13 @@ function renderCashFlowKPI() {
             if (paidMonth !== mk) return;
         }
 
-        const curr = String(inv.invoice_meta?.currency || 'USD').toUpperCase();
-        byCurrency[curr] = (byCurrency[curr] || 0) + (inv.totals?.total || 0);
-        if (curr === 'USD') {
-            totalUsdInBank += (inv.totals?.total || 0);
-        } else {
-            hasNonUsdPaid = true;
-            totalUsdInBank += Number(inv.totals?.usd_received_amount) || 0;
-        }
+        totalUsdInBank += usdReceivedForInvoice(inv);
     });
 
-    const entries = Object.entries(byCurrency).sort((a, b) => a[0].localeCompare(b[0]));
-    if (entries.length === 0) {
-        els.cashFlowCard.textContent = formatMoney(0, 'USD');
-    } else if (entries.length === 1) {
-        els.cashFlowCard.textContent = formatMoney(entries[0][1], entries[0][0]);
-    } else {
-        els.cashFlowCard.innerHTML = `<div class="kpi-card__stack">${entries
-            .map(([c, a]) => `<div class="kpi-card__stack-item">${formatMoney(a, c)}</div>`)
-            .join('')}</div>`;
-    }
-
+    els.cashFlowCard.textContent = formatMoney(totalUsdInBank, 'USD');
     if (els.cashFlowUsdSub) {
-        if (hasNonUsdPaid && totalUsdInBank > 0) {
-            els.cashFlowUsdSub.textContent = `= ${formatMoney(totalUsdInBank, 'USD')} total in bank`;
-            els.cashFlowUsdSub.style.display = '';
-        } else {
-            els.cashFlowUsdSub.style.display = 'none';
-        }
+        els.cashFlowUsdSub.textContent = 'actual USD received in bank';
+        els.cashFlowUsdSub.style.display = '';
     }
 }
 
@@ -1824,9 +1812,9 @@ function renderCashFlowTrend() {
 
         if (paidMonth.startsWith(String(selectedYear))) {
             if (!receivedByMonthAndCurr[paidMonth]) receivedByMonthAndCurr[paidMonth] = {};
-            const curr = String(inv.invoice_meta?.currency || 'USD').toUpperCase();
-            allCurrencies.add(curr);
-            receivedByMonthAndCurr[paidMonth][curr] = (receivedByMonthAndCurr[paidMonth][curr] || 0) + (inv.totals?.total || 0);
+            // Cash flow is USD-only: bucket every payment as the USD received.
+            allCurrencies.add('USD');
+            receivedByMonthAndCurr[paidMonth]['USD'] = (receivedByMonthAndCurr[paidMonth]['USD'] || 0) + usdReceivedForInvoice(inv);
         }
     });
 
