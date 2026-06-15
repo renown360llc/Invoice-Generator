@@ -20,33 +20,46 @@ export async function generatePDF(data, options = {}) {
     const brandColor = data.settings.brandColor || '#3b82f6';
     const rgb = hexToRgb(brandColor);
 
-    // --- Header (Logo + Company Name Row) ---
-    // Logo (optional) — drawn top-left above the company name, aspect preserved.
+    // --- Header (Logo OR Company Name) ---
+    // When a logo is present it carries the branding, so we skip the large
+    // company-name heading (most logos already include the name) and show the
+    // name small in the details below instead.
+    let logoDrawn = false;
     if (data.business_info?.logo) {
         try {
             const props = doc.getImageProperties(data.business_info.logo);
-            const maxW = 50;
-            const maxH = 18;
+            const maxW = 55;
+            const maxH = 22;
             const scale = Math.min(maxW / props.width, maxH / props.height);
             const w = props.width * scale;
             const h = props.height * scale;
             doc.addImage(data.business_info.logo, props.fileType || 'PNG', margin, y, w, h);
-            y += h + 4; // push the company name below the logo
-        } catch (_) { /* logo is optional — skip on any decode failure */ }
+            y += h + 6;
+            logoDrawn = true;
+        } catch (_) { /* logo is optional — fall back to the name heading */ }
     }
 
-    doc.setFontSize(15);
-    doc.setTextColor(rgb.r, rgb.g, rgb.b);
-    doc.setFont('helvetica', 'bold');
-    doc.text(data.business_info.name || 'Company Name', margin, y + 5);
-
-    // Prepare for details (Row 2 - Below branding)
-    y += 18;
+    if (!logoDrawn) {
+        doc.setFontSize(15);
+        doc.setTextColor(rgb.r, rgb.g, rgb.b);
+        doc.setFont('helvetica', 'bold');
+        doc.text(data.business_info.name || 'Company Name', margin, y + 5);
+        y += 18;
+    }
 
     // Business Details (Below Logo/Name)
     doc.setFontSize(10);
-    doc.setFont('helvetica', 'normal');
     doc.setTextColor(100);
+
+    // With a logo, the name still appears here (small, bold) for clarity.
+    if (logoDrawn && data.business_info.name) {
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(30);
+        doc.text(data.business_info.name, margin, y);
+        y += 5;
+        doc.setTextColor(100);
+    }
+    doc.setFont('helvetica', 'normal');
 
     const bizAddressLines = (data.business_info.address || '').split('\n');
     bizAddressLines.forEach(line => {

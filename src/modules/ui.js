@@ -224,9 +224,10 @@ function renderPaper(state) {
         .pv-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 40px; }
         .pv-brand-section { display: flex; flex-direction: column; gap: 8px; flex: 1; }
         .pv-logo-name-row { display: flex; align-items: center; gap: 14px; }
-        .pv-logo { max-height: 40px; max-width: 120px; object-fit: contain; flex-shrink: 0; }
+        .pv-logo { max-height: 56px; max-width: 220px; object-fit: contain; object-position: left center; flex-shrink: 0; }
         .pv-company-name { font-size: 18px; font-weight: 800; letter-spacing: -0.5px; color: ${brandColor}; margin: 0; line-height: 1; }
         .pv-company-details { font-size: 11px; color: #64748b; line-height: 1.5; }
+        .pv-company-details-name { font-size: 12px; font-weight: 700; color: #1e293b; margin-bottom: 2px; }
         .pv-badge { text-align: right; }
         .pv-invoice-word { font-size: 32px; font-weight: 900; letter-spacing: 3px; color: #e2e8f0; text-transform: uppercase; margin-bottom: 14px; }
         .pv-meta { font-size: 12px; }
@@ -274,10 +275,12 @@ function renderPaper(state) {
     <div class="pv-header">
         <div class="pv-brand-section">
             <div class="pv-logo-name-row">
-                ${safeLogo ? `<img class="pv-logo" src="${safeLogo}" alt="${safeBusinessName} logo">` : ''}
-                <div class="pv-company-name">${safeBusinessName}</div>
+                ${safeLogo
+                    ? `<img class="pv-logo" src="${safeLogo}" alt="${safeBusinessName} logo">`
+                    : `<div class="pv-company-name">${safeBusinessName}</div>`}
             </div>
             <div class="pv-company-details">
+                ${safeLogo ? `<div class="pv-company-details-name">${safeBusinessName}</div>` : ''}
                 ${safeAddressLines}
                 ${safeBusinessEmail ? `<div>${safeBusinessEmail}</div>` : ''}
                 ${safeBusinessPhone ? `<div>${safeBusinessPhone}</div>` : ''}
