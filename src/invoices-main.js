@@ -808,25 +808,37 @@ async function loadInvoices() {
             if (p.invoice_number) referralStatusByInvoice.set(`num:${p.invoice_number}`, status);
         });
 
-        const invoicesResult = await getInvoices(state.user, {
-            page: state.currentPage,
-            pageSize: ITEMS_PER_PAGE,
+        const hasBillingPeriodFilter = isBillingPeriodFilterActive();
+        const invoiceQueryOptions = {
             filters: state.filters,
             sort: state.filters.sort,
-            paginate: true
-        });
+            paginate: !hasBillingPeriodFilter
+        };
+        if (!hasBillingPeriodFilter) {
+            invoiceQueryOptions.page = state.currentPage;
+            invoiceQueryOptions.pageSize = ITEMS_PER_PAGE;
+        }
+
+        const invoicesResult = await getInvoices(state.user, invoiceQueryOptions);
 
         if (requestId !== state.loadRequestId) return;
 
-        const pageInvoices = Array.isArray(invoicesResult)
+        let sourceInvoices = Array.isArray(invoicesResult)
             ? invoicesResult
             : (invoicesResult.data || []);
-        const totalCount = Array.isArray(invoicesResult)
-            ? pageInvoices.length
-            : Number(invoicesResult.count) || 0;
-        const totalPages = Array.isArray(invoicesResult)
-            ? Math.max(1, Math.ceil(pageInvoices.length / ITEMS_PER_PAGE))
-            : Number(invoicesResult.totalPages) || Math.max(1, Math.ceil(totalCount / ITEMS_PER_PAGE));
+
+        if (hasBillingPeriodFilter) {
+            sourceInvoices = sourceInvoices.filter((invoice) => invoiceMatchesBillingPeriod(invoice));
+        }
+
+        const totalCount = hasBillingPeriodFilter
+            ? sourceInvoices.length
+            : (Array.isArray(invoicesResult) ? sourceInvoices.length : Number(invoicesResult.count) || 0);
+        const totalPages = hasBillingPeriodFilter
+            ? Math.max(1, Math.ceil(totalCount / ITEMS_PER_PAGE))
+            : (Array.isArray(invoicesResult)
+                ? Math.max(1, Math.ceil(sourceInvoices.length / ITEMS_PER_PAGE))
+                : Number(invoicesResult.totalPages) || Math.max(1, Math.ceil(totalCount / ITEMS_PER_PAGE)));
 
         if (state.currentPage > totalPages) {
             state.currentPage = totalPages;
@@ -834,7 +846,11 @@ async function loadInvoices() {
             return loadInvoices();
         }
 
-        state.allInvoices = pageInvoices;
+        const pageInvoices = hasBillingPeriodFilter
+            ? paginateClientSide(sourceInvoices, state.currentPage, ITEMS_PER_PAGE)
+            : sourceInvoices;
+
+        state.allInvoices = sourceInvoices;
         state.filteredInvoices = pageInvoices;
         state.totalInvoiceCount = totalCount;
         state.totalInvoicePages = totalPages;
@@ -844,29 +860,6 @@ async function loadInvoices() {
         populateCompanyFilterOptions();
         populateClientFilterOptions();
         populateBillingYearOptions();
-
-        // Client-side billing period filter (year + month based on timesheet work period)
-        const bYear  = state.filters.billingYear  || 'all';
-        const bMonth = state.filters.billingMonth || 'all';
-        if (bYear !== 'all' || bMonth !== 'all') {
-            state.allInvoices = state.allInvoices.filter((invoice) => {
-                const items = Array.isArray(invoice.items) ? invoice.items : [];
-                return items.some((item) => {
-                    const period = String(item.period || '').trim();
-                    if (!period) return false;
-                    const startDate = period.split(/\s+to\s+/i)[0].trim();
-                    if (!startDate) return false;
-                    const d = new Date(startDate);
-                    if (isNaN(d.getTime())) return false;
-                    const itemYear  = String(d.getFullYear());
-                    const itemMonth = String(d.getMonth() + 1).padStart(2, '0');
-                    if (bYear  !== 'all' && itemYear  !== bYear)  return false;
-                    if (bMonth !== 'all' && itemMonth !== bMonth) return false;
-                    return true;
-                });
-            });
-            state.filteredInvoices = state.allInvoices;
-        }
 
         renderTable();
         renderPagination();
@@ -883,6 +876,16 @@ async function loadInvoices() {
         renderFiltersMeta();
         showToast('Error loading invoices', 'error');
     }
+}
+
+function isBillingPeriodFilterActive() {
+    return String(state.filters.billingYear || 'all') !== 'all'
+        || String(state.filters.billingMonth || 'all') !== 'all';
+}
+
+function paginateClientSide(list, page, pageSize) {
+    const start = (Math.max(1, Number(page) || 1) - 1) * pageSize;
+    return list.slice(start, start + pageSize);
 }
 
 function populateConsultantFilterOptions() {
@@ -966,15 +969,17 @@ function populateBillingYearOptions() {
     if (!els.billingYearFilter) return;
 
     const years = new Set();
+    const currentYear = new Date().getFullYear();
+    for (let y = currentYear + 1; y >= 2020; y -= 1) {
+        years.add(String(y));
+    }
+
     state.allInvoices.forEach((invoice) => {
         const items = Array.isArray(invoice.items) ? invoice.items : [];
         items.forEach((item) => {
-            const period = String(item.period || '').trim();
-            if (!period) return;
-            const startDate = period.split(/\s+to\s+/i)[0].trim();
-            if (!startDate) return;
-            const d = new Date(startDate);
-            if (!isNaN(d.getTime())) years.add(String(d.getFullYear()));
+            const range = parseInvoiceItemPeriodRange(item.period, invoice);
+            if (range?.start) years.add(range.start.slice(0, 4));
+            if (range?.end) years.add(range.end.slice(0, 4));
         });
     });
 
@@ -988,6 +993,115 @@ function populateBillingYearOptions() {
         persistFilters();
     }
     els.billingYearFilter.value = state.filters.billingYear;
+}
+
+function invoiceMatchesBillingPeriod(invoice) {
+    const filterRange = getBillingPeriodFilterRange();
+    if (!filterRange) return true;
+
+    const items = Array.isArray(invoice.items) ? invoice.items : [];
+    return items.some((item) => {
+        const range = parseInvoiceItemPeriodRange(item.period, invoice);
+        if (!range) return false;
+        return rangesOverlap(range.start, range.end, filterRange);
+    });
+}
+
+function getBillingPeriodFilterRange() {
+    const year = String(state.filters.billingYear || 'all');
+    const month = String(state.filters.billingMonth || 'all');
+    if (year === 'all' && month === 'all') return null;
+
+    const selectedYear = year !== 'all' ? Number(year) : null;
+    const selectedMonth = month !== 'all' ? Number(month) : null;
+
+    if (selectedYear && selectedMonth) {
+        const start = toIsoDate(new Date(selectedYear, selectedMonth - 1, 1));
+        const end = toIsoDate(new Date(selectedYear, selectedMonth, 0));
+        return { start, end };
+    }
+
+    if (selectedYear) {
+        return { start: `${selectedYear}-01-01`, end: `${selectedYear}-12-31` };
+    }
+
+    if (selectedMonth) {
+        return { month: String(selectedMonth).padStart(2, '0') };
+    }
+
+    return null;
+}
+
+function parseInvoiceItemPeriodRange(periodValue, invoice) {
+    const period = String(periodValue || '').trim();
+    if (!period) return null;
+
+    const fallbackYear = getInvoicePeriodFallbackYear(invoice);
+    const cleaned = period
+        .replace(/[–—]/g, '-')
+        .replace(/\s+/g, ' ')
+        .replace(/(\d+)(st|nd|rd|th)/gi, '$1')
+        .trim();
+
+    const parts = cleaned.includes(' to ')
+        ? cleaned.split(/\s+to\s+/i)
+        : cleaned.split(/\s+-\s*|\s*-\s+/);
+
+    const startToken = parts[0]?.trim();
+    const endToken = (parts.length > 1 ? parts[parts.length - 1] : parts[0])?.trim();
+    const start = parsePeriodDateToken(startToken, fallbackYear);
+    const end = parsePeriodDateToken(endToken, fallbackYear);
+
+    if (!start && !end) return null;
+    return {
+        start: start || end,
+        end: end || start
+    };
+}
+
+function getInvoicePeriodFallbackYear(invoice) {
+    const raw = getInvoiceDateRaw(invoice) || invoice?.created_at || new Date().toISOString();
+    const match = String(raw).match(/\b(20\d{2}|19\d{2})\b/);
+    return match ? match[1] : String(new Date().getFullYear());
+}
+
+function parsePeriodDateToken(token, fallbackYear) {
+    const raw = String(token || '').trim();
+    if (!raw) return '';
+
+    if (/^\d{4}-\d{2}-\d{2}/.test(raw)) {
+        return raw.slice(0, 10);
+    }
+
+    const withYear = /\b(20\d{2}|19\d{2})\b/.test(raw) ? raw : `${raw} ${fallbackYear}`;
+    const parsed = new Date(withYear);
+    if (Number.isNaN(parsed.getTime())) return '';
+    return toIsoDate(parsed);
+}
+
+function toIsoDate(date) {
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
+function rangesOverlap(startA, endA, filterRange) {
+    if (!startA || !endA) return false;
+    if (!filterRange) return true;
+    if (filterRange.start && filterRange.end) {
+        return startA <= filterRange.end && endA >= filterRange.start;
+    }
+
+    const month = filterRange.month;
+    if (!month) return false;
+    const startMonth = Number(startA.slice(5, 7));
+    const endMonth = Number(endA.slice(5, 7));
+    const selectedMonth = Number(month);
+    if (!startMonth || !endMonth || !selectedMonth) return false;
+
+    if (startA.slice(0, 4) !== endA.slice(0, 4) && startMonth > endMonth) {
+        return selectedMonth >= startMonth || selectedMonth <= endMonth;
+    }
+
+    return selectedMonth >= startMonth && selectedMonth <= endMonth;
 }
 
 function applyFiltersAndRender() {
@@ -1356,7 +1470,9 @@ function renderFiltersMeta() {
         state.filters.currency !== 'all' ? state.filters.currency : '',
         state.filters.due !== 'all' ? state.filters.due : '',
         state.filters.company !== 'all' ? state.filters.company : '',
-        state.filters.client !== 'all' ? state.filters.client : ''
+        state.filters.client !== 'all' ? state.filters.client : '',
+        state.filters.billingYear !== 'all' ? state.filters.billingYear : '',
+        state.filters.billingMonth !== 'all' ? state.filters.billingMonth : ''
     ].filter(Boolean).length;
 
     const loadedCount = state.filteredInvoices.length;
