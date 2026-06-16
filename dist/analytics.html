@@ -270,7 +270,7 @@
             }
         }
     </style>
-  <script type="module" crossorigin src="/invoices/assets/analytics-JVQnFmlQ.js"></script>
+  <script type="module" crossorigin src="/invoices/assets/analytics-ajoNSHwG.js"></script>
   <link rel="modulepreload" crossorigin href="/invoices/assets/config-c-jMUxvT.js">
   <link rel="modulepreload" crossorigin href="/invoices/assets/auth-De7W24vl.js">
   <link rel="modulepreload" crossorigin href="/invoices/assets/utils-C_5o-oWL.js">
@@ -484,18 +484,20 @@
                         <div class="kpi-card__filter-hint">Click to reset filters</div>
                     </article>
                     <article class="kpi-card kpi-card--interactive" data-filter="revenue" id="kpiRevenue">
-                        <div class="kpi-card__label">Projected <span id="projectedRevenueLabelMeta" class="kpi-card__label-meta">(Period)</span><span class="kpi-card__tooltip" data-tooltip="Total invoice value of the hours logged in the selected month.">?</span></div>
+                        <div class="kpi-card__label">Earned <span id="projectedRevenueLabelMeta" class="kpi-card__label-meta">(Period)</span><span class="kpi-card__tooltip" data-tooltip="Invoice value of the hours logged in this period — what you earned, whether or not it has been invoiced or paid yet.">?</span></div>
                         <div class="kpi-card__value" id="projectedRevenueCard">$0.00</div>
-                        <div class="kpi-card__filter-hint">Click to view detail</div>
+                        <div class="kpi-card__sub">accrual · by work month</div>
                     </article>
                     <article class="kpi-card" id="kpiActualRevenue">
-                        <div class="kpi-card__label">Collected <span id="actualRevenueLabelMeta" class="kpi-card__label-meta">(Period)</span><span class="kpi-card__tooltip" data-tooltip="Amount successfully paid so far specifically for work done in the selected month (Accrual basis).">?</span></div>
+                        <div class="kpi-card__label">Collected <span id="actualRevenueLabelMeta" class="kpi-card__label-meta">(Period)</span><span class="kpi-card__tooltip" data-tooltip="Cash paid against invoices, attributed to the month the work was done.">?</span></div>
                         <div class="kpi-card__value" id="actualRevenueCard">$0.00</div>
+                        <div class="kpi-card__sub">cash · by work month</div>
                     </article>
                     <article class="kpi-card" id="kpiCashFlow">
-                        <div class="kpi-card__label">Cash Flow <span id="cashFlowLabelMeta" class="kpi-card__label-meta">(Received)</span><span class="kpi-card__tooltip" data-tooltip="Total cash that landed in the bank during the selected month, regardless of when the work was done (Cash basis). Always in USD — all payments are received in USD, so CAD invoices count their USD-received amount.">?</span></div>
+                        <div class="kpi-card__label">Cash Flow <span id="cashFlowLabelMeta" class="kpi-card__label-meta">(Received)</span><span class="kpi-card__tooltip" data-tooltip="Total cash that landed in the bank during the selected month, regardless of when the work was done. Always in USD — all payments are received in USD, so CAD invoices count their USD-received amount.">?</span></div>
                         <div class="kpi-card__value" id="cashFlowCard" style="color:var(--success)">$0.00</div>
                         <div class="kpi-card__sub" id="cashFlowUsdSub" style="display:none;"></div>
+                        <div class="kpi-card__sub">cash · by received month · USD</div>
                     </article>
                     <article class="kpi-card kpi-card--interactive" data-filter="consultants" id="kpiConsultants">
                         <div class="kpi-card__label">Consultants <span id="consultantsLabelMeta" class="kpi-card__label-meta">(With Hours)</span></div>
@@ -515,9 +517,9 @@
                 <section class="analytics-charts-row">
                     <div class="analytics-chart-card" id="revenueTrendCard">
                         <div class="analytics-chart-card__header">
-                            <div class="kpi-card__label">Accrual vs Collections</div>
+                            <div class="kpi-card__label">Earned vs Collected</div>
                             <div class="analytics-chart-card__legend">
-                                <span style="display:inline-flex;align-items:center;gap:4px;"><span style="width:10px;height:10px;border-radius:3px;background:#cbd5e1;display:inline-block;"></span> Projected</span>
+                                <span style="display:inline-flex;align-items:center;gap:4px;"><span style="width:10px;height:10px;border-radius:3px;background:#cbd5e1;display:inline-block;"></span> Earned</span>
                                 <span style="display:inline-flex;align-items:center;gap:4px;"><span style="width:10px;height:10px;border-radius:3px;background:#3b82f6;display:inline-block;"></span> Collected</span>
                             </div>
                         </div>
@@ -569,11 +571,6 @@
                         <div class="insight-card__title">No consultant data yet</div>
                         <div class="insight-card__body">Consultant-level performance appears here once hours are added.</div>
                     </article>
-                    <article class="insight-card insight-card--clickable" id="billingInsight" data-drill="billing">
-                        <div class="insight-card__eyebrow">Billing Status</div>
-                        <div class="insight-card__title">No billing data yet</div>
-                        <div class="insight-card__body">This view will separate pending and invoiced hours for the selected period.</div>
-                    </article>
                 </section>
 
                 <!-- Commission + Unbilled Alerts -->
@@ -609,7 +606,7 @@
                                     <th>Consultant</th>
                                     <th>Status</th>
                                     <th>Hours in Month</th>
-                                    <th>Projected Revenue</th>
+                                    <th>Earned</th>
                                     <th>Invoice Link</th>
                                 </tr>
                             </thead>

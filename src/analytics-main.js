@@ -140,7 +140,6 @@ function cacheElements() {
     els.billingCoverageSub = document.getElementById('billingCoverageSub');
     els.topClientInsight = document.getElementById('topClientInsight');
     els.topConsultantInsight = document.getElementById('topConsultantInsight');
-    els.billingInsight = document.getElementById('billingInsight');
 
     els.clientBreakdownBody = document.getElementById('clientBreakdownBody');
     els.pivotHeadRow = document.getElementById('pivotHeadRow');
@@ -771,7 +770,6 @@ function renderKpis(monthRows) {
 function renderInsights(monthRows) {
     renderTopClientInsight(monthRows);
     renderTopConsultantInsight(monthRows);
-    renderBillingInsight(monthRows);
 }
 
 function renderClientBreakdown(rows) {
@@ -1146,7 +1144,7 @@ function renderTopClientInsight(rows) {
         <div class="insight-card__title">${escapeHtml(top.name)}</div>
         <div class="insight-card__body">Highest projected value in the current period.</div>
         <div class="insight-card__meta">
-            <div class="insight-card__meta-row"><span>Projected revenue</span><strong>${escapeHtml(formatCurrencyGroup(top.projected))}</strong></div>
+            <div class="insight-card__meta-row"><span>Earned</span><strong>${escapeHtml(formatCurrencyGroup(top.projected))}</strong></div>
             <div class="insight-card__meta-row"><span>Hours logged</span><strong>${top.hours.toFixed(2)}</strong></div>
             <div class="insight-card__meta-row"><span>Consultants</span><strong>${top.consultants.size}</strong></div>
         </div>
@@ -1192,45 +1190,13 @@ function renderTopConsultantInsight(rows) {
         <div class="insight-card__title">${escapeHtml(top.name)}</div>
         <div class="insight-card__body">${escapeHtml(top.client || 'No client assigned')} • ${escapeHtml(top.currency)}</div>
         <div class="insight-card__meta">
-            <div class="insight-card__meta-row"><span>Projected revenue</span><strong>${formatMoney(top.projected, top.currency)}</strong></div>
+            <div class="insight-card__meta-row"><span>Earned</span><strong>${formatMoney(top.projected, top.currency)}</strong></div>
             <div class="insight-card__meta-row"><span>Total hours</span><strong>${top.hours.toFixed(2)}</strong></div>
             <div class="insight-card__meta-row"><span>Pending hours</span><strong>${top.pendingHours.toFixed(2)}</strong></div>
         </div>
         <div class="insight-card__drill"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m9 5 7 7-7 7"/></svg> View in Detail</div>
     `;
     els.topConsultantInsight.dataset.drillValue = top.name;
-}
-
-function renderBillingInsight(rows) {
-    if (!els.billingInsight) return;
-
-    const pendingHours = rows.filter(row => row.status === 'pending').reduce((sum, row) => sum + row.hours, 0);
-    const invoicedHours = rows.filter(row => row.status === 'invoiced').reduce((sum, row) => sum + row.hours, 0);
-    const pendingRevenue = aggregateByCurrency(rows.filter(row => row.status === 'pending'));
-    const invoicedRevenue = aggregateByCurrency(rows.filter(row => row.status === 'invoiced'));
-    const hasData = pendingHours > 0 || invoicedHours > 0;
-
-    if (!hasData) {
-        els.billingInsight.innerHTML = `
-            <div class="insight-card__eyebrow">Billing Status</div>
-            <div class="insight-card__title">No billing data yet</div>
-            <div class="insight-card__body">This view will separate pending and invoiced hours for the selected period.</div>
-        `;
-        return;
-    }
-
-    els.billingInsight.innerHTML = `
-        <div class="insight-card__eyebrow">Billing Status</div>
-        <div class="insight-card__title">${invoicedHours >= pendingHours ? 'Mostly invoiced' : 'Pending work needs attention'}</div>
-        <div class="insight-card__body">Use this to spot hours that still need an invoice.</div>
-        <div class="insight-card__meta">
-            <div class="insight-card__meta-row"><span>Pending</span><strong>${pendingHours.toFixed(2)} hrs • ${escapeHtml(formatCurrencyGroup(pendingRevenue))}</strong></div>
-            <div class="insight-card__meta-row"><span>Invoiced</span><strong>${invoicedHours.toFixed(2)} hrs • ${escapeHtml(formatCurrencyGroup(invoicedRevenue))}</strong></div>
-            <div class="insight-card__meta-row"><span>Coverage</span><strong>${Math.round((invoicedHours / Math.max(invoicedHours + pendingHours, 1)) * 100)}%</strong></div>
-        </div>
-        <div class="insight-card__drill"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m9 5 7 7-7 7"/></svg> View pending in Detail</div>
-    `;
-    els.billingInsight.dataset.drillValue = 'pending';
 }
 
 /* ============================================================
@@ -1308,15 +1274,6 @@ function handleInsightClick(card) {
     if (drill === 'consultant') {
         searchTerm = value.toLowerCase();
         if (els.searchInput) els.searchInput.value = value;
-        persistShared();
-        requestRender();
-        switchTab('detail');
-        return;
-    }
-
-    if (drill === 'billing') {
-        selectedStatus = 'pending';
-        if (els.statusFilter) els.statusFilter.value = 'pending';
         persistShared();
         requestRender();
         switchTab('detail');
@@ -1672,10 +1629,16 @@ function renderRevenueTrend(filteredRows) {
 
     const monthKeys = MONTHS.map((_, idx) => `${selectedYear}-${String(idx + 1).padStart(2, '0')}`);
 
+    // Track the currencies actually contributing, to warn when bars mix them.
+    const involvedCurrencies = new Set();
+
     // Projected from timesheets
     const projectedByMonth = {};
     filteredRows.forEach(row => {
         projectedByMonth[row.month_key] = (projectedByMonth[row.month_key] || 0) + row.projected;
+        if (row.projected && String(row.month_key || '').startsWith(String(selectedYear))) {
+            involvedCurrencies.add(String(row.currency || 'USD').toUpperCase());
+        }
     });
 
     // Collected from paid invoices (respecting currency filter)
@@ -1690,9 +1653,14 @@ function renderRevenueTrend(filteredRows) {
         for (const [monthKey, amount] of Object.entries(dist)) {
             if (monthKey.startsWith(String(selectedYear))) {
                 collectedByMonth[monthKey] = (collectedByMonth[monthKey] || 0) + amount;
+                involvedCurrencies.add(String(inv.invoice_meta?.currency || 'USD').toUpperCase());
             }
         }
     });
+
+    // These bars sum amounts irrespective of currency, so mixing USD + CAD in
+    // one bar is misleading. Warn and prompt the user to pick a single currency.
+    const mixedCurrencies = selectedCurrency === 'all' && involvedCurrencies.size > 1;
 
     const allValues = [...Object.values(projectedByMonth), ...Object.values(collectedByMonth)];
     const maxVal = Math.max(...allValues, 1);
@@ -1740,9 +1708,11 @@ function renderRevenueTrend(filteredRows) {
         const projTip = `${MONTHS[idx]}: Projected ${formatMoney(proj, currencyStr)}`;
         const collTip = `${MONTHS[idx]}: Collected ${formatMoney(coll, currencyStr)}`;
 
-        // Value labels positioned above bars
-        const projLabel = proj > 0 ? `<text class="bar-val-label bar-val-label--proj" x="${groupX - barW / 2 - gap / 2}" y="${baseY - projH - 5}" text-anchor="middle" fill="#64748b" font-size="7.5" font-weight="700" font-family="inherit">${formatCompactNumber(proj)}</text>` : '';
-        const collLabel = coll > 0 ? `<text class="bar-val-label bar-val-label--coll" x="${groupX + barW / 2 + gap / 2}" y="${baseY - collH - 5}" text-anchor="middle" fill="#2563eb" font-size="7.5" font-weight="700" font-family="inherit">${formatCompactNumber(coll)}</text>` : '';
+        // Value labels stacked above the taller bar so projected and collected
+        // never overlap (colour matches the legend: grey = projected, blue = collected).
+        const labelTopY = baseY - Math.max(projH, collH) - 5;
+        const projLabel = proj > 0 ? `<text class="bar-val-label bar-val-label--proj" x="${groupX}" y="${labelTopY - 9}" text-anchor="middle" fill="#64748b" font-size="7.5" font-weight="700" font-family="inherit">${formatCompactNumber(proj)}</text>` : '';
+        const collLabel = coll > 0 ? `<text class="bar-val-label bar-val-label--coll" x="${groupX}" y="${labelTopY}" text-anchor="middle" fill="#2563eb" font-size="7.5" font-weight="700" font-family="inherit">${formatCompactNumber(coll)}</text>` : '';
 
         // Invisible hover zone for the entire group
         const hoverZone = `<rect x="${padL + idx * groupW}" y="${padT}" width="${groupW}" height="${chartH + 4}" fill="transparent" class="trend-bar-hover-zone"/>`;
@@ -1767,8 +1737,13 @@ function renderRevenueTrend(filteredRows) {
     // Baseline
     const baseline = `<line x1="${padL}" y1="${padT + chartH}" x2="${vW - padR}" y2="${padT + chartH}" stroke="#cbd5e1" stroke-width="1"/>`;
 
+    const mixWarning = mixedCurrencies
+        ? `<div style="font-size:0.7rem;color:var(--text-tertiary);margin-bottom:6px;display:flex;align-items:center;gap:5px;"><span style="color:var(--accent);">⚠</span> Bars combine ${[...involvedCurrencies].sort().join(' + ')} — pick a single currency to compare cleanly.</div>`
+        : '';
+
     els.revenueTrendBars.className = 'analytics-trend-chart';
     els.revenueTrendBars.innerHTML = `
+        ${mixWarning}
         <svg viewBox="0 0 ${vW} ${vH}" preserveAspectRatio="xMidYMid meet" style="width:100%; height:auto; display:block;">
             <style>
                 .bar-val-label { opacity: 0; transition: opacity 0.15s ease; pointer-events: none; }
