@@ -169,7 +169,6 @@ function cacheElements() {
     els.outstandingCard = document.getElementById('outstandingCard');
     els.actualRevenueSub = document.getElementById('actualRevenueSub');
     els.cashFlowCard = document.getElementById('cashFlowCard');
-    els.cashFlowUsdSub = document.getElementById('cashFlowUsdSub');
     els.revenueFunnelBody = document.getElementById('revenueFunnelBody');
     els.owesBody = document.getElementById('owesBody');
     els.marginBody = document.getElementById('marginBody');
@@ -1499,10 +1498,6 @@ function renderCashFlowKPI() {
     });
 
     els.cashFlowCard.textContent = formatMoney(totalUsdInBank, 'USD');
-    if (els.cashFlowUsdSub) {
-        els.cashFlowUsdSub.textContent = 'actual USD received in bank';
-        els.cashFlowUsdSub.style.display = '';
-    }
 }
 
 /* ============================================================
@@ -1767,19 +1762,32 @@ function collectedUsdInPeriod() {
     return sum;
 }
 
-// USD referral pass-through actually paid to partners within the period.
-function referralPaidUsdInPeriod() {
+// USD referral pass-through you OWE partners — the obligation, counted whether
+// or not you've actually paid it yet (the partner's share was never your money).
+// Attributed to the linked invoice's collection month so it lines up with the
+// Collected figure above it.
+function referralOwedUsdInPeriod() {
+    const invById = new Map(rawInvoices.map((i) => [String(i.id), i]));
+    const invByNum = new Map(rawInvoices.filter((i) => i.invoice_number).map((i) => [String(i.invoice_number), i]));
+
     let sum = 0;
     rawPayouts.forEach((p) => {
         if (String(p.currency || 'USD').toUpperCase() !== 'USD') return;
-        const payments = Array.isArray(p.payments) ? p.payments : [];
-        if (payments.length) {
-            payments.forEach((pay) => {
-                if (inSelectedPeriod(String(pay.date || '').slice(0, 7))) sum += Number(pay.amount) || 0;
-            });
-        } else if (p.paid_date && inSelectedPeriod(String(p.paid_date).slice(0, 7))) {
-            sum += Number(p.amount_paid) || 0;
+        const owed = Number(p.pass_through_amount) || 0;
+        if (owed <= 0) return;
+
+        const inv = (p.invoice_id && invById.get(String(p.invoice_id)))
+            || (p.invoice_number && invByNum.get(String(p.invoice_number)))
+            || null;
+
+        let pm = '';
+        if (inv) {
+            const ts = String(inv.paid_date || inv.invoice_meta?.dateRaw || inv.created_at || '').trim();
+            if (/^\d{4}-\d{2}/.test(ts)) pm = ts.slice(0, 7);
         }
+        if (!pm) pm = String(p.created_at || '').slice(0, 7);
+
+        if (inSelectedPeriod(pm)) sum += owed;
     });
     return sum;
 }
@@ -1788,7 +1796,7 @@ function renderMargin(monthRows) {
     if (!els.marginBody) return;
 
     const collected = collectedUsdInPeriod();
-    const referralPaid = referralPaidUsdInPeriod();
+    const referralOwed = referralOwedUsdInPeriod();
 
     // Commissions: prefer the row's rate, else the consultant's stored rate.
     const rateById = new Map(rawConsultants.map((c) => [String(c.id), Number(c.commission_rate) || 0]));
@@ -1803,7 +1811,7 @@ function renderMargin(monthRows) {
         else commissionOther[ccy] = (commissionOther[ccy] || 0) + amt;
     });
 
-    const m = keptMargin({ collected, referralPaid, commissions: commissionUsd });
+    const m = keptMargin({ collected, referralPaid: referralOwed, commissions: commissionUsd });
 
     const step = (label, value, opts = {}) => {
         const sign = opts.neg && value > 0 ? '−' : '';
@@ -1821,7 +1829,7 @@ function renderMargin(monthRows) {
     els.marginBody.innerHTML = `
         ${step('Collected', m.collected)}
         ${op('−')}
-        ${step('Referral payouts', m.referralPaid, { neg: true })}
+        ${step('Referrals owed', m.referralPaid, { neg: true })}
         ${op('−')}
         ${step('Commissions', m.commissions, { neg: true })}
         ${op('=')}
