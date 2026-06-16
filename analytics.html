@@ -292,6 +292,14 @@
         .owes-bar { height: 8px; background: var(--surface-app, #f1f5f9); border-radius: 4px; overflow: hidden; }
         .owes-bar__fill { height: 100%; background: var(--accent, #ff6b4a); border-radius: 4px; }
         .analytics-empty-hint { font-size: 0.82rem; color: var(--text-tertiary); padding: 1.25rem 0.25rem; text-align: center; }
+        .analytics-margin { display: flex; flex-wrap: wrap; align-items: stretch; gap: 0.6rem; padding-top: 0.4rem; }
+        .margin-step { flex: 1 1 130px; background: var(--surface-app, #f8fafc); border-radius: 8px; padding: 0.6rem 0.75rem; }
+        .margin-step--result { background: var(--primary-light, #fff1ec); }
+        .margin-step__label { font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; color: var(--text-tertiary); }
+        .margin-step__value { font-size: 1.05rem; font-weight: 800; color: var(--text-primary); margin-top: 2px; }
+        .margin-step__value--neg { color: var(--danger, #dc2626); }
+        .margin-op { display: flex; align-items: center; font-size: 1.1rem; font-weight: 700; color: var(--text-tertiary); }
+        .margin-note { flex-basis: 100%; font-size: 0.7rem; color: var(--text-tertiary); margin-top: 2px; }
     </style>
     <script type="module">
         import { requireAuth } from './src/auth.js';
@@ -543,6 +551,19 @@
                             <div class="kpi-card__label-meta">outstanding balance</div>
                         </div>
                         <div id="owesBody" class="analytics-owes">
+                            <!-- Rendered by JS -->
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Kept margin -->
+                <section class="analytics-charts-row">
+                    <div class="analytics-chart-card" id="marginCard" style="grid-column: 1 / -1;">
+                        <div class="analytics-chart-card__header">
+                            <div class="kpi-card__label">Your kept margin</div>
+                            <div class="kpi-card__label-meta">USD · collected − referrals − commissions</div>
+                        </div>
+                        <div id="marginBody" class="analytics-margin">
                             <!-- Rendered by JS -->
                         </div>
                     </div>

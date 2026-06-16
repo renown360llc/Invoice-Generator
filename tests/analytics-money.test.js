@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildFunnel, topOutstanding } from '../src/modules/analytics-money.js';
+import { buildFunnel, keptMargin, topOutstanding } from '../src/modules/analytics-money.js';
 
 describe('buildFunnel', () => {
     it('computes leakage per currency', () => {
@@ -23,6 +23,21 @@ describe('buildFunnel', () => {
     it('returns sorted currencies and handles empty input', () => {
         expect(buildFunnel()).toEqual([]);
         expect(buildFunnel({ USD: 1 }, { CAD: 1 }, {}).map((r) => r.currency)).toEqual(['CAD', 'USD']);
+    });
+});
+
+describe('keptMargin', () => {
+    it('subtracts referral payouts and commissions', () => {
+        expect(keptMargin({ collected: 10000, referralPaid: 2500, commissions: 1200 }))
+            .toEqual({ collected: 10000, referralPaid: 2500, commissions: 1200, margin: 6300, marginPct: 63 });
+    });
+    it('can go negative', () => {
+        const m = keptMargin({ collected: 1000, referralPaid: 900, commissions: 300 });
+        expect(m.margin).toBe(-200);
+        expect(m.marginPct).toBe(-20);
+    });
+    it('handles zero collected without dividing by zero', () => {
+        expect(keptMargin({})).toEqual({ collected: 0, referralPaid: 0, commissions: 0, margin: 0, marginPct: 0 });
     });
 });
 

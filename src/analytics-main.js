@@ -15,7 +15,8 @@ import {
     initFiltersForUser
 } from './modules/crm-filters.js';
 import { listSavedViews, saveSavedView, deleteSavedView, initSavedViewsForUser } from './modules/saved-views.js';
-import { buildFunnel, topOutstanding } from './modules/analytics-money.js';
+import { buildFunnel, keptMargin, topOutstanding } from './modules/analytics-money.js';
+import { dbGetReferralPayouts } from './modules/db-referrals.js';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const CURRENCY_COLORS = {
@@ -45,6 +46,7 @@ let currentSavedViewId = String(analyticsPrefs.savedViewId || '');
 let rawRows = [];
 let rawInvoices = [];
 let rawConsultants = [];
+let rawPayouts = [];
 
 const els = {};
 const requestRender = createRenderScheduler(() => renderAll());
@@ -175,6 +177,7 @@ function cacheElements() {
     els.billingCoverageLabelMeta = document.getElementById('billingCoverageLabelMeta');
     els.revenueFunnelBody = document.getElementById('revenueFunnelBody');
     els.owesBody = document.getElementById('owesBody');
+    els.marginBody = document.getElementById('marginBody');
     els.revenueTrendBars = document.getElementById('revenueTrendBars');
     els.cashFlowTrendLegend = document.getElementById('cashFlowTrendLegend');
     els.cashFlowTrendBars = document.getElementById('cashFlowTrendBars');
@@ -535,12 +538,14 @@ function bindEvents() {
 async function refreshData() {
     setMeta('Loading analytics...');
     try {
-        const [rows, invoices, consultants] = await Promise.all([
+        const [rows, invoices, consultants, payouts] = await Promise.all([
             dbGetTimesheetsForYear(selectedYear),
             getInvoices(),
-            dbGetConsultants()
+            dbGetConsultants(),
+            dbGetReferralPayouts().catch(() => [])
         ]);
         rawInvoices = invoices || [];
+        rawPayouts = payouts || [];
         const paidInvoiceNums = new Set(
             rawInvoices
                 .filter(inv => inv.status === 'paid' && inv.invoice_number)
@@ -665,6 +670,7 @@ function renderAll() {
     renderActiveConsultantsRunRate();
     renderRevenueFunnel(monthRows);
     renderWhoOwes();
+    renderMargin(monthRows);
     renderRevenueTrend(filtered);
     renderCashFlowTrend(filtered);
     renderInvoiceStatusDist();
@@ -1721,6 +1727,86 @@ function renderWhoOwes() {
             </div>
             <div class="owes-bar"><div class="owes-bar__fill" style="width:${Math.max(4, Math.round((r.balance / maxBal) * 100))}%;"></div></div>
         </div>`).join('');
+}
+
+// USD cash collected within the selected period (by received month).
+function collectedUsdInPeriod() {
+    let sum = 0;
+    rawInvoices.forEach((inv) => {
+        if (String(inv.status || '').toLowerCase() !== 'paid') return;
+        const paidTs = String(inv.paid_date || inv.invoice_meta?.dateRaw || inv.created_at || '').trim();
+        let pm = '';
+        if (/^\d{4}-\d{2}-\d{2}/.test(paidTs)) pm = paidTs.slice(0, 7);
+        else if (inv.created_at) {
+            const d = new Date(inv.created_at);
+            pm = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        }
+        if (inSelectedPeriod(pm)) sum += usdReceivedForInvoice(inv);
+    });
+    return sum;
+}
+
+// USD referral pass-through actually paid to partners within the period.
+function referralPaidUsdInPeriod() {
+    let sum = 0;
+    rawPayouts.forEach((p) => {
+        if (String(p.currency || 'USD').toUpperCase() !== 'USD') return;
+        const payments = Array.isArray(p.payments) ? p.payments : [];
+        if (payments.length) {
+            payments.forEach((pay) => {
+                if (inSelectedPeriod(String(pay.date || '').slice(0, 7))) sum += Number(pay.amount) || 0;
+            });
+        } else if (p.paid_date && inSelectedPeriod(String(p.paid_date).slice(0, 7))) {
+            sum += Number(p.amount_paid) || 0;
+        }
+    });
+    return sum;
+}
+
+function renderMargin(monthRows) {
+    if (!els.marginBody) return;
+
+    const collected = collectedUsdInPeriod();
+    const referralPaid = referralPaidUsdInPeriod();
+
+    // Commissions: prefer the row's rate, else the consultant's stored rate.
+    const rateById = new Map(rawConsultants.map((c) => [String(c.id), Number(c.commission_rate) || 0]));
+    let commissionUsd = 0;
+    const commissionOther = {};
+    monthRows.forEach((row) => {
+        const rate = Number(row.commission_rate) || rateById.get(String(row.consultant_id)) || 0;
+        if (rate <= 0) return;
+        const amt = (Number(row.projected) || 0) * (rate / 100);
+        const ccy = String(row.currency || 'USD').toUpperCase();
+        if (ccy === 'USD') commissionUsd += amt;
+        else commissionOther[ccy] = (commissionOther[ccy] || 0) + amt;
+    });
+
+    const m = keptMargin({ collected, referralPaid, commissions: commissionUsd });
+
+    const step = (label, value, opts = {}) => {
+        const sign = opts.neg && value > 0 ? '−' : '';
+        const cls = opts.result ? ' margin-step--result' : '';
+        const valCls = opts.result && m.margin < 0 ? ' margin-step__value--neg' : '';
+        const pct = opts.pct != null ? ` <span style="font-size:0.75rem;color:var(--text-tertiary);">(${opts.pct}%)</span>` : '';
+        return `<div class="margin-step${cls}"><div class="margin-step__label">${label}</div><div class="margin-step__value${valCls}">${sign}${escapeHtml(formatMoney(value, 'USD'))}${pct}</div></div>`;
+    };
+    const op = (sym) => `<div class="margin-op">${sym}</div>`;
+
+    const otherNote = Object.keys(commissionOther).length
+        ? `<div class="margin-note">Plus ${Object.entries(commissionOther).map(([c, v]) => escapeHtml(formatMoney(v, c))).join(', ')} in non-USD commissions (excluded from this USD figure).</div>`
+        : '';
+
+    els.marginBody.innerHTML = `
+        ${step('Collected', m.collected)}
+        ${op('−')}
+        ${step('Referral payouts', m.referralPaid, { neg: true })}
+        ${op('−')}
+        ${step('Commissions', m.commissions, { neg: true })}
+        ${op('=')}
+        ${step('Kept margin', m.margin, { result: true, pct: m.marginPct })}
+        ${otherNote}
+    `;
 }
 
 function renderRevenueTrend(filteredRows) {

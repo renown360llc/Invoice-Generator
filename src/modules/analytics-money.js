@@ -34,6 +34,20 @@ export function buildFunnel(earned = {}, invoiced = {}, collected = {}) {
 }
 
 /**
+ * Kept margin (USD): cash collected minus what you pay out — referral
+ * pass-through and consultant commissions. Margin can go negative; only the
+ * percentage is floored at a sane value. All inputs must be USD.
+ */
+export function keptMargin({ collected = 0, referralPaid = 0, commissions = 0 } = {}) {
+    const c = round2(collected);
+    const r = round2(referralPaid);
+    const m = round2(commissions);
+    const margin = round2(c - r - m);
+    const marginPct = c > 0 ? Math.round((margin / c) * 100) : 0;
+    return { collected: c, referralPaid: r, commissions: m, margin, marginPct };
+}
+
+/**
  * Rank who owes you by outstanding balance, grouped by client name + currency.
  * Skips drafts and anything with a zero/negative balance. Balance prefers the
  * stored balance_due, else total - amount_paid.
