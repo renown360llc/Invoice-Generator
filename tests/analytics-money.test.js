@@ -2,27 +2,26 @@ import { describe, expect, it } from 'vitest';
 import { buildFunnel, keptMargin, topOutstanding } from '../src/modules/analytics-money.js';
 
 describe('buildFunnel', () => {
-    it('computes leakage per currency', () => {
+    it('computes uncollected per currency and carries unbilled separately', () => {
         const f = buildFunnel(
-            { USD: 1000, CAD: 500 },
             { USD: 860, CAD: 500 },
-            { USD: 810 }
+            { USD: 810 },
+            { USD: 140 }
         );
         const usd = f.find((r) => r.currency === 'USD');
-        expect(usd).toMatchObject({ earned: 1000, invoiced: 860, collected: 810, unbilled: 140, uncollected: 50 });
+        expect(usd).toMatchObject({ invoiced: 860, collected: 810, uncollected: 50, unbilled: 140 });
         const cad = f.find((r) => r.currency === 'CAD');
-        expect(cad).toMatchObject({ earned: 500, invoiced: 500, collected: 0, unbilled: 0, uncollected: 500 });
+        expect(cad).toMatchObject({ invoiced: 500, collected: 0, uncollected: 500, unbilled: 0 });
     });
 
-    it('never reports negative leakage', () => {
-        const [row] = buildFunnel({ USD: 100 }, { USD: 120 }, { USD: 130 });
-        expect(row.unbilled).toBe(0);
+    it('never reports negative uncollected', () => {
+        const [row] = buildFunnel({ USD: 100 }, { USD: 130 }, {});
         expect(row.uncollected).toBe(0);
     });
 
     it('returns sorted currencies and handles empty input', () => {
         expect(buildFunnel()).toEqual([]);
-        expect(buildFunnel({ USD: 1 }, { CAD: 1 }, {}).map((r) => r.currency)).toEqual(['CAD', 'USD']);
+        expect(buildFunnel({ USD: 1 }, {}, { CAD: 1 }).map((r) => r.currency)).toEqual(['CAD', 'USD']);
     });
 });
 

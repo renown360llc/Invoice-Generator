@@ -1649,18 +1649,42 @@ function inSelectedPeriod(monthKey) {
     return true;
 }
 
-// Sum invoice amounts distributed into the selected period, per currency,
-// for invoices whose status passes `statusOk`. Respects the currency filter.
-function distributedByCurrency(statusOk) {
-    const byCurr = {};
+// Invoiced and collected for the selected period, per currency, from invoices.
+// Collected is the paid share of each invoice's distributed amount, so it can
+// never exceed invoiced. Both respect the currency filter.
+function billingByCurrency() {
+    const invoiced = {};
+    const collected = {};
     rawInvoices.forEach((inv) => {
-        if (!statusOk(String(inv.status || '').toLowerCase())) return;
+        const status = String(inv.status || '').toLowerCase();
+        if (status === 'draft') return;
         const ccy = String(inv.invoice_meta?.currency || 'USD').toUpperCase();
         if (selectedCurrency !== 'all' && ccy !== selectedCurrency) return;
+
+        const total = Number(inv.totals?.total) || 0;
+        const paid = Number(inv.totals?.amount_paid) || 0;
+        const paidFraction = total > 0
+            ? Math.max(0, Math.min(1, paid / total))
+            : (status === 'paid' ? 1 : 0);
+
         const dist = getInvoiceDistribution(inv);
         for (const [mk, amt] of Object.entries(dist)) {
-            if (inSelectedPeriod(mk)) byCurr[ccy] = (byCurr[ccy] || 0) + amt;
+            if (!inSelectedPeriod(mk)) continue;
+            invoiced[ccy] = (invoiced[ccy] || 0) + amt;
+            collected[ccy] = (collected[ccy] || 0) + amt * paidFraction;
         }
+    });
+    return { invoiced, collected };
+}
+
+// Value of logged work that hasn't been invoiced yet (pending timesheets),
+// per currency — measured straight from the timesheet ledger.
+function unbilledByCurrency(monthRows) {
+    const byCurr = {};
+    monthRows.forEach((r) => {
+        if (String(r.status || '').toLowerCase() !== 'pending') return;
+        const ccy = String(r.currency || 'USD').toUpperCase();
+        byCurr[ccy] = (byCurr[ccy] || 0) + (Number(r.projected) || 0);
     });
     return byCurr;
 }
@@ -1668,42 +1692,36 @@ function distributedByCurrency(statusOk) {
 function renderRevenueFunnel(monthRows) {
     if (!els.revenueFunnelBody) return;
 
-    const earned = {};
-    monthRows.forEach((r) => {
-        const ccy = String(r.currency || 'USD').toUpperCase();
-        if (selectedCurrency !== 'all' && ccy !== selectedCurrency) return;
-        earned[ccy] = (earned[ccy] || 0) + (Number(r.projected) || 0);
-    });
-    const invoiced = distributedByCurrency((s) => s !== 'draft');
-    const collected = distributedByCurrency((s) => s === 'paid');
+    const { invoiced, collected } = billingByCurrency();
+    const unbilled = unbilledByCurrency(monthRows);
 
-    const rows = buildFunnel(earned, invoiced, collected);
-    if (rows.length === 0) {
-        els.revenueFunnelBody.innerHTML = '<div class="analytics-empty-hint">No revenue for this period yet.</div>';
+    const rows = buildFunnel(invoiced, collected, unbilled);
+    const hasData = rows.some((r) => r.invoiced > 0 || r.collected > 0 || r.unbilled > 0);
+    if (!hasData) {
+        els.revenueFunnelBody.innerHTML = '<div class="analytics-empty-hint">No invoices for this period yet.</div>';
         return;
     }
 
-    const stage = (label, val, color, currency, note) => {
-        const max = note._max;
+    const stage = (label, val, color, currency, max, note) => {
         const width = `${Math.max(3, Math.round((val / max) * 100))}%`;
         return `
             <div class="funnel-stage">
                 <div class="funnel-stage__top"><span>${label}</span><span>${escapeHtml(formatMoney(val, currency))}</span></div>
                 <div class="funnel-bar"><div class="funnel-bar__fill" style="width:${width};background:${color};"></div></div>
-                ${note.text ? `<div class="funnel-stage__note">${note.text}</div>` : ''}
+                ${note ? `<div class="funnel-stage__note">${note}</div>` : ''}
             </div>`;
     };
 
     els.revenueFunnelBody.innerHTML = rows.map((r) => {
-        const max = Math.max(r.earned, r.invoiced, r.collected, 1);
-        const unbilled = r.unbilled > 0 ? `<span class="funnel-leak">⚠ ${escapeHtml(formatMoney(r.unbilled, r.currency))} logged, not invoiced</span>` : '';
+        const max = Math.max(r.invoiced, 1);
         const uncollected = r.uncollected > 0 ? `<span class="funnel-leak">${escapeHtml(formatMoney(r.uncollected, r.currency))} invoiced, not collected</span>` : '';
+        const unbilledNote = r.unbilled > 0 ? `<div class="funnel-stage__note"><span class="funnel-leak">⚠ ${escapeHtml(formatMoney(r.unbilled, r.currency))} logged but not invoiced yet (separate — not in these bars)</span></div>` : '';
         return `
             <div class="funnel-group">
                 ${rows.length > 1 ? `<div class="funnel-group__ccy">${escapeHtml(r.currency)}</div>` : ''}
-                ${stage('Earned', r.earned, '#94a3b8', r.currency, { _max: max, text: unbilled })}
-                ${stage('Invoiced', r.invoiced, '#60a5fa', r.currency, { _max: max, text: uncollected })}
-                ${stage('Collected', r.collected, '#2563eb', r.currency, { _max: max, text: '' })}
+                ${stage('Invoiced', r.invoiced, '#60a5fa', r.currency, max, '')}
+                ${stage('Collected', r.collected, '#2563eb', r.currency, max, uncollected)}
+                ${unbilledNote}
             </div>`;
     }).join('');
 }

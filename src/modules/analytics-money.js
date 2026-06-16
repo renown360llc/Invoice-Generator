@@ -9,26 +9,29 @@ function round2(n) {
 }
 
 /**
- * Build a per-currency funnel from three { currency: amount } maps. Each stage
- * shows the amount plus the leakage to the next: earned -> invoiced (unbilled)
- * and invoiced -> collected (uncollected). Leakage is clamped at zero.
+ * Per-currency billing funnel from invoices: invoiced -> collected. Collected
+ * is the paid share of what was invoiced, so the funnel always nests
+ * (collected <= invoiced) and uncollected = invoiced - collected.
+ *
+ * `unbilled` is the value of logged-but-not-yet-invoiced work. It comes from a
+ * different ledger (timesheets), so it is carried for a separate callout and is
+ * deliberately NOT part of the invoiced/collected bars.
  */
-export function buildFunnel(earned = {}, invoiced = {}, collected = {}) {
+export function buildFunnel(invoiced = {}, collected = {}, unbilled = {}) {
     const currencies = [...new Set([
-        ...Object.keys(earned), ...Object.keys(invoiced), ...Object.keys(collected)
+        ...Object.keys(invoiced), ...Object.keys(collected), ...Object.keys(unbilled)
     ])].sort();
 
     return currencies.map((currency) => {
-        const e = round2(earned[currency] || 0);
         const i = round2(invoiced[currency] || 0);
         const c = round2(collected[currency] || 0);
+        const u = round2(unbilled[currency] || 0);
         return {
             currency,
-            earned: e,
             invoiced: i,
             collected: c,
-            unbilled: Math.max(0, round2(e - i)),
-            uncollected: Math.max(0, round2(i - c))
+            uncollected: Math.max(0, round2(i - c)),
+            unbilled: u
         };
     });
 }
