@@ -166,6 +166,7 @@ function cacheElements() {
 
     // New analytics
     els.actualRevenueCard = document.getElementById('actualRevenueCard');
+    els.outstandingCard = document.getElementById('outstandingCard');
     els.actualRevenueSub = document.getElementById('actualRevenueSub');
     els.cashFlowCard = document.getElementById('cashFlowCard');
     els.cashFlowUsdSub = document.getElementById('cashFlowUsdSub');
@@ -666,6 +667,7 @@ function renderAll() {
 
     // New analytics (invoice-based)
     renderActualRevenue();
+    renderOutstanding();
     renderCashFlowKPI();
     renderActiveConsultantsRunRate();
     renderRevenueFunnel(monthRows);
@@ -1445,6 +1447,29 @@ function renderActualRevenue() {
         els.actualRevenueCard.textContent = formatMoney(entries[0][1], entries[0][0]);
     } else {
         els.actualRevenueCard.innerHTML = `<div class="kpi-card__stack">${entries
+            .map(([c, a]) => `<div class="kpi-card__stack-item">${formatMoney(a, c)}</div>`)
+            .join('')}</div>`;
+    }
+}
+
+// Not collected = invoiced − collected per currency, same raised-date basis as
+// the funnel, so it ties out with Invoiced and Collected exactly.
+function renderOutstanding() {
+    if (!els.outstandingCard) return;
+    const { invoiced, collected } = billingByCurrency();
+    const byCurrency = {};
+    Object.keys(invoiced).forEach((c) => {
+        const v = (invoiced[c] || 0) - (collected[c] || 0);
+        if (v > 0.005) byCurrency[c] = v;
+    });
+
+    const entries = Object.entries(byCurrency).sort((a, b) => a[0].localeCompare(b[0]));
+    if (entries.length === 0) {
+        els.outstandingCard.textContent = formatMoney(0, 'USD');
+    } else if (entries.length === 1) {
+        els.outstandingCard.textContent = formatMoney(entries[0][1], entries[0][0]);
+    } else {
+        els.outstandingCard.innerHTML = `<div class="kpi-card__stack">${entries
             .map(([c, a]) => `<div class="kpi-card__stack-item">${formatMoney(a, c)}</div>`)
             .join('')}</div>`;
     }

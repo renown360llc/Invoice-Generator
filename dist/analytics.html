@@ -297,7 +297,7 @@
         .margin-op { display: flex; align-items: center; font-size: 1.1rem; font-weight: 700; color: var(--text-tertiary); }
         .margin-note { flex-basis: 100%; font-size: 0.7rem; color: var(--text-tertiary); margin-top: 2px; }
     </style>
-  <script type="module" crossorigin src="/invoices/assets/analytics-BIka9o7H.js"></script>
+  <script type="module" crossorigin src="/invoices/assets/analytics-B_0mxKGg.js"></script>
   <link rel="modulepreload" crossorigin href="/invoices/assets/config-c-jMUxvT.js">
   <link rel="modulepreload" crossorigin href="/invoices/assets/auth-De7W24vl.js">
   <link rel="modulepreload" crossorigin href="/invoices/assets/utils-C_5o-oWL.js">
@@ -520,6 +520,11 @@
                         <div class="kpi-card__label">Collected <span id="actualRevenueLabelMeta" class="kpi-card__label-meta">(Period)</span><span class="kpi-card__tooltip" data-tooltip="Of the invoices you raised in this period, how much has been paid so far (includes partial payments). Matches the billing funnel.">?</span></div>
                         <div class="kpi-card__value" id="actualRevenueCard">$0.00</div>
                         <div class="kpi-card__sub">paid so far · by invoice date</div>
+                    </article>
+                    <article class="kpi-card" id="kpiOutstanding">
+                        <div class="kpi-card__label">Not collected <span class="kpi-card__label-meta">(Period)</span><span class="kpi-card__tooltip" data-tooltip="Of the invoices you raised in this period, how much is still unpaid (invoiced − collected).">?</span></div>
+                        <div class="kpi-card__value" id="outstandingCard">$0.00</div>
+                        <div class="kpi-card__sub">unpaid · by invoice date</div>
                     </article>
                     <article class="kpi-card" id="kpiCashFlow">
                         <div class="kpi-card__label">Cash Flow <span id="cashFlowLabelMeta" class="kpi-card__label-meta">(Received)</span><span class="kpi-card__tooltip" data-tooltip="Total cash that landed in the bank during the selected month, regardless of when the work was done. Always in USD — all payments are received in USD, so CAD invoices count their USD-received amount.">?</span></div>
