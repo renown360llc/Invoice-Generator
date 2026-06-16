@@ -101,15 +101,20 @@ Default to per-currency stacks or a chosen currency; cash is USD-only (done).
 module. Unify "Projected/Accrual" to a single name. Move definitions out of
 hovers into small captions.
 
-## 5. Phased plan (low risk → high value first)
+## 5. Phased plan (low risk → high value first) — ✅ all delivered
 
-- **Phase 1 — Clarity (no data changes):** unify terminology, put bases as
-  visible captions, dedupe the 3 billing cards, fix the cross-currency bar,
-  make KPI clickability consistent. _Biggest trust win for least risk._
-- **Phase 2 — Revenue funnel + Receivables module** (recompose Overview).
-- **Phase 3 — Fix attribution at the source:** store each line item's work-month
-  at invoice creation instead of regex-parsing later. Kills the fragility.
-- **Phase 4 — Profit lens** (referral cut + commissions → kept margin).
+- **Phase 1 — Clarity (no data changes):** ✅ unified terminology
+  (Projected/Accrual → Earned), bases as visible captions, fixed the wrong
+  Collected tooltip, dropped the redundant Billing Status insight + dead drill,
+  cross-currency warning on the Earned-vs-Collected bars, fixed label overlap.
+- **Phase 2 — Revenue funnel + Receivables:** ✅ Earned→Invoiced→Collected
+  funnel with leakage + "Who owes you" list. Pure module `analytics-money.js`
+  (`buildFunnel`, `topOutstanding`) + tests.
+- **Phase 3 — Attribution at the source:** ✅ line items persist a canonical
+  `work_month`; `getInvoiceDistribution` prefers it over regex (legacy still
+  falls back — no migration needed).
+- **Phase 4 — Margin lens:** ✅ "Your kept margin" = collected − referral
+  payouts − commissions (USD, currency-safe). `keptMargin()` + tests.
 
 ## 6. Quick wins shippable today
 - Rename "Projected" ⇆ "Accrual" to one term everywhere.
