@@ -341,6 +341,8 @@ function toggleRowMenu(invoiceId, button) {
 }
 
 function hydrateFilterControls() {
+    // 'overdue' is a due-date filter, not a stored status — drop any stale value.
+    if (state.filters.status === 'overdue') state.filters.status = 'all';
     if (els.searchInput) els.searchInput.value = state.filters.search;
     if (els.statusFilter) els.statusFilter.value = state.filters.status;
     if (els.currencyFilter) els.currencyFilter.value = state.filters.currency;
@@ -909,13 +911,24 @@ function populateConsultantFilterOptions() {
     els.consultantFilter.value = state.filters.consultant;
 }
 
+// Order currencies with USD then CAD first, the rest alphabetically.
+const CURRENCY_PRIORITY = ['USD', 'CAD'];
+function byCurrencyPriority(a, b) {
+    const ia = CURRENCY_PRIORITY.indexOf(a);
+    const ib = CURRENCY_PRIORITY.indexOf(b);
+    if (ia !== -1 || ib !== -1) {
+        return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+    }
+    return a.localeCompare(b);
+}
+
 function populateCurrencyFilterOptions() {
     if (!els.currencyFilter) return;
 
     const currencies = new Set(['USD', 'EUR', 'GBP', 'CAD', 'AUD', 'INR']);
     state.allInvoices.forEach((invoice) => currencies.add(getInvoiceCurrency(invoice)));
 
-    const sorted = Array.from(currencies).sort((a, b) => a.localeCompare(b));
+    const sorted = Array.from(currencies).sort(byCurrencyPriority);
     const html = ['<option value="all">All Currencies</option>'];
 
     sorted.forEach((currency) => {
@@ -996,40 +1009,18 @@ function populateBillingYearOptions() {
 }
 
 function invoiceMatchesBillingPeriod(invoice) {
-    const filterRange = getBillingPeriodFilterRange();
-    if (!filterRange) return true;
-
-    const items = Array.isArray(invoice.items) ? invoice.items : [];
-    return items.some((item) => {
-        const range = parseInvoiceItemPeriodRange(item.period, invoice);
-        if (!range) return false;
-        return rangesOverlap(range.start, range.end, filterRange);
-    });
-}
-
-function getBillingPeriodFilterRange() {
     const year = String(state.filters.billingYear || 'all');
     const month = String(state.filters.billingMonth || 'all');
-    if (year === 'all' && month === 'all') return null;
+    if (year === 'all' && month === 'all') return true;
 
-    const selectedYear = year !== 'all' ? Number(year) : null;
-    const selectedMonth = month !== 'all' ? Number(month) : null;
-
-    if (selectedYear && selectedMonth) {
-        const start = toIsoDate(new Date(selectedYear, selectedMonth - 1, 1));
-        const end = toIsoDate(new Date(selectedYear, selectedMonth, 0));
-        return { start, end };
-    }
-
-    if (selectedYear) {
-        return { start: `${selectedYear}-01-01`, end: `${selectedYear}-12-31` };
-    }
-
-    if (selectedMonth) {
-        return { month: String(selectedMonth).padStart(2, '0') };
-    }
-
-    return null;
+    // Match on the invoice's own date (raised date) — always present and
+    // intuitive ("invoices from March 2026"), unlike parsing item periods.
+    const ts = String(invoice.invoice_meta?.dateRaw || invoice.created_at || '').trim();
+    const m = ts.match(/^(\d{4})-(\d{2})/);
+    if (!m) return false;
+    if (year !== 'all' && m[1] !== year) return false;
+    if (month !== 'all' && m[2] !== String(month).padStart(2, '0')) return false;
+    return true;
 }
 
 function parseInvoiceItemPeriodRange(periodValue, invoice) {
@@ -1081,27 +1072,6 @@ function parsePeriodDateToken(token, fallbackYear) {
 
 function toIsoDate(date) {
     return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-}
-
-function rangesOverlap(startA, endA, filterRange) {
-    if (!startA || !endA) return false;
-    if (!filterRange) return true;
-    if (filterRange.start && filterRange.end) {
-        return startA <= filterRange.end && endA >= filterRange.start;
-    }
-
-    const month = filterRange.month;
-    if (!month) return false;
-    const startMonth = Number(startA.slice(5, 7));
-    const endMonth = Number(endA.slice(5, 7));
-    const selectedMonth = Number(month);
-    if (!startMonth || !endMonth || !selectedMonth) return false;
-
-    if (startA.slice(0, 4) !== endA.slice(0, 4) && startMonth > endMonth) {
-        return selectedMonth >= startMonth || selectedMonth <= endMonth;
-    }
-
-    return selectedMonth >= startMonth && selectedMonth <= endMonth;
 }
 
 function applyFiltersAndRender() {
@@ -2284,7 +2254,7 @@ async function exportFilteredInvoicesToCSV() {
     rows.push([]);
     rows.push(['TOTALS', '', '', '', '', '', '', '', '', '', '', '']);
     
-    Array.from(totalsByCurrency.entries()).sort((a, b) => a[0].localeCompare(b[0])).forEach(([currency, total]) => {
+    Array.from(totalsByCurrency.entries()).sort((a, b) => byCurrencyPriority(a[0], b[0])).forEach(([currency, total]) => {
         rows.push([
             `"${currency} Total"`,
             '', '', '', '', 
