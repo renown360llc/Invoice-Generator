@@ -297,7 +297,7 @@
         .margin-op { display: flex; align-items: center; font-size: 1.1rem; font-weight: 700; color: var(--text-tertiary); }
         .margin-note { flex-basis: 100%; font-size: 0.7rem; color: var(--text-tertiary); margin-top: 2px; }
     </style>
-  <script type="module" crossorigin src="/invoices/assets/analytics-B_0mxKGg.js"></script>
+  <script type="module" crossorigin src="/invoices/assets/analytics-Ck2nXTX7.js"></script>
   <link rel="modulepreload" crossorigin href="/invoices/assets/config-c-jMUxvT.js">
   <link rel="modulepreload" crossorigin href="/invoices/assets/auth-De7W24vl.js">
   <link rel="modulepreload" crossorigin href="/invoices/assets/utils-C_5o-oWL.js">
@@ -507,41 +507,41 @@
             <div class="analytics-panel is-visible" id="panel-overview" role="tabpanel">
                 <section class="kpi-grid" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));">
                     <article class="kpi-card kpi-card--interactive" data-filter="all" id="kpiTotalHours">
-                        <div class="kpi-card__label">Hours <span id="totalHoursLabelMeta" class="kpi-card__label-meta">(Period)</span></div>
+                        <div class="kpi-card__label">Hours</div>
                         <div class="kpi-card__value" id="totalHoursCard">0.00</div>
                         <div class="kpi-card__filter-hint">Click to reset filters</div>
                     </article>
                     <article class="kpi-card kpi-card--interactive" data-filter="revenue" id="kpiRevenue">
-                        <div class="kpi-card__label">Earned <span id="projectedRevenueLabelMeta" class="kpi-card__label-meta">(Period)</span><span class="kpi-card__tooltip" data-tooltip="Invoice value of the hours logged in this period — what you earned, whether or not it has been invoiced or paid yet.">?</span></div>
+                        <div class="kpi-card__label">Earned <span class="kpi-card__tooltip" data-tooltip="Invoice value of the hours logged in this period — what you earned, whether or not it has been invoiced or paid yet.">?</span></div>
                         <div class="kpi-card__value" id="projectedRevenueCard">$0.00</div>
-                        <div class="kpi-card__sub">accrual · by work month</div>
+                        <div class="kpi-card__sub">accrual</div>
                     </article>
                     <article class="kpi-card" id="kpiActualRevenue">
-                        <div class="kpi-card__label">Collected <span id="actualRevenueLabelMeta" class="kpi-card__label-meta">(Period)</span><span class="kpi-card__tooltip" data-tooltip="Of the invoices you raised in this period, how much has been paid so far (includes partial payments). Matches the billing funnel.">?</span></div>
+                        <div class="kpi-card__label">Collected <span class="kpi-card__tooltip" data-tooltip="Of the invoices you raised in this period, how much has been paid so far (includes partial payments). Matches the billing funnel.">?</span></div>
                         <div class="kpi-card__value" id="actualRevenueCard">$0.00</div>
-                        <div class="kpi-card__sub">paid so far · by invoice date</div>
+                        <div class="kpi-card__sub">by invoice date</div>
                     </article>
                     <article class="kpi-card" id="kpiOutstanding">
-                        <div class="kpi-card__label">Not collected <span class="kpi-card__label-meta">(Period)</span><span class="kpi-card__tooltip" data-tooltip="Of the invoices you raised in this period, how much is still unpaid (invoiced − collected).">?</span></div>
+                        <div class="kpi-card__label">Not collected <span class="kpi-card__tooltip" data-tooltip="Of the invoices you raised in this period, how much is still unpaid (invoiced − collected).">?</span></div>
                         <div class="kpi-card__value" id="outstandingCard">$0.00</div>
-                        <div class="kpi-card__sub">unpaid · by invoice date</div>
+                        <div class="kpi-card__sub">unpaid</div>
                     </article>
                     <article class="kpi-card" id="kpiCashFlow">
-                        <div class="kpi-card__label">Cash Flow <span id="cashFlowLabelMeta" class="kpi-card__label-meta">(Received)</span><span class="kpi-card__tooltip" data-tooltip="Total cash that landed in the bank during the selected month, regardless of when the work was done. Always in USD — all payments are received in USD, so CAD invoices count their USD-received amount.">?</span></div>
+                        <div class="kpi-card__label">Cash Flow <span class="kpi-card__tooltip" data-tooltip="Total cash that landed in the bank during the selected month, regardless of when the work was done. Always in USD — all payments are received in USD, so CAD invoices count their USD-received amount.">?</span></div>
                         <div class="kpi-card__value" id="cashFlowCard" style="color:var(--success)">$0.00</div>
                         <div class="kpi-card__sub" id="cashFlowUsdSub" style="display:none;"></div>
-                        <div class="kpi-card__sub">cash · by received month · USD</div>
+                        <div class="kpi-card__sub">USD received</div>
                     </article>
                     <article class="kpi-card kpi-card--interactive" data-filter="consultants" id="kpiConsultants">
-                        <div class="kpi-card__label">Consultants <span id="consultantsLabelMeta" class="kpi-card__label-meta">(With Hours)</span></div>
+                        <div class="kpi-card__label">Consultants</div>
                         <div class="kpi-card__value" id="activeConsultantsCard">0</div>
-                        <div class="kpi-card__sub" id="consultantsSub" style="font-weight:600;">Generating $0.00/hr</div>
+                        <div class="kpi-card__sub" id="consultantsSub" style="font-weight:600;">$0.00/hr run-rate</div>
                         <div class="kpi-card__filter-hint">Click to view detail</div>
                     </article>
                     <article class="kpi-card kpi-card--interactive" data-filter="pending" id="kpiBilling">
-                        <div class="kpi-card__label">Coverage <span id="billingCoverageLabelMeta" class="kpi-card__label-meta">(Invoiced)</span></div>
+                        <div class="kpi-card__label">Coverage <span class="kpi-card__tooltip" data-tooltip="Share of logged hours that have been put on an invoice.">?</span></div>
                         <div class="kpi-card__value" id="billingCoverageCard">0%</div>
-                        <div class="kpi-card__sub" id="billingCoverageSub">0.00 invoiced hrs of 0.00 total</div>
+                        <div class="kpi-card__sub" id="billingCoverageSub">0 of 0 hrs invoiced</div>
                         <div class="kpi-card__filter-hint">Click to show pending only</div>
                     </article>
                 </section>

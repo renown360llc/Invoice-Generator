@@ -170,12 +170,6 @@ function cacheElements() {
     els.actualRevenueSub = document.getElementById('actualRevenueSub');
     els.cashFlowCard = document.getElementById('cashFlowCard');
     els.cashFlowUsdSub = document.getElementById('cashFlowUsdSub');
-    els.totalHoursLabelMeta = document.getElementById('totalHoursLabelMeta');
-    els.actualRevenueLabelMeta = document.getElementById('actualRevenueLabelMeta');
-    els.cashFlowLabelMeta = document.getElementById('cashFlowLabelMeta');
-    els.projectedRevenueLabelMeta = document.getElementById('projectedRevenueLabelMeta');
-    els.consultantsLabelMeta = document.getElementById('consultantsLabelMeta');
-    els.billingCoverageLabelMeta = document.getElementById('billingCoverageLabelMeta');
     els.revenueFunnelBody = document.getElementById('revenueFunnelBody');
     els.owesBody = document.getElementById('owesBody');
     els.marginBody = document.getElementById('marginBody');
@@ -756,15 +750,8 @@ function renderKpis(monthRows) {
     if (els.totalHoursCard) els.totalHoursCard.textContent = totalHours.toFixed(2);
     if (els.activeConsultantsCard) els.activeConsultantsCard.textContent = String(consultants);
     if (els.billingCoverageCard) els.billingCoverageCard.textContent = `${Math.round(coveragePct)}%`;
-    if (els.totalHoursLabelMeta) els.totalHoursLabelMeta.textContent = `(${getSelectedPeriodShortLabel()})`;
-    if (els.consultantsLabelMeta) els.consultantsLabelMeta.textContent = `(Active ${getSelectedPeriodShortLabel()})`;
-    if (els.billingCoverageLabelMeta) els.billingCoverageLabelMeta.textContent = `(${getSelectedPeriodShortLabel()})`;
     if (els.billingCoverageSub) {
-        const paidStr = paidHours > 0 ? ` (${paidHours.toFixed(2)} paid)` : '';
-        els.billingCoverageSub.textContent = `${invoicedHours.toFixed(2)} invoiced hrs${paidStr} of ${totalHours.toFixed(2)} total`;
-    }
-    if (els.projectedRevenueLabelMeta) {
-        els.projectedRevenueLabelMeta.textContent = `(${getSelectedPeriodShortLabel()})`;
+        els.billingCoverageSub.textContent = `${invoicedHours.toFixed(1)} / ${totalHours.toFixed(1)} hrs invoiced`;
     }
 
     if (!els.projectedRevenueCard) return;
@@ -1433,9 +1420,6 @@ function closePeriodJumpMenu() {
    ============================================================ */
 function renderActualRevenue() {
     if (!els.actualRevenueCard) return;
-    if (els.actualRevenueLabelMeta) {
-        els.actualRevenueLabelMeta.textContent = `(${getSelectedPeriodShortLabel()})`;
-    }
 
     // Same definition as the billing funnel: amount paid so far on invoices
     // raised this period, per currency — so the two never disagree.
@@ -1489,9 +1473,6 @@ function usdReceivedForInvoice(inv) {
 
 function renderCashFlowKPI() {
     if (!els.cashFlowCard) return;
-    if (els.cashFlowLabelMeta) {
-        els.cashFlowLabelMeta.textContent = `(${getSelectedPeriodShortLabel()})`;
-    }
 
     // Cash flow is always USD — every payment is received in USD, so even CAD
     // invoices contribute only their recorded usd_received_amount.
