@@ -1229,6 +1229,7 @@ async function generateTimesheetItems() {
             consultant_id: entry.consultant_id,
             client: '',
             period: `${entry.period_start || ''} to ${entry.period_end || ''}`.trim(),
+            work_month: deriveWorkMonth(entry),
             timesheet_ids: entry.timesheet_ids || []
         });
     });
@@ -1249,6 +1250,8 @@ async function generateTimesheetItems() {
             const timesheetIdsInput = lastCard.querySelector('.item-timesheet-ids');
             if (timesheetIdsInput) timesheetIdsInput.value = JSON.stringify(data.timesheet_ids || []);
             lastCard.querySelector('.item-client').value = data.client;
+            const workMonthInput = lastCard.querySelector('.item-work-month');
+            if (workMonthInput) workMonthInput.value = data.work_month || '';
             lastCard.querySelector('.item-period').value = data.period;
         }
     });
@@ -1256,6 +1259,16 @@ async function generateTimesheetItems() {
     updatePreview(state);
     closeTimesheetModal();
     showToast(`Pulled ${itemsToAdd.length} consultants from pending timesheets`, 'success');
+}
+
+// Canonical YYYY-MM work month for a pulled timesheet entry, so analytics can
+// attribute the invoice to the right month without parsing free-text periods.
+function deriveWorkMonth(entry) {
+    for (const c of [entry?.month_key, entry?.period_start, entry?.period_end]) {
+        const m = String(c || '').match(/^(\d{4})-(\d{2})/);
+        if (m) return `${m[1]}-${m[2]}`;
+    }
+    return '';
 }
 
 function escapeHtmlText(value) {

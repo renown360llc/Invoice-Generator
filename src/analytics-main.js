@@ -1583,11 +1583,16 @@ function getInvoiceDistribution(inv) {
                 const amt = Number(item.amount) || (Number(item.qty) * Number(item.rate)) || 0;
                 let mk = fallbackMonth;
                 const p = String(item.period || '').toLowerCase();
-                
+
+                // Phase 3: prefer the canonical work_month stored at creation —
+                // no guessing. Fall back to parsing legacy free-text periods.
+                const canonical = String(item.work_month || '').match(/^(\d{4})-(\d{2})/);
                 const isoMatch = p.match(/(\d{4})-(\d{2})-\d{2}/);
                 const wordMatch = p.match(/\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\b/);
-                
-                if (isoMatch) {
+
+                if (canonical) {
+                    mk = `${canonical[1]}-${canonical[2]}`;
+                } else if (isoMatch) {
                     mk = `${isoMatch[1]}-${isoMatch[2]}`;
                 } else if (wordMatch) {
                     const mIdx = monthNames.indexOf(wordMatch[1]);

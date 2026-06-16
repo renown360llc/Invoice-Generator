@@ -52,6 +52,7 @@ export function gatherFormData() {
             consultant_id: card.querySelector('.item-consultant-id')?.value || '',
             timesheet_ids: timesheetIds,
             period: card.querySelector('.item-period').value,
+            work_month: card.querySelector('.item-work-month')?.value || '',
             notes: card.querySelector('.item-notes').value
         });
     });
@@ -394,6 +395,8 @@ export function addItem() {
         <div class="item-card__details">
              <input type="hidden" class="item-consultant-id" value="">
              <input type="hidden" class="item-timesheet-ids" value="[]">
+             <input type="hidden" class="item-work-month" value="">
+
              <div class="form-field"><input type="text" class="form-field__input item-client" placeholder="Client (optional)"></div>
              <div class="form-field"><input type="text" class="form-field__input item-consultant" placeholder="Consultant (optional)"></div>
              <div class="form-field"><input type="text" class="form-field__input item-period" placeholder="Billing Period (optional)"></div>
@@ -496,6 +499,8 @@ export function fillFormWithData(data) {
             if (consultantIdInput) consultantIdInput.value = itemData.consultant_id || '';
             const timesheetIdsInput = lastCard.querySelector('.item-timesheet-ids');
             if (timesheetIdsInput) timesheetIdsInput.value = JSON.stringify(itemData.timesheet_ids || []);
+            const workMonthInput = lastCard.querySelector('.item-work-month');
+            if (workMonthInput) workMonthInput.value = itemData.work_month || '';
             lastCard.querySelector('.item-period').value = itemData.period || '';
             lastCard.querySelector('.item-notes').value = itemData.notes || '';
         });
