@@ -60,6 +60,13 @@ function injectStyles() {
 .ss__opt:hover, .ss__opt.is-active { background: var(--surface-app, #f1f5f9);
       color: var(--primary, #ff6b4a); }
 .ss__opt[aria-selected="true"] { font-weight: 600; }
+.ss__opt--check { display: flex; align-items: center; gap: 8px; }
+.ss__opt--check .ss__opt-label { overflow: hidden; text-overflow: ellipsis; }
+.ss__box { width: 14px; height: 14px; flex: 0 0 auto; border: 1.5px solid var(--surface-glass-border, #cbd5e1);
+      border-radius: 4px; position: relative; box-sizing: border-box; }
+.ss__opt--checked .ss__box { background: var(--primary, #ff6b4a); border-color: var(--primary, #ff6b4a); }
+.ss__opt--checked .ss__box::after { content: ''; position: absolute; left: 4px; top: 1px;
+      width: 4px; height: 8px; border: solid #fff; border-width: 0 2px 2px 0; transform: rotate(45deg); }
 .ss__opt--empty { padding: 0.55rem 0.6rem; font-size: 0.8rem; color: var(--text-tertiary, #94a3b8);
       cursor: default; text-align: center; }
 `;
@@ -76,7 +83,7 @@ function readItems(select) {
 
 function enhanceSelect(select) {
     if (!(select instanceof HTMLSelectElement)) return;
-    if (select.multiple || select.dataset.ssEnhanced) return;
+    if (select.dataset.ssEnhanced) return;
     if (select.hasAttribute('data-no-search')) return;
     if (select.getAttribute('aria-hidden') === 'true') return;
     if (SKIP_CLASSES.some((c) => select.classList.contains(c))) return;
@@ -84,6 +91,11 @@ function enhanceSelect(select) {
 
     injectStyles();
     select.dataset.ssEnhanced = '1';
+
+    const multi = select.multiple;
+    // For multi-select, an empty selection means "any"; show this placeholder.
+    const placeholder = select.getAttribute('data-placeholder')
+        || select.getAttribute('aria-label') || 'Any';
 
     // Wrapper inherits the select's class + inline sizing so layout is preserved.
     const wrap = document.createElement('div');
@@ -123,11 +135,41 @@ function enhanceSelect(select) {
     let items = [];
     let activeIndex = -1;
 
+    function optionByValue(v) {
+        return [...select.options].find((o) => o.value === v);
+    }
+
     function syncLabel() {
+        if (multi) {
+            const sel = [...select.selectedOptions].filter((o) => o.value !== '');
+            let label;
+            if (sel.length === 0) label = placeholder;
+            else if (sel.length <= 2) label = sel.map((o) => o.textContent).join(', ');
+            else label = `${sel.length} selected`;
+            valueEl.textContent = label;
+            valueEl.classList.toggle('ss__value--placeholder', sel.length === 0);
+            return;
+        }
         const opt = select.options[select.selectedIndex];
         const label = opt ? (opt.textContent || '') : '';
         valueEl.textContent = label || ' ';
         valueEl.classList.toggle('ss__value--placeholder', !opt || opt.value === '');
+    }
+
+    function toggleValue(value) {
+        const o = optionByValue(value);
+        if (!o) return;
+        o.selected = !o.selected;
+        select.dispatchEvent(new Event('change', { bubbles: true }));
+        syncLabel();
+        // Update the row in place (re-rendering would detach the click target
+        // and let the outside-click handler close the still-open menu).
+        const li = [...list.querySelectorAll('.ss__opt')].find((el) => el.dataset.value === value);
+        if (li) {
+            li.classList.toggle('ss__opt--checked', o.selected);
+            if (o.selected) li.setAttribute('aria-selected', 'true');
+            else li.removeAttribute('aria-selected');
+        }
     }
 
     function renderList() {
@@ -143,19 +185,29 @@ function enhanceSelect(select) {
         }
         visible.forEach((it, i) => {
             const li = document.createElement('li');
-            li.className = 'ss__opt';
+            li.className = multi ? 'ss__opt ss__opt--check' : 'ss__opt';
             li.setAttribute('role', 'option');
             li.dataset.value = it.value;
-            li.textContent = it.label;
-            if (it.value === select.value) {
+            const selected = multi ? Boolean(optionByValue(it.value)?.selected) : it.value === select.value;
+            if (multi) {
+                li.appendChild(document.createElement('span')).className = 'ss__box';
+                const lbl = document.createElement('span');
+                lbl.className = 'ss__opt-label';
+                lbl.textContent = it.label;
+                li.appendChild(lbl);
+            } else {
+                li.textContent = it.label;
+            }
+            if (selected) {
                 li.setAttribute('aria-selected', 'true');
-                activeIndex = i;
+                li.classList.add('ss__opt--checked');
+                if (activeIndex < 0) activeIndex = i;
             }
             if (it.disabled) li.setAttribute('aria-disabled', 'true');
             li.addEventListener('mousedown', (e) => {
                 e.preventDefault();
                 if (it.disabled) return;
-                commit(it.value);
+                multi ? toggleValue(it.value) : commit(it.value);
             });
             list.appendChild(li);
         });
@@ -218,7 +270,7 @@ function enhanceSelect(select) {
         else if (e.key === 'Enter') {
             e.preventDefault();
             const el = list.querySelectorAll('.ss__opt')[activeIndex];
-            if (el) commit(el.dataset.value);
+            if (el) (multi ? toggleValue(el.dataset.value) : commit(el.dataset.value));
         } else if (e.key === 'Escape') { e.preventDefault(); close(); wrap.focus(); }
         else if (e.key === 'Tab') { close(); }
     });
