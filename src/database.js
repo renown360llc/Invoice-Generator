@@ -480,15 +480,18 @@ function applyInvoiceFilters(query, filters = {}) {
         }
     }
 
-    const status = String(filters.status || 'all')
-    if (status !== 'all') {
-        query = query.eq('status', status)
+    // Multi-value filters: a single value uses eq, several use IN, none = no filter.
+    const toArr = (v) => Array.isArray(v)
+        ? v.filter((x) => x && x !== 'all')
+        : (v && v !== 'all' ? [v] : [])
+    const applyMulti = (q, column, values) => {
+        if (values.length === 1) return q.eq(column, values[0])
+        if (values.length > 1) return q.in(column, values)
+        return q
     }
 
-    const currency = String(filters.currency || 'all').toUpperCase()
-    if (currency !== 'ALL' && currency !== 'ALL CURRENCIES' && currency !== 'all') {
-        query = query.eq('invoice_meta->>currency', currency)
-    }
+    query = applyMulti(query, 'status', toArr(filters.status))
+    query = applyMulti(query, 'invoice_meta->>currency', toArr(filters.currency).map((c) => String(c).toUpperCase()))
 
     const due = String(filters.due || 'all')
     if (due !== 'all') {
@@ -512,15 +515,8 @@ function applyInvoiceFilters(query, filters = {}) {
         }
     }
 
-    const company = String(filters.company || 'all')
-    if (company !== 'all') {
-        query = query.eq('business_info->>name', company)
-    }
-
-    const client = String(filters.client || 'all')
-    if (client !== 'all') {
-        query = query.eq('client_info->>name', client)
-    }
+    query = applyMulti(query, 'business_info->>name', toArr(filters.company))
+    query = applyMulti(query, 'client_info->>name', toArr(filters.client))
 
     return query
 }

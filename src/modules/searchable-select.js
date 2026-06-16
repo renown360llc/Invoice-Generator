@@ -280,6 +280,9 @@ function enhanceSelect(select) {
     // Keep the custom label in sync with the underlying select for both
     // user-driven and programmatic changes.
     select.addEventListener('change', syncLabel);
+    // Programmatic selection updates (hydrate/clear) dispatch this to refresh
+    // the label without firing the consumer's 'change' handler.
+    select.addEventListener('ss:refresh', () => { items = readItems(select); syncLabel(); if (wrap.classList.contains('is-open')) renderList(); });
     new MutationObserver(() => { items = readItems(select); syncLabel(); if (wrap.classList.contains('is-open')) renderList(); })
         .observe(select, { childList: true });
 

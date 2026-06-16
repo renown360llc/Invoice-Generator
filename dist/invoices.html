@@ -578,14 +578,14 @@
             }
         }
     </style>
-  <script type="module" crossorigin src="/invoices/assets/invoices-C3kRg6Fa.js"></script>
+  <script type="module" crossorigin src="/invoices/assets/invoices-DOFQQVh8.js"></script>
   <link rel="modulepreload" crossorigin href="/invoices/assets/config-c-jMUxvT.js">
   <link rel="modulepreload" crossorigin href="/invoices/assets/auth-De7W24vl.js">
   <link rel="modulepreload" crossorigin href="/invoices/assets/utils-C_5o-oWL.js">
   <link rel="modulepreload" crossorigin href="/invoices/assets/layout-kYLeMcut.js">
-  <link rel="modulepreload" crossorigin href="/invoices/assets/searchable-select-BHUx9v2l.js">
+  <link rel="modulepreload" crossorigin href="/invoices/assets/searchable-select-CG9OL0Ik.js">
   <link rel="modulepreload" crossorigin href="/invoices/assets/audit-trail-YMdFfTFf.js">
-  <link rel="modulepreload" crossorigin href="/invoices/assets/database-DDdjgRoH.js">
+  <link rel="modulepreload" crossorigin href="/invoices/assets/database-C-BtqAmD.js">
   <link rel="modulepreload" crossorigin href="/invoices/assets/preload-helper-CON-e7xv.js">
   <link rel="modulepreload" crossorigin href="/invoices/assets/utils-B5oGIJD7.js">
   <link rel="modulepreload" crossorigin href="/invoices/assets/pdf-CBtlDB57.js">
@@ -655,8 +655,7 @@
                 <div class="invoices-filters-grid">
                     <input type="text" id="searchInput" class="search-input"
                         placeholder="Search invoice # or client...">
-                    <select id="statusFilter" class="sort-select" aria-label="Filter by status" size="1">
-                        <option value="all">All Status</option>
+                    <select id="statusFilter" class="sort-select" aria-label="Filter by status" multiple data-placeholder="All Status">
                         <option value="draft">Draft</option>
                         <option value="sent">Sent</option>
                         <option value="partially_paid">Partially Paid</option>
@@ -669,11 +668,9 @@
                         <option value="next-30">Due in 30 Days</option>
                         <option value="no-due">No Due Date</option>
                     </select>
-                    <select id="companyFilter" class="sort-select" aria-label="Filter by company" size="1">
-                        <option value="all">All Companies</option>
+                    <select id="companyFilter" class="sort-select" aria-label="Filter by company" multiple data-placeholder="All Companies">
                     </select>
-                    <select id="clientFilter" class="sort-select" aria-label="Filter by client" size="1">
-                        <option value="all">All Clients</option>
+                    <select id="clientFilter" class="sort-select" aria-label="Filter by client" multiple data-placeholder="All Clients">
                     </select>
 
                     <!-- Period picker widget -->
@@ -707,8 +704,7 @@
                     <select id="consultantFilter" class="sort-select" aria-label="Filter by consultant" size="1">
                         <option value="all">All Consultants</option>
                     </select>
-                    <select id="currencyFilter" class="sort-select" aria-label="Filter by currency" size="1">
-                        <option value="all">All Currencies</option>
+                    <select id="currencyFilter" class="sort-select" aria-label="Filter by currency" multiple data-placeholder="All Currencies">
                     </select>
                     <button id="clearFiltersBtn" class="btn btn--ghost" type="button">
                         Clear All

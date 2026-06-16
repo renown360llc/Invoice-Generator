@@ -71,18 +71,38 @@ async function fetchLinkedTimesheets(invoiceId, invoiceNumber) {
 
 let STORAGE_KEY = 'invoice_pro_invoice_filters_v2';
 const ITEMS_PER_PAGE = 20;
+// Filters that accept several values at once (stored as arrays; [] = any).
+const MULTI_FILTER_KEYS = ['status', 'currency', 'company', 'client'];
 const DEFAULT_FILTERS = {
     search: '',
     consultant: 'all',
-    status: 'all',
-    currency: 'all',
+    status: [],
+    currency: [],
     due: 'all',
-    company: 'all',
-    client: 'all',
+    company: [],
+    client: [],
     billingYear: 'all',
     billingMonth: 'all',
     sort: 'date-desc'
 };
+
+// Values currently checked in a (multi) select, ignoring any blank/"all".
+function selectedValues(selectEl) {
+    return [...selectEl.selectedOptions].map((o) => o.value).filter((v) => v && v !== 'all');
+}
+
+// Apply an array of values to a multi-select and refresh its custom label.
+function setMultiSelect(selectEl, values) {
+    if (!selectEl) return;
+    const set = new Set(values || []);
+    [...selectEl.options].forEach((o) => { o.selected = set.has(o.value); });
+    selectEl.dispatchEvent(new CustomEvent('ss:refresh'));
+}
+
+// Is a filter value "active" (a non-empty array, or a non-'all' scalar)?
+function isFilterActive(val) {
+    return Array.isArray(val) ? val.length > 0 : Boolean(val && val !== 'all');
+}
 
 const state = {
     user: null,
@@ -341,14 +361,12 @@ function toggleRowMenu(invoiceId, button) {
 }
 
 function hydrateFilterControls() {
-    // 'overdue' is a due-date filter, not a stored status — drop any stale value.
-    if (state.filters.status === 'overdue') state.filters.status = 'all';
     if (els.searchInput) els.searchInput.value = state.filters.search;
-    if (els.statusFilter) els.statusFilter.value = state.filters.status;
-    if (els.currencyFilter) els.currencyFilter.value = state.filters.currency;
+    setMultiSelect(els.statusFilter, state.filters.status);
+    setMultiSelect(els.currencyFilter, state.filters.currency);
+    setMultiSelect(els.companyFilter, state.filters.company);
+    setMultiSelect(els.clientFilter, state.filters.client);
     if (els.dueFilter) els.dueFilter.value = state.filters.due;
-    if (els.companyFilter) els.companyFilter.value = state.filters.company;
-    if (els.clientFilter) els.clientFilter.value = state.filters.client;
     if (els.billingYearFilter)  els.billingYearFilter.value  = state.filters.billingYear;
     if (els.billingMonthFilter) els.billingMonthFilter.value = state.filters.billingMonth;
     if (els.sortSelect) els.sortSelect.value = state.filters.sort;
@@ -374,14 +392,14 @@ function bindEvents() {
     });
 
     els.statusFilter?.addEventListener('change', (event) => {
-        state.filters.status = event.target.value;
+        state.filters.status = selectedValues(event.target);
         state.currentPage = 1;
         persistFilters();
         applyFiltersAndRender();
     });
 
     els.currencyFilter?.addEventListener('change', (event) => {
-        state.filters.currency = event.target.value;
+        state.filters.currency = selectedValues(event.target);
         state.currentPage = 1;
         persistFilters();
         applyFiltersAndRender();
@@ -402,14 +420,14 @@ function bindEvents() {
     });
 
     els.companyFilter?.addEventListener('change', (event) => {
-        state.filters.company = event.target.value;
+        state.filters.company = selectedValues(event.target);
         state.currentPage = 1;
         persistFilters();
         applyFiltersAndRender();
     });
 
     els.clientFilter?.addEventListener('change', (event) => {
-        state.filters.client = event.target.value;
+        state.filters.client = selectedValues(event.target);
         state.currentPage = 1;
         persistFilters();
         applyFiltersAndRender();
@@ -430,7 +448,7 @@ function bindEvents() {
     });
 
     els.clearFiltersBtn?.addEventListener('click', () => {
-        state.filters = { ...DEFAULT_FILTERS };
+        state.filters = { ...DEFAULT_FILTERS, status: [], currency: [], company: [], client: [] };
         state.currentPage = 1;
         hydrateFilterControls();
         populateConsultantFilterOptions();
@@ -929,23 +947,20 @@ function populateCurrencyFilterOptions() {
     state.allInvoices.forEach((invoice) => currencies.add(getInvoiceCurrency(invoice)));
 
     const sorted = Array.from(currencies).sort(byCurrencyPriority);
-    const html = ['<option value="all">All Currencies</option>'];
+    els.currencyFilter.innerHTML = sorted
+        .map((currency) => `<option value="${escapeHtml(currency)}">${escapeHtml(currency)}</option>`)
+        .join('');
 
-    sorted.forEach((currency) => {
-        html.push(`<option value="${escapeHtml(currency)}">${escapeHtml(currency)}</option>`);
-    });
-
-    els.currencyFilter.innerHTML = html.join('');
-
-    if (state.filters.currency !== 'all' && !currencies.has(state.filters.currency)) {
-        state.filters.currency = 'all';
+    // Drop any selected currency that no longer exists in the data.
+    const kept = state.filters.currency.filter((c) => currencies.has(c));
+    if (kept.length !== state.filters.currency.length) {
+        state.filters.currency = kept;
         persistFilters();
     }
-
-    els.currencyFilter.value = state.filters.currency;
+    setMultiSelect(els.currencyFilter, state.filters.currency);
 }
 
-function populateDistinctNameFilter(selectEl, accessor, filterKey, allLabel) {
+function populateDistinctNameFilter(selectEl, accessor, filterKey) {
     if (!selectEl) return;
     const names = new Set();
     state.allInvoices.forEach((invoice) => {
@@ -953,25 +968,24 @@ function populateDistinctNameFilter(selectEl, accessor, filterKey, allLabel) {
         if (name) names.add(name);
     });
     const sorted = Array.from(names).sort((a, b) => a.localeCompare(b));
-    const html = [`<option value="all">${allLabel}</option>`];
-    sorted.forEach((name) => {
-        html.push(`<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`);
-    });
-    selectEl.innerHTML = html.join('');
+    selectEl.innerHTML = sorted
+        .map((name) => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`)
+        .join('');
 
-    if (state.filters[filterKey] !== 'all' && !names.has(state.filters[filterKey])) {
-        state.filters[filterKey] = 'all';
+    const kept = state.filters[filterKey].filter((v) => names.has(v));
+    if (kept.length !== state.filters[filterKey].length) {
+        state.filters[filterKey] = kept;
         persistFilters();
     }
-    selectEl.value = state.filters[filterKey];
+    setMultiSelect(selectEl, state.filters[filterKey]);
 }
 
 function populateCompanyFilterOptions() {
-    populateDistinctNameFilter(els.companyFilter, (inv) => inv.business_info?.name, 'company', 'All Companies');
+    populateDistinctNameFilter(els.companyFilter, (inv) => inv.business_info?.name, 'company');
 }
 
 function populateClientFilterOptions() {
-    populateDistinctNameFilter(els.clientFilter, (inv) => inv.client_info?.name, 'client', 'All Clients');
+    populateDistinctNameFilter(els.clientFilter, (inv) => inv.client_info?.name, 'client');
 }
 
 /**
@@ -1435,15 +1449,15 @@ function renderFiltersMeta() {
 
     const appliedFilters = [
         state.filters.search,
-        state.filters.consultant !== 'all' ? state.filters.consultant : '',
-        state.filters.status !== 'all' ? state.filters.status : '',
-        state.filters.currency !== 'all' ? state.filters.currency : '',
-        state.filters.due !== 'all' ? state.filters.due : '',
-        state.filters.company !== 'all' ? state.filters.company : '',
-        state.filters.client !== 'all' ? state.filters.client : '',
-        state.filters.billingYear !== 'all' ? state.filters.billingYear : '',
-        state.filters.billingMonth !== 'all' ? state.filters.billingMonth : ''
-    ].filter(Boolean).length;
+        state.filters.consultant,
+        state.filters.status,
+        state.filters.currency,
+        state.filters.due,
+        state.filters.company,
+        state.filters.client,
+        state.filters.billingYear,
+        state.filters.billingMonth
+    ].filter(isFilterActive).length;
 
     const loadedCount = state.filteredInvoices.length;
     const totalCount = state.totalInvoiceCount || loadedCount;
@@ -2281,6 +2295,12 @@ async function exportFilteredInvoicesToCSV() {
     showToast('Report generated successfully', 'success');
 }
 
+// Normalise a stored filter (scalar from older versions, or array) to an array.
+function toArrayFilter(v) {
+    if (Array.isArray(v)) return v.filter((x) => x && x !== 'all').map(String);
+    return v && v !== 'all' ? [String(v)] : [];
+}
+
 function loadFilters() {
     try {
         const raw = localStorage.getItem(STORAGE_KEY);
@@ -2291,10 +2311,13 @@ function loadFilters() {
             ...DEFAULT_FILTERS,
             search: String(parsed.search || ''),
             consultant: String(parsed.consultant || 'all'),
-            status: String(parsed.status || 'all'),
-            currency: String(parsed.currency || 'all').toUpperCase() === 'ALL' ? 'all' : String(parsed.currency || 'all').toUpperCase(),
+            status: toArrayFilter(parsed.status),
+            currency: toArrayFilter(parsed.currency).map((c) => c.toUpperCase()),
+            company: toArrayFilter(parsed.company),
+            client: toArrayFilter(parsed.client),
             due: String(parsed.due || 'all'),
-            amount: String(parsed.amount || 'all'),
+            billingYear: String(parsed.billingYear || 'all'),
+            billingMonth: String(parsed.billingMonth || 'all'),
             sort: String(parsed.sort || DEFAULT_FILTERS.sort)
         };
     } catch (err) {
