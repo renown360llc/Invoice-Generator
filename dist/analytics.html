@@ -297,7 +297,7 @@
         .margin-op { display: flex; align-items: center; font-size: 1.1rem; font-weight: 700; color: var(--text-tertiary); }
         .margin-note { flex-basis: 100%; font-size: 0.7rem; color: var(--text-tertiary); margin-top: 2px; }
     </style>
-  <script type="module" crossorigin src="/invoices/assets/analytics-Dqvq7HUT.js"></script>
+  <script type="module" crossorigin src="/invoices/assets/analytics-B3-lW765.js"></script>
   <link rel="modulepreload" crossorigin href="/invoices/assets/config-c-jMUxvT.js">
   <link rel="modulepreload" crossorigin href="/invoices/assets/auth-De7W24vl.js">
   <link rel="modulepreload" crossorigin href="/invoices/assets/utils-C_5o-oWL.js">
@@ -333,20 +333,16 @@
                 </div>
                 <div class="crm-toolbar__divider"></div>
                 <div class="crm-toolbar__filters">
-                    <select id="statusFilter" class="crm-toolbar__pill" aria-label="Status">
-                        <option value="all">All Status</option>
+                    <select id="statusFilter" class="crm-toolbar__pill" aria-label="Status" multiple data-placeholder="All Status">
                         <option value="pending">Pending</option>
                         <option value="invoiced">Invoiced</option>
                         <option value="paid">Paid</option>
                     </select>
-                    <select id="clientFilter" class="crm-toolbar__pill" aria-label="Client">
-                        <option value="all">All Clients</option>
+                    <select id="clientFilter" class="crm-toolbar__pill" aria-label="Client" multiple data-placeholder="All Clients">
                     </select>
-                    <select id="w2Filter" class="crm-toolbar__pill" aria-label="W2 Company">
-                        <option value="all">All W2</option>
+                    <select id="w2Filter" class="crm-toolbar__pill" aria-label="W2 Company" multiple data-placeholder="All W2">
                     </select>
-                    <select id="currencyFilter" class="crm-toolbar__pill" aria-label="Currency">
-                        <option value="all">All Currencies</option>
+                    <select id="currencyFilter" class="crm-toolbar__pill" aria-label="Currency" multiple data-placeholder="All Currencies">
                     </select>
                 </div>
                 <div class="crm-toolbar__divider"></div>

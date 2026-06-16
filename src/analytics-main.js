@@ -33,12 +33,36 @@ const defaultMonth = String(now.getMonth() + 1).padStart(2, '0');
 const shared = getSharedFilters();
 const analyticsPrefs = getPagePrefs('analytics');
 
+// Currency/Client/W2/Status are multi-select and analytics-local (kept out of
+// the cross-page shared store so Consultants/Timesheets stay single-value).
+const ANALYTICS_MULTI_KEY = 'analytics_multi_filters_v1';
+function loadAnalyticsMultiFilters() {
+    try { return JSON.parse(localStorage.getItem(ANALYTICS_MULTI_KEY)) || {}; } catch (_) { return {}; }
+}
+function saveAnalyticsMultiFilters() {
+    try {
+        localStorage.setItem(ANALYTICS_MULTI_KEY, JSON.stringify({
+            currency: selectedCurrency, client: selectedClient, w2: selectedW2, status: selectedStatus
+        }));
+    } catch (_) { /* storage may be unavailable */ }
+}
+function multiValues(selectEl) {
+    return [...selectEl.selectedOptions].map((o) => o.value).filter((v) => v && v !== 'all');
+}
+function setMultiSelect(selectEl, values) {
+    if (!selectEl) return;
+    const set = new Set(values || []);
+    [...selectEl.options].forEach((o) => { o.selected = set.has(o.value); });
+    selectEl.dispatchEvent(new CustomEvent('ss:refresh'));
+}
+const savedMulti = loadAnalyticsMultiFilters();
+
 let selectedYear = Number(shared.year) || defaultYear;
 let selectedMonth = shared.month || defaultMonth;
-let selectedCurrency = normalizeCurrency(shared.currency);
-let selectedClient = normalizeTextFilter(shared.client);
-let selectedW2 = normalizeTextFilter(shared.w2);
-let selectedStatus = normalizeStatusFilter(shared.status);
+let selectedCurrency = Array.isArray(savedMulti.currency) ? savedMulti.currency : [];
+let selectedClient = Array.isArray(savedMulti.client) ? savedMulti.client : [];
+let selectedW2 = Array.isArray(savedMulti.w2) ? savedMulti.w2 : [];
+let selectedStatus = Array.isArray(savedMulti.status) ? savedMulti.status : [];
 let searchTerm = String(shared.search || '').trim().toLowerCase();
 let pivotMetric = analyticsPrefs.pivotMetric === 'revenue' ? 'revenue' : 'hours';
 let currentSavedViewId = String(analyticsPrefs.savedViewId || '');
@@ -198,7 +222,7 @@ function setupFilters() {
         els.monthFilter.value = selectedMonth;
     }
 
-    if (els.statusFilter) els.statusFilter.value = selectedStatus;
+    setMultiSelect(els.statusFilter, selectedStatus);
     if (els.searchInput) els.searchInput.value = searchTerm;
 
     updatePivotMetricButtons();
@@ -301,26 +325,26 @@ function bindEvents() {
 
 
     els.currencyFilter?.addEventListener('change', () => {
-        selectedCurrency = normalizeCurrency(els.currencyFilter.value);
-        persistShared();
+        selectedCurrency = multiValues(els.currencyFilter);
+        saveAnalyticsMultiFilters();
         requestRender();
     });
 
     els.clientFilter?.addEventListener('change', () => {
-        selectedClient = normalizeTextFilter(els.clientFilter.value);
-        persistShared();
+        selectedClient = multiValues(els.clientFilter);
+        saveAnalyticsMultiFilters();
         requestRender();
     });
 
     els.w2Filter?.addEventListener('change', () => {
-        selectedW2 = normalizeTextFilter(els.w2Filter.value);
-        persistShared();
+        selectedW2 = multiValues(els.w2Filter);
+        saveAnalyticsMultiFilters();
         requestRender();
     });
 
     els.statusFilter?.addEventListener('change', () => {
-        selectedStatus = normalizeStatusFilter(els.statusFilter.value);
-        persistShared();
+        selectedStatus = multiValues(els.statusFilter);
+        saveAnalyticsMultiFilters();
         requestRender();
     });
 
@@ -339,15 +363,19 @@ function bindEvents() {
         const fresh = clearSharedFilters({ keepPeriod: false });
         selectedYear = fresh.year;
         selectedMonth = fresh.month;
-        selectedCurrency = normalizeCurrency(fresh.currency);
-        selectedClient = normalizeTextFilter(fresh.client);
-        selectedW2 = normalizeTextFilter(fresh.w2);
-        selectedStatus = normalizeStatusFilter(fresh.status);
+        selectedCurrency = [];
+        selectedClient = [];
+        selectedW2 = [];
+        selectedStatus = [];
         searchTerm = String(fresh.search || '').trim().toLowerCase();
+        saveAnalyticsMultiFilters();
 
         if (els.yearFilter) els.yearFilter.value = String(selectedYear);
         if (els.monthFilter) els.monthFilter.value = selectedMonth;
-        if (els.statusFilter) els.statusFilter.value = selectedStatus;
+        setMultiSelect(els.statusFilter, []);
+        setMultiSelect(els.currencyFilter, []);
+        setMultiSelect(els.clientFilter, []);
+        setMultiSelect(els.w2Filter, []);
         if (els.searchInput) els.searchInput.value = searchTerm;
 
         // Remove active KPI highlight
@@ -508,13 +536,15 @@ function bindEvents() {
     els.drawerOverlay?.addEventListener('click', closeDrawer);
     els.drawerOpenTimesheets?.addEventListener('click', () => {
         if (!drawerData) return;
+        // Timesheets is single-select; pass a value only when exactly one is chosen.
+        const single = (arr) => (Array.isArray(arr) && arr.length === 1 ? arr[0] : 'all');
         setSharedFilters({
             year: selectedYear,
             month: selectedMonth,
-            currency: selectedCurrency,
-            client: selectedClient,
-            w2: selectedW2,
-            status: selectedStatus,
+            currency: single(selectedCurrency),
+            client: single(selectedClient),
+            w2: single(selectedW2),
+            status: single(selectedStatus),
             search: drawerData.consultant_name
         });
         window.location.href = 'timesheets.html';
@@ -607,13 +637,14 @@ function populateFilterOptions() {
     setSelectOptions(els.clientFilter, 'All Clients', Array.from(clientMap.entries()).sort((a, b) => a[1].localeCompare(b[1])), selectedClient, true);
     setSelectOptions(els.w2Filter, 'All W2 Companies', Array.from(w2Map.entries()).sort((a, b) => a[1].localeCompare(b[1])), selectedW2, true);
 
-    if (els.statusFilter) els.statusFilter.value = selectedStatus;
+    setMultiSelect(els.statusFilter, selectedStatus);
 }
 
 function setSelectOptions(select, allLabel, options, selectedValue, hasLabelPairs = false) {
     if (!select) return;
 
-    const html = [`<option value="all">${allLabel}</option>`];
+    const multi = select.multiple;
+    const html = multi ? [] : [`<option value="all">${allLabel}</option>`];
     if (hasLabelPairs) {
         options.forEach(([value, label]) => {
             html.push(`<option value="${escapeHtml(value)}">${escapeHtml(label)}</option>`);
@@ -626,20 +657,35 @@ function setSelectOptions(select, allLabel, options, selectedValue, hasLabelPair
 
     select.innerHTML = html.join('');
     const validValues = hasLabelPairs ? options.map(([value]) => value) : options;
+
+    if (multi) {
+        const kept = (Array.isArray(selectedValue) ? selectedValue : []).filter((v) => validValues.includes(v));
+        setMultiSelect(select, kept);
+        if (select === els.currencyFilter) selectedCurrency = kept;
+        else if (select === els.clientFilter) selectedClient = kept;
+        else if (select === els.w2Filter) selectedW2 = kept;
+        else if (select === els.statusFilter) selectedStatus = kept;
+        return;
+    }
+
     const normalized = validValues.includes(selectedValue) ? selectedValue : 'all';
     select.value = normalized;
-
     if (select === els.currencyFilter) selectedCurrency = normalizeCurrency(normalized);
     if (select === els.clientFilter) selectedClient = normalizeTextFilter(normalized);
     if (select === els.w2Filter) selectedW2 = normalizeTextFilter(normalized);
 }
 
+// Membership matchers for the analytics-local multi-select filters ([] = any).
+function matchesCurrency(c) { return !selectedCurrency.length || selectedCurrency.includes(normalizeCurrency(c)); }
+function matchesClient(c) { return !selectedClient.length || selectedClient.includes(normalizeTextFilter(c)); }
+function matchesW2(c) { return !selectedW2.length || selectedW2.includes(normalizeTextFilter(c)); }
+
 function getFilteredRows() {
     return rawRows
-        .filter(row => selectedCurrency === 'all' || row.currency === selectedCurrency)
-        .filter(row => selectedClient === 'all' || normalizeTextFilter(row.client) === selectedClient)
-        .filter(row => selectedW2 === 'all' || normalizeTextFilter(row.w2_company) === selectedW2)
-        .filter(row => selectedStatus === 'all' || row.status === selectedStatus)
+        .filter(row => !selectedCurrency.length || selectedCurrency.includes(normalizeCurrency(row.currency)))
+        .filter(row => !selectedClient.length || selectedClient.includes(normalizeTextFilter(row.client)))
+        .filter(row => !selectedW2.length || selectedW2.includes(normalizeTextFilter(row.w2_company)))
+        .filter(row => !selectedStatus.length || selectedStatus.includes(row.status))
         .filter(row => {
             if (!searchTerm) return true;
             const hay = `${row.consultant_name} ${row.notes || ''} ${row.client} ${row.w2_company}`.toLowerCase();
@@ -694,9 +740,9 @@ function getActiveConsultantsPool() {
         if (c.status === 'inactive' || c.status === 'pending') return false;
         
         const cCurr = normalizeCurrency(c.currency || 'USD');
-        if (selectedCurrency !== 'all' && cCurr !== selectedCurrency) return false;
-        if (selectedClient !== 'all' && normalizeTextFilter(c.client) !== selectedClient) return false;
-        if (selectedW2 !== 'all' && normalizeTextFilter(c.w2_company) !== selectedW2) return false;
+        if (!matchesCurrency(cCurr)) return false;
+        if (!matchesClient(c.client)) return false;
+        if (!matchesW2(c.w2_company)) return false;
         
         const cStart = c.start_date;
         const cEnd = c.end_date || '9999-12-31';
@@ -1076,14 +1122,16 @@ function formatCurrencyGroup(byCurrency) {
 }
 
 function updateSummaryMeta(monthRows) {
+    // Collapse multi-select arrays to a flag so empty selections aren't counted.
+    const flag = (arr) => (arr.length ? 'set' : 'all');
     const applied = countAppliedFilters(
         {
             year: selectedYear,
             month: selectedMonth,
-            currency: selectedCurrency,
-            client: selectedClient,
-            w2: selectedW2,
-            status: selectedStatus,
+            currency: flag(selectedCurrency),
+            client: flag(selectedClient),
+            w2: flag(selectedW2),
+            status: flag(selectedStatus),
             search: searchTerm
         },
         {
@@ -1222,26 +1270,26 @@ function handleKpiClick(filter) {
 
     if (filter === 'all') {
         // Reset status filter and switch to detail
-        selectedStatus = 'all';
-        if (els.statusFilter) els.statusFilter.value = 'all';
+        selectedStatus = [];
+        setMultiSelect(els.statusFilter, []);
+        saveAnalyticsMultiFilters();
         activeKpiFilter = null;
-        persistShared();
         requestRender();
         switchTab('detail');
         return;
     }
 
     if (filter === 'pending') {
-        const toggledStatus = selectedStatus === 'pending' ? 'all' : 'pending';
-        selectedStatus = toggledStatus;
-        if (els.statusFilter) els.statusFilter.value = toggledStatus;
-        activeKpiFilter = toggledStatus === 'pending' ? 'pending' : null;
+        const nowPending = !selectedStatus.includes('pending');
+        selectedStatus = nowPending ? ['pending'] : [];
+        setMultiSelect(els.statusFilter, selectedStatus);
+        saveAnalyticsMultiFilters();
+        activeKpiFilter = nowPending ? 'pending' : null;
 
-        if (toggledStatus === 'pending') {
+        if (nowPending) {
             document.getElementById('kpiBilling')?.classList.add('is-active');
         }
 
-        persistShared();
         requestRender();
         switchTab('detail');
         return;
@@ -1262,9 +1310,9 @@ function handleInsightClick(card) {
     if (!value) return;
 
     if (drill === 'client') {
-        selectedClient = normalizeTextFilter(value);
-        if (els.clientFilter) els.clientFilter.value = selectedClient;
-        persistShared();
+        selectedClient = [normalizeTextFilter(value)];
+        setMultiSelect(els.clientFilter, selectedClient);
+        saveAnalyticsMultiFilters();
         requestRender();
         switchTab('detail');
         return;
@@ -1660,7 +1708,7 @@ function billingByCurrency() {
         if (status === 'draft') return;
         if (!inSelectedPeriod(invoiceRaisedMonth(inv))) return;
         const ccy = String(inv.invoice_meta?.currency || 'USD').toUpperCase();
-        if (selectedCurrency !== 'all' && ccy !== selectedCurrency) return;
+        if (!matchesCurrency(ccy)) return;
 
         const total = Number(inv.totals?.total) || 0;
         const paidRaw = Number(inv.totals?.amount_paid) || 0;
@@ -1727,7 +1775,7 @@ function renderRevenueFunnel(monthRows) {
 function renderWhoOwes() {
     if (!els.owesBody) return;
     const rows = topOutstanding(rawInvoices, 6)
-        .filter((r) => selectedCurrency === 'all' || r.currency === selectedCurrency);
+        .filter((r) => matchesCurrency(r.currency));
 
     if (rows.length === 0) {
         els.owesBody.innerHTML = '<div class="analytics-empty-hint">Nothing outstanding — you\'re all paid up.</div>';
@@ -1860,7 +1908,7 @@ function renderRevenueTrend(filteredRows) {
     rawInvoices.filter(inv => {
         if (String(inv.status || '').toLowerCase() !== 'paid') return false;
         const invCurr = String(inv.invoice_meta?.currency || 'USD').toUpperCase();
-        if (selectedCurrency !== 'all' && invCurr !== selectedCurrency) return false;
+        if (!matchesCurrency(invCurr)) return false;
         return true;
     }).forEach(inv => {
         const dist = getInvoiceDistribution(inv);
@@ -1874,11 +1922,11 @@ function renderRevenueTrend(filteredRows) {
 
     // These bars sum amounts irrespective of currency, so mixing USD + CAD in
     // one bar is misleading. Warn and prompt the user to pick a single currency.
-    const mixedCurrencies = selectedCurrency === 'all' && involvedCurrencies.size > 1;
+    const mixedCurrencies = selectedCurrency.length !== 1 && involvedCurrencies.size > 1;
 
     const allValues = [...Object.values(projectedByMonth), ...Object.values(collectedByMonth)];
     const maxVal = Math.max(...allValues, 1);
-    const currencyStr = selectedCurrency === 'all' ? '' : selectedCurrency;
+    const currencyStr = selectedCurrency.length === 1 ? selectedCurrency[0] : '';
 
     if (allValues.every(v => v === 0)) {
         els.revenueTrendBars.className = 'analytics-trend-chart analytics-trend-chart--empty';
@@ -1987,7 +2035,7 @@ function renderCashFlowTrend() {
     rawInvoices.filter(inv => {
         if (String(inv.status || '').toLowerCase() !== 'paid') return false;
         const invCurr = String(inv.invoice_meta?.currency || 'USD').toUpperCase();
-        if (selectedCurrency !== 'all' && invCurr !== selectedCurrency) return false;
+        if (!matchesCurrency(invCurr)) return false;
         return true;
     }).forEach(inv => {
         const paidTs = String(inv.paid_date || inv.invoice_meta?.dateRaw || inv.created_at || '').trim();
@@ -2500,13 +2548,11 @@ async function copyToClipboard(text) {
 }
 
 function persistShared() {
+    // Only period + search are shared cross-page; the multi-select filters are
+    // analytics-local (saved via saveAnalyticsMultiFilters).
     setSharedFilters({
         year: selectedYear,
         month: selectedMonth,
-        currency: selectedCurrency,
-        client: selectedClient,
-        w2: selectedW2,
-        status: selectedStatus,
         search: searchTerm
     });
 }
@@ -2555,16 +2601,20 @@ async function applySavedView(view) {
     const state = view?.state || {};
     selectedYear = Number(state.year) || defaultYear;
     selectedMonth = state.month || defaultMonth;
-    selectedCurrency = normalizeCurrency(state.currency);
-    selectedClient = normalizeTextFilter(state.client);
-    selectedW2 = normalizeTextFilter(state.w2);
-    selectedStatus = normalizeStatusFilter(state.status);
+    selectedCurrency = Array.isArray(state.currency) ? state.currency : [];
+    selectedClient = Array.isArray(state.client) ? state.client : [];
+    selectedW2 = Array.isArray(state.w2) ? state.w2 : [];
+    selectedStatus = Array.isArray(state.status) ? state.status : [];
     searchTerm = String(state.search || '').trim().toLowerCase();
     pivotMetric = state.pivotMetric === 'revenue' ? 'revenue' : 'hours';
+    saveAnalyticsMultiFilters();
 
     if (els.yearFilter) els.yearFilter.value = String(selectedYear);
     if (els.monthFilter) els.monthFilter.value = selectedMonth;
-    if (els.statusFilter) els.statusFilter.value = selectedStatus;
+    setMultiSelect(els.statusFilter, selectedStatus);
+    setMultiSelect(els.currencyFilter, selectedCurrency);
+    setMultiSelect(els.clientFilter, selectedClient);
+    setMultiSelect(els.w2Filter, selectedW2);
     if (els.searchInput) els.searchInput.value = searchTerm;
 
     updatePivotMetricButtons();
