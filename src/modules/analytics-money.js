@@ -59,7 +59,10 @@ export function topOutstanding(invoices = [], limit = 5) {
     const map = new Map();
 
     (invoices || []).forEach((inv) => {
-        if (String(inv.status || '').toLowerCase() === 'draft') return;
+        const status = String(inv.status || '').toLowerCase();
+        // Drafts aren't owed; paid invoices owe nothing even if a stale
+        // balance_due/amount_paid lingers on older records.
+        if (status === 'draft' || status === 'paid') return;
         const totals = inv.totals || {};
         const total = Number(totals.total) || 0;
         const paid = Number(totals.amount_paid) || 0;

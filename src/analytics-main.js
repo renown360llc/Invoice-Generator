@@ -1663,7 +1663,10 @@ function billingByCurrency() {
 
         const total = Number(inv.totals?.total) || 0;
         const paidRaw = Number(inv.totals?.amount_paid) || 0;
-        const paid = total > 0 ? Math.max(0, Math.min(paidRaw, total)) : (status === 'paid' ? total : 0);
+        // A 'paid' invoice counts as fully collected even if amount_paid was
+        // never recorded (older invoices marked paid without a payment entry).
+        // Otherwise use the recorded amount, capped at the total.
+        const paid = status === 'paid' ? total : Math.max(0, Math.min(paidRaw, total));
 
         invoiced[ccy] = (invoiced[ccy] || 0) + total;
         collected[ccy] = (collected[ccy] || 0) + paid;

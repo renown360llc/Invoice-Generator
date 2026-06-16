@@ -46,6 +46,7 @@ describe('topOutstanding', () => {
         { status: 'partially_paid', client_info: { name: 'Acme' }, invoice_meta: { currency: 'USD' }, totals: { total: 500, amount_paid: 100, balance_due: 400 } },
         { status: 'sent', client_info: { name: 'Globex' }, invoice_meta: { currency: 'CAD' }, totals: { total: 600, amount_paid: 0 } },
         { status: 'paid', client_info: { name: 'Initech' }, invoice_meta: { currency: 'USD' }, totals: { total: 300, amount_paid: 300, balance_due: 0 } },
+        { status: 'paid', client_info: { name: 'Stale' }, invoice_meta: { currency: 'USD' }, totals: { total: 700, amount_paid: 0 } },
         { status: 'draft', client_info: { name: 'Draftco' }, invoice_meta: { currency: 'USD' }, totals: { total: 900 } }
     ];
 
@@ -55,9 +56,10 @@ describe('topOutstanding', () => {
         expect(rows.find((r) => r.name === 'Globex')).toEqual({ name: 'Globex', currency: 'CAD', balance: 600 });
     });
 
-    it('excludes paid (zero balance) and drafts', () => {
+    it('excludes paid (even with a stale balance) and drafts', () => {
         const names = topOutstanding(invoices).map((r) => r.name);
         expect(names).not.toContain('Initech');
+        expect(names).not.toContain('Stale');
         expect(names).not.toContain('Draftco');
     });
 
