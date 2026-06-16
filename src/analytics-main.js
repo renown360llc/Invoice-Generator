@@ -1435,22 +1435,9 @@ function renderActualRevenue() {
         els.actualRevenueLabelMeta.textContent = `(${getSelectedPeriodShortLabel()})`;
     }
 
-    const paidInvoices = rawInvoices.filter(inv => String(inv.status || '').toLowerCase() === 'paid');
-    const byCurrency = {};
-    paidInvoices.forEach(inv => {
-        const curr = String(inv.invoice_meta?.currency || 'USD').toUpperCase();
-        const dist = getInvoiceDistribution(inv);
-        
-        for (const [monthKey, amount] of Object.entries(dist)) {
-            if (!monthKey.startsWith(String(selectedYear))) continue;
-            if (selectedMonth !== 'all') {
-                const mk = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}`;
-                if (monthKey !== mk) continue;
-            }
-            byCurrency[curr] = (byCurrency[curr] || 0) + amount;
-        }
-    });
-
+    // Same definition as the billing funnel: amount paid so far on invoices
+    // raised this period, per currency — so the two never disagree.
+    const { collected: byCurrency } = billingByCurrency();
     const entries = Object.entries(byCurrency).sort((a, b) => a[0].localeCompare(b[0]));
     if (entries.length === 0) {
         els.actualRevenueCard.textContent = formatMoney(0, 'USD');
@@ -1649,30 +1636,37 @@ function inSelectedPeriod(monthKey) {
     return true;
 }
 
-// Invoiced and collected for the selected period, per currency, from invoices.
-// Collected is the paid share of each invoice's distributed amount, so it can
-// never exceed invoiced. Both respect the currency filter.
+// The month an invoice was raised (its invoice date), YYYY-MM.
+function invoiceRaisedMonth(inv) {
+    const ts = String(inv.invoice_meta?.dateRaw || inv.created_at || '').trim();
+    if (/^\d{4}-\d{2}/.test(ts)) return ts.slice(0, 7);
+    if (inv.created_at) {
+        const d = new Date(inv.created_at);
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    }
+    return '';
+}
+
+// Invoiced and collected for the selected period, per currency, by INVOICE
+// RAISED DATE: of the invoices you raised this period, the full value billed
+// and how much has been paid so far. Collected can never exceed invoiced, and
+// this is the single source of truth for the Collected KPI and the funnel.
 function billingByCurrency() {
     const invoiced = {};
     const collected = {};
     rawInvoices.forEach((inv) => {
         const status = String(inv.status || '').toLowerCase();
         if (status === 'draft') return;
+        if (!inSelectedPeriod(invoiceRaisedMonth(inv))) return;
         const ccy = String(inv.invoice_meta?.currency || 'USD').toUpperCase();
         if (selectedCurrency !== 'all' && ccy !== selectedCurrency) return;
 
         const total = Number(inv.totals?.total) || 0;
-        const paid = Number(inv.totals?.amount_paid) || 0;
-        const paidFraction = total > 0
-            ? Math.max(0, Math.min(1, paid / total))
-            : (status === 'paid' ? 1 : 0);
+        const paidRaw = Number(inv.totals?.amount_paid) || 0;
+        const paid = total > 0 ? Math.max(0, Math.min(paidRaw, total)) : (status === 'paid' ? total : 0);
 
-        const dist = getInvoiceDistribution(inv);
-        for (const [mk, amt] of Object.entries(dist)) {
-            if (!inSelectedPeriod(mk)) continue;
-            invoiced[ccy] = (invoiced[ccy] || 0) + amt;
-            collected[ccy] = (collected[ccy] || 0) + amt * paidFraction;
-        }
+        invoiced[ccy] = (invoiced[ccy] || 0) + total;
+        collected[ccy] = (collected[ccy] || 0) + paid;
     });
     return { invoiced, collected };
 }
