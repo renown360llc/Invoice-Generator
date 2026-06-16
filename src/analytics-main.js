@@ -15,6 +15,7 @@ import {
     initFiltersForUser
 } from './modules/crm-filters.js';
 import { listSavedViews, saveSavedView, deleteSavedView, initSavedViewsForUser } from './modules/saved-views.js';
+import { buildFunnel, topOutstanding } from './modules/analytics-money.js';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const CURRENCY_COLORS = {
@@ -172,6 +173,8 @@ function cacheElements() {
     els.projectedRevenueLabelMeta = document.getElementById('projectedRevenueLabelMeta');
     els.consultantsLabelMeta = document.getElementById('consultantsLabelMeta');
     els.billingCoverageLabelMeta = document.getElementById('billingCoverageLabelMeta');
+    els.revenueFunnelBody = document.getElementById('revenueFunnelBody');
+    els.owesBody = document.getElementById('owesBody');
     els.revenueTrendBars = document.getElementById('revenueTrendBars');
     els.cashFlowTrendLegend = document.getElementById('cashFlowTrendLegend');
     els.cashFlowTrendBars = document.getElementById('cashFlowTrendBars');
@@ -660,6 +663,8 @@ function renderAll() {
     renderActualRevenue();
     renderCashFlowKPI();
     renderActiveConsultantsRunRate();
+    renderRevenueFunnel(monthRows);
+    renderWhoOwes();
     renderRevenueTrend(filtered);
     renderCashFlowTrend(filtered);
     renderInvoiceStatusDist();
@@ -1622,6 +1627,95 @@ function getInvoiceDistribution(inv) {
 
 function getInvoiceMonths(inv) {
     return Object.keys(getInvoiceDistribution(inv));
+}
+
+// Is a YYYY-MM month key within the currently selected period?
+function inSelectedPeriod(monthKey) {
+    if (!String(monthKey).startsWith(String(selectedYear))) return false;
+    if (selectedMonth !== 'all') {
+        return monthKey === `${selectedYear}-${String(selectedMonth).padStart(2, '0')}`;
+    }
+    return true;
+}
+
+// Sum invoice amounts distributed into the selected period, per currency,
+// for invoices whose status passes `statusOk`. Respects the currency filter.
+function distributedByCurrency(statusOk) {
+    const byCurr = {};
+    rawInvoices.forEach((inv) => {
+        if (!statusOk(String(inv.status || '').toLowerCase())) return;
+        const ccy = String(inv.invoice_meta?.currency || 'USD').toUpperCase();
+        if (selectedCurrency !== 'all' && ccy !== selectedCurrency) return;
+        const dist = getInvoiceDistribution(inv);
+        for (const [mk, amt] of Object.entries(dist)) {
+            if (inSelectedPeriod(mk)) byCurr[ccy] = (byCurr[ccy] || 0) + amt;
+        }
+    });
+    return byCurr;
+}
+
+function renderRevenueFunnel(monthRows) {
+    if (!els.revenueFunnelBody) return;
+
+    const earned = {};
+    monthRows.forEach((r) => {
+        const ccy = String(r.currency || 'USD').toUpperCase();
+        if (selectedCurrency !== 'all' && ccy !== selectedCurrency) return;
+        earned[ccy] = (earned[ccy] || 0) + (Number(r.projected) || 0);
+    });
+    const invoiced = distributedByCurrency((s) => s !== 'draft');
+    const collected = distributedByCurrency((s) => s === 'paid');
+
+    const rows = buildFunnel(earned, invoiced, collected);
+    if (rows.length === 0) {
+        els.revenueFunnelBody.innerHTML = '<div class="analytics-empty-hint">No revenue for this period yet.</div>';
+        return;
+    }
+
+    const stage = (label, val, color, currency, note) => {
+        const max = note._max;
+        const width = `${Math.max(3, Math.round((val / max) * 100))}%`;
+        return `
+            <div class="funnel-stage">
+                <div class="funnel-stage__top"><span>${label}</span><span>${escapeHtml(formatMoney(val, currency))}</span></div>
+                <div class="funnel-bar"><div class="funnel-bar__fill" style="width:${width};background:${color};"></div></div>
+                ${note.text ? `<div class="funnel-stage__note">${note.text}</div>` : ''}
+            </div>`;
+    };
+
+    els.revenueFunnelBody.innerHTML = rows.map((r) => {
+        const max = Math.max(r.earned, r.invoiced, r.collected, 1);
+        const unbilled = r.unbilled > 0 ? `<span class="funnel-leak">⚠ ${escapeHtml(formatMoney(r.unbilled, r.currency))} logged, not invoiced</span>` : '';
+        const uncollected = r.uncollected > 0 ? `<span class="funnel-leak">${escapeHtml(formatMoney(r.uncollected, r.currency))} invoiced, not collected</span>` : '';
+        return `
+            <div class="funnel-group">
+                ${rows.length > 1 ? `<div class="funnel-group__ccy">${escapeHtml(r.currency)}</div>` : ''}
+                ${stage('Earned', r.earned, '#94a3b8', r.currency, { _max: max, text: unbilled })}
+                ${stage('Invoiced', r.invoiced, '#60a5fa', r.currency, { _max: max, text: uncollected })}
+                ${stage('Collected', r.collected, '#2563eb', r.currency, { _max: max, text: '' })}
+            </div>`;
+    }).join('');
+}
+
+function renderWhoOwes() {
+    if (!els.owesBody) return;
+    const rows = topOutstanding(rawInvoices, 6)
+        .filter((r) => selectedCurrency === 'all' || r.currency === selectedCurrency);
+
+    if (rows.length === 0) {
+        els.owesBody.innerHTML = '<div class="analytics-empty-hint">Nothing outstanding — you\'re all paid up.</div>';
+        return;
+    }
+
+    const maxBal = Math.max(...rows.map((r) => r.balance), 1);
+    els.owesBody.innerHTML = rows.map((r) => `
+        <div class="owes-row">
+            <div class="owes-row__top">
+                <span class="owes-row__name">${escapeHtml(r.name)}</span>
+                <span class="owes-row__amt">${escapeHtml(formatMoney(r.balance, r.currency))}</span>
+            </div>
+            <div class="owes-bar"><div class="owes-bar__fill" style="width:${Math.max(4, Math.round((r.balance / maxBal) * 100))}%;"></div></div>
+        </div>`).join('');
 }
 
 function renderRevenueTrend(filteredRows) {

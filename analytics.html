@@ -273,6 +273,25 @@
                 grid-template-columns: 1fr;
             }
         }
+
+        /* ── Revenue funnel + receivables (Phase 2) ── */
+        .analytics-funnel { display: flex; flex-direction: column; gap: 0.85rem; padding-top: 0.25rem; }
+        .funnel-group { display: flex; flex-direction: column; gap: 0.55rem; }
+        .funnel-group + .funnel-group { border-top: 1px dashed var(--surface-glass-border); padding-top: 0.85rem; }
+        .funnel-group__ccy { font-size: 0.68rem; font-weight: 800; letter-spacing: 0.04em; color: var(--text-tertiary); text-transform: uppercase; }
+        .funnel-stage__top { display: flex; justify-content: space-between; font-size: 0.78rem; color: var(--text-secondary); margin-bottom: 3px; }
+        .funnel-stage__top span:last-child { font-weight: 700; color: var(--text-primary); }
+        .funnel-bar { height: 14px; background: var(--surface-app, #f1f5f9); border-radius: 5px; overflow: hidden; }
+        .funnel-bar__fill { height: 100%; border-radius: 5px; transition: width 0.3s ease; }
+        .funnel-stage__note { margin-top: 3px; }
+        .funnel-leak { font-size: 0.68rem; color: var(--text-tertiary); }
+        .analytics-owes { display: flex; flex-direction: column; gap: 0.7rem; padding-top: 0.25rem; }
+        .owes-row__top { display: flex; justify-content: space-between; font-size: 0.82rem; margin-bottom: 4px; }
+        .owes-row__name { color: var(--text-primary); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 65%; }
+        .owes-row__amt { font-weight: 700; color: var(--text-primary); }
+        .owes-bar { height: 8px; background: var(--surface-app, #f1f5f9); border-radius: 4px; overflow: hidden; }
+        .owes-bar__fill { height: 100%; background: var(--accent, #ff6b4a); border-radius: 4px; }
+        .analytics-empty-hint { font-size: 0.82rem; color: var(--text-tertiary); padding: 1.25rem 0.25rem; text-align: center; }
     </style>
     <script type="module">
         import { requireAuth } from './src/auth.js';
@@ -507,7 +526,29 @@
                     </article>
                 </section>
 
-                <!-- Accrual vs Collections + Invoice Status Distribution -->
+                <!-- Revenue Funnel + Who owes you -->
+                <section class="analytics-charts-row">
+                    <div class="analytics-chart-card" id="revenueFunnelCard">
+                        <div class="analytics-chart-card__header">
+                            <div class="kpi-card__label">Revenue funnel</div>
+                            <div class="kpi-card__label-meta">earned → invoiced → collected</div>
+                        </div>
+                        <div id="revenueFunnelBody" class="analytics-funnel">
+                            <!-- Rendered by JS -->
+                        </div>
+                    </div>
+                    <div class="analytics-chart-card" id="owesCard">
+                        <div class="analytics-chart-card__header">
+                            <div class="kpi-card__label">Who owes you</div>
+                            <div class="kpi-card__label-meta">outstanding balance</div>
+                        </div>
+                        <div id="owesBody" class="analytics-owes">
+                            <!-- Rendered by JS -->
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Earned vs Collected trend + Invoice Status Distribution -->
                 <section class="analytics-charts-row">
                     <div class="analytics-chart-card" id="revenueTrendCard">
                         <div class="analytics-chart-card__header">
