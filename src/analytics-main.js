@@ -5,6 +5,7 @@ import { showToast, debounce, createRenderScheduler } from './modules/utils.js';
 import { dbGetTimesheetsForYear } from './modules/db-timesheets.js';
 import { dbGetConsultants } from './modules/db-consultants.js';
 import { getInvoices } from './database.js';
+import { dbGetCompanies } from './modules/db-companies.js';
 import {
     getSharedFilters,
     setSharedFilters,
@@ -71,6 +72,7 @@ let rawRows = [];
 let rawInvoices = [];
 let rawConsultants = [];
 let rawPayouts = [];
+let companyLogoByName = new Map();
 
 const els = {};
 const requestRender = createRenderScheduler(() => renderAll());
@@ -562,14 +564,21 @@ function bindEvents() {
 async function refreshData() {
     setMeta('Loading analytics...');
     try {
-        const [rows, invoices, consultants, payouts] = await Promise.all([
+        const [rows, invoices, consultants, payouts, companies] = await Promise.all([
             dbGetTimesheetsForYear(selectedYear),
             getInvoices(),
             dbGetConsultants(),
-            dbGetReferralPayouts().catch(() => [])
+            dbGetReferralPayouts().catch(() => []),
+            dbGetCompanies().catch(() => [])
         ]);
         rawInvoices = invoices || [];
         rawPayouts = payouts || [];
+        // name (case-folded) -> logo, for showing real branding in breakdowns.
+        companyLogoByName = new Map();
+        (companies || []).forEach((c) => {
+            const key = String(c.name || '').trim().toLowerCase();
+            if (key && c.logo) companyLogoByName.set(key, c.logo);
+        });
         const paidInvoiceNums = new Set(
             rawInvoices
                 .filter(inv => inv.status === 'paid' && inv.invoice_number)
@@ -908,12 +917,18 @@ function renderClientBreakdown(rows) {
 
         const groupId = `client-grp-${clientKey.replace(/\W+/g, '')}`;
 
+        // Use the company's saved logo when we have one, else a generic icon.
+        const logo = companyLogoByName.get(clientKey);
+        const groupIcon = logo
+            ? `<img class="client-group-logo" src="${escapeHtml(logo)}" alt="">`
+            : '<span class="client-group-icon">🏢</span>';
+
         // Client header row
         const headerRow = `
             <tr class="client-group-header" data-group-id="${groupId}" style="cursor:pointer;" title="Click to expand/collapse consultants">
                 <td class="client-group-header__name" colspan="2">
                     <span class="client-group-chevron">▶</span>
-                    <span class="client-group-icon">🏢</span>
+                    ${groupIcon}
                     ${escapeHtml(clientName)}
                 </td>
                 <td class="client-group-header__stat">${consultantCount} consultant${consultantCount !== 1 ? 's' : ''}</td>
