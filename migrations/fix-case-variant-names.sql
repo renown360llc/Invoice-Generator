@@ -63,7 +63,45 @@ join canon c on c.folded = r.folded
 where i.id = r.id
   and (i.client_info->>'name') is distinct from c.canonical;
 
--- ── 5. VERIFY — both PREVIEW queries above should now return 0 rows ───────────
+-- ── 5. APPLY — consultants.client (drives the analytics Client Revenue grouping)
+with canon as (
+    select lower(client) as folded, (array_agg(client order by cnt desc, client))[1] as canonical
+    from (select client, count(*) cnt from consultants where coalesce(client, '') <> '' group by client) t
+    group by lower(client)
+)
+update consultants x set client = canon.canonical
+from canon where lower(x.client) = canon.folded and x.client is distinct from canon.canonical;
 
--- Optional: also clean the companies / clients registry tables the same way.
--- update companies set name = ... ; update clients set name = ... ;
+-- ── 6. APPLY — consultants.w2_company ─────────────────────────────────────────
+with canon as (
+    select lower(w2_company) as folded, (array_agg(w2_company order by cnt desc, w2_company))[1] as canonical
+    from (select w2_company, count(*) cnt from consultants where coalesce(w2_company, '') <> '' group by w2_company) t
+    group by lower(w2_company)
+)
+update consultants x set w2_company = canon.canonical
+from canon where lower(x.w2_company) = canon.folded and x.w2_company is distinct from canon.canonical;
+
+-- ── 7. APPLY — clients registry (name) ────────────────────────────────────────
+with canon as (
+    select lower(name) as folded, (array_agg(name order by cnt desc, name))[1] as canonical
+    from (select name, count(*) cnt from clients where coalesce(name, '') <> '' group by name) t
+    group by lower(name)
+)
+update clients x set name = canon.canonical
+from canon where lower(x.name) = canon.folded and x.name is distinct from canon.canonical;
+
+-- ── 8. APPLY — companies registry (name) ──────────────────────────────────────
+with canon as (
+    select lower(name) as folded, (array_agg(name order by cnt desc, name))[1] as canonical
+    from (select name, count(*) cnt from companies where coalesce(name, '') <> '' group by name) t
+    group by lower(name)
+)
+update companies x set name = canon.canonical
+from canon where lower(x.name) = canon.folded and x.name is distinct from canon.canonical;
+
+-- ── 9. VERIFY — preview groups should now be empty across all tables ──────────
+select 'consultants.client' as field, lower(client) as folded, count(distinct client) as variants
+from consultants where coalesce(client, '') <> '' group by lower(client) having count(distinct client) > 1
+union all
+select 'consultants.w2_company', lower(w2_company), count(distinct w2_company)
+from consultants where coalesce(w2_company, '') <> '' group by lower(w2_company) having count(distinct w2_company) > 1;

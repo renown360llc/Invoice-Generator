@@ -832,11 +832,18 @@ function renderClientBreakdown(rows) {
     const clientMap = new Map();
 
     rows.forEach((row) => {
-        const clientKey = row.client || 'Unknown';
+        // Group case-insensitively so "ZScale" and "Zscale" merge into one row.
+        const rawName = String(row.client || '').trim() || 'Unknown';
+        const clientKey = rawName.toLowerCase();
         if (!clientMap.has(clientKey)) {
-            clientMap.set(clientKey, { consultants: new Map(), totalByCurrency: {} });
+            clientMap.set(clientKey, { displayName: rawName, nameCounts: {}, consultants: new Map(), totalByCurrency: {} });
         }
         const clientEntry = clientMap.get(clientKey);
+        // Label the merged group with its most common original spelling.
+        clientEntry.nameCounts[rawName] = (clientEntry.nameCounts[rawName] || 0) + 1;
+        if (clientEntry.nameCounts[rawName] > (clientEntry.nameCounts[clientEntry.displayName] || 0)) {
+            clientEntry.displayName = rawName;
+        }
         const cKey = `${row.consultant_id}|${row.currency}`;
         const existing = clientEntry.consultants.get(cKey) || {
             consultant_id: row.consultant_id,
@@ -886,7 +893,8 @@ function renderClientBreakdown(rows) {
         return bTotal - aTotal;
     });
 
-    els.clientBreakdownBody.innerHTML = sorted.map(([clientName, clientData]) => {
+    els.clientBreakdownBody.innerHTML = sorted.map(([clientKey, clientData]) => {
+        const clientName = clientData.displayName;
         const consultants = Array.from(clientData.consultants.values())
             .sort((a, b) => b.projected - a.projected);
 
@@ -898,7 +906,7 @@ function renderClientBreakdown(rows) {
         const totalHours = consultants.reduce((s, c) => s + c.hours, 0);
         const consultantCount = consultants.length;
 
-        const groupId = `client-grp-${clientName.replace(/\W+/g, '')}`;
+        const groupId = `client-grp-${clientKey.replace(/\W+/g, '')}`;
 
         // Client header row
         const headerRow = `
