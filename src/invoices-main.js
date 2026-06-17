@@ -6,6 +6,7 @@ import { generatePDF } from './modules/pdf.js';
 import { dbGetConsultants } from './modules/db-consultants.js';
 import { dbGetReferralPayouts } from './modules/db-referrals.js';
 import { derivePayoutStatus } from './modules/referrals.js';
+import { invoiceInPeriod } from './modules/period-filter.js';
 import { getAccessContext, getReadOnlyMessage } from './modules/access-control.js';
 import { debounce, showToast } from './modules/utils.js';
 import './security.js';
@@ -1023,18 +1024,7 @@ function populateBillingYearOptions() {
 }
 
 function invoiceMatchesBillingPeriod(invoice) {
-    const year = String(state.filters.billingYear || 'all');
-    const month = String(state.filters.billingMonth || 'all');
-    if (year === 'all' && month === 'all') return true;
-
-    // Match on the invoice's own date (raised date) — always present and
-    // intuitive ("invoices from March 2026"), unlike parsing item periods.
-    const ts = String(invoice.invoice_meta?.dateRaw || invoice.created_at || '').trim();
-    const m = ts.match(/^(\d{4})-(\d{2})/);
-    if (!m) return false;
-    if (year !== 'all' && m[1] !== year) return false;
-    if (month !== 'all' && m[2] !== String(month).padStart(2, '0')) return false;
-    return true;
+    return invoiceInPeriod(invoice, state.filters.billingYear, state.filters.billingMonth);
 }
 
 function parseInvoiceItemPeriodRange(periodValue, invoice) {

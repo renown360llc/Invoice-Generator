@@ -578,7 +578,7 @@
             }
         }
     </style>
-  <script type="module" crossorigin src="/invoices/assets/invoices-DOFQQVh8.js"></script>
+  <script type="module" crossorigin src="/invoices/assets/invoices-S2osv_Fz.js"></script>
   <link rel="modulepreload" crossorigin href="/invoices/assets/config-c-jMUxvT.js">
   <link rel="modulepreload" crossorigin href="/invoices/assets/auth-De7W24vl.js">
   <link rel="modulepreload" crossorigin href="/invoices/assets/utils-C_5o-oWL.js">
@@ -938,6 +938,15 @@
             }
             yearSel.innerHTML = html.join('');
             if (hiddenYear) hiddenYear.innerHTML = hHtml.join('');
+            // The hidden month select needs real options, otherwise setting its
+            // value (e.g. "05") silently fails and the month never filters.
+            if (hiddenMonth) {
+                hiddenMonth.innerHTML = '<option value="all">All Months</option>'
+                    + Array.from({ length: 12 }, (_, i) => {
+                        const v = String(i + 1).padStart(2, '0');
+                        return `<option value="${v}">${v}</option>`;
+                    }).join('');
+            }
         }
 
         /* ── Build month grid buttons ─────────────────────────── */

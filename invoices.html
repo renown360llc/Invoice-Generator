@@ -933,6 +933,15 @@
             }
             yearSel.innerHTML = html.join('');
             if (hiddenYear) hiddenYear.innerHTML = hHtml.join('');
+            // The hidden month select needs real options, otherwise setting its
+            // value (e.g. "05") silently fails and the month never filters.
+            if (hiddenMonth) {
+                hiddenMonth.innerHTML = '<option value="all">All Months</option>'
+                    + Array.from({ length: 12 }, (_, i) => {
+                        const v = String(i + 1).padStart(2, '0');
+                        return `<option value="${v}">${v}</option>`;
+                    }).join('');
+            }
         }
 
         /* ── Build month grid buttons ─────────────────────────── */
