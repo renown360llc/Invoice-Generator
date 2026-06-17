@@ -920,7 +920,7 @@ function renderClientBreakdown(rows) {
         // Use the company's saved logo when we have one, else a generic icon.
         const logo = companyLogoByName.get(clientKey);
         const groupIcon = logo
-            ? `<img class="client-group-logo" src="${escapeHtml(logo)}" alt="">`
+            ? `<img class="client-group-logo" src="${escapeHtml(logo)}" alt="" style="width:20px;height:20px;object-fit:contain;border-radius:4px;vertical-align:middle;margin-right:0.4rem;flex-shrink:0;display:inline-block;">`
             : '<span class="client-group-icon">🏢</span>';
 
         // Client header row
