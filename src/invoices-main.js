@@ -809,6 +809,26 @@ function bindEvents() {
     window.addEventListener('resize', closeAllRowMenus);
 }
 
+// The filter dropdowns must list ALL distinct values, not just those in the
+// current (filtered) result — otherwise picking one value hides the rest and
+// you can't add a second. Load an unfiltered set once per page session.
+let filterSourceInvoices = [];
+let filterSourceLoaded = false;
+async function ensureFilterSource() {
+    if (filterSourceLoaded) return;
+    try {
+        const all = await getInvoices(state.user, { select: 'invoice_meta,business_info,client_info,items' });
+        filterSourceInvoices = Array.isArray(all) ? all : (all?.data || []);
+        filterSourceLoaded = true;
+    } catch (err) {
+        console.warn('Could not load filter option source', err);
+        filterSourceInvoices = state.allInvoices;
+    }
+}
+function filterOptionSource() {
+    return filterSourceInvoices.length ? filterSourceInvoices : state.allInvoices;
+}
+
 async function loadInvoices() {
     const requestId = ++state.loadRequestId;
     setLoadingTable();
@@ -876,6 +896,7 @@ async function loadInvoices() {
         state.totalInvoiceCount = totalCount;
         state.totalInvoicePages = totalPages;
 
+        await ensureFilterSource();
         populateConsultantFilterOptions();
         populateCurrencyFilterOptions();
         populateCompanyFilterOptions();
@@ -945,7 +966,7 @@ function populateCurrencyFilterOptions() {
     if (!els.currencyFilter) return;
 
     const currencies = new Set(['USD', 'EUR', 'GBP', 'CAD', 'AUD', 'INR']);
-    state.allInvoices.forEach((invoice) => currencies.add(getInvoiceCurrency(invoice)));
+    filterOptionSource().forEach((invoice) => currencies.add(getInvoiceCurrency(invoice)));
 
     const sorted = Array.from(currencies).sort(byCurrencyPriority);
     els.currencyFilter.innerHTML = sorted
@@ -964,7 +985,7 @@ function populateCurrencyFilterOptions() {
 function populateDistinctNameFilter(selectEl, accessor, filterKey) {
     if (!selectEl) return;
     const names = new Set();
-    state.allInvoices.forEach((invoice) => {
+    filterOptionSource().forEach((invoice) => {
         const name = String(accessor(invoice) || '').trim();
         if (name) names.add(name);
     });
