@@ -7,6 +7,7 @@ import './modules/searchable-select.js';
 import { loadLayout } from './components/layout.js';
 import { getCurrentUser } from './config.js';
 import { dbGetClients, dbSaveClient, dbDeleteClient } from './modules/db-clients.js';
+import { canonicalizeName } from './modules/name-normalize.js';
 import { filterClients, sortClientsByName } from './modules/clients.js';
 import { isValidEmail } from './modules/invoice-email.js';
 import { getAccessContext, getReadOnlyMessage } from './modules/access-control.js';
@@ -184,9 +185,11 @@ async function handleSave(event) {
         return;
     }
 
+    const others = clients.filter((c) => String(c.id) !== String(document.getElementById('clientId').value));
     const payload = {
-        name,
-        company: document.getElementById('company').value.trim() || null,
+        // Snap to an existing client's spelling (case-insensitive) to avoid dupes.
+        name: canonicalizeName(name, others.map((c) => c.name)),
+        company: canonicalizeName(document.getElementById('company').value, others.map((c) => c.company)) || null,
         email: email || null,
         phone: document.getElementById('phone').value.trim() || null,
         address: document.getElementById('address').value.trim() || null,

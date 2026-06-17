@@ -8,6 +8,7 @@ import './modules/searchable-select.js';
 import { loadLayout } from './components/layout.js';
 import { getCurrentUser } from './config.js';
 import { dbGetCompanies, dbSaveCompany, dbDeleteCompany } from './modules/db-companies.js';
+import { canonicalizeName } from './modules/name-normalize.js';
 import { filterCompanies, sortCompaniesByName } from './modules/companies.js';
 import { isValidEmail } from './modules/invoice-email.js';
 import { getAccessContext, getReadOnlyMessage } from './modules/access-control.js';
@@ -217,8 +218,10 @@ async function handleSave(event) {
         return;
     }
 
+    const others = companies.filter((c) => String(c.id) !== String(document.getElementById('companyId').value));
     const payload = {
-        name,
+        // Snap to an existing company's spelling (case-insensitive) to avoid dupes.
+        name: canonicalizeName(name, others.map((c) => c.name)),
         email: email || null,
         phone: document.getElementById('phone').value.trim() || null,
         address: document.getElementById('address').value.trim() || null,

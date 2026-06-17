@@ -2,6 +2,7 @@ import './modules/searchable-select.js';
 import { loadLayout } from './components/layout.js';
 import { getCurrentUser } from './config.js';
 import { dbGetConsultants, dbSaveConsultant, dbDeleteConsultant, dbGetTimesheetsCountForConsultant } from './modules/db-consultants.js';
+import { canonicalizeName } from './modules/name-normalize.js';
 import { dbGetTimesheetsForYear } from './modules/db-timesheets.js';
 import { debounce, createRenderScheduler } from './modules/utils.js';
 import { getProfileState } from './modules/user-profile.js';
@@ -780,6 +781,11 @@ async function handleSave(event) {
     };
 
     if (id) payload.id = id;
+
+    // Snap client / W2 names to an existing spelling (case-insensitive) so typos
+    // like "zscale" don't create a separate entry from "ZScale".
+    payload.client = canonicalizeName(payload.client, consultants.map((c) => c.client).filter(Boolean));
+    payload.w2_company = canonicalizeName(payload.w2_company, consultants.map((c) => c.w2_company).filter(Boolean));
 
     if (els.saveBtn) {
         els.saveBtn.disabled = true;

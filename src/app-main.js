@@ -8,6 +8,7 @@ import { getCurrentUser, signOut } from './auth.js';
 import { supabase } from './config.js';
 import { buildInvoiceEmail, isValidEmail } from './modules/invoice-email.js';
 import { dbGetClients } from './modules/db-clients.js';
+import { canonicalizeName } from './modules/name-normalize.js';
 import { formatClientOption, sortClientsByName } from './modules/clients.js';
 import { dbGetCompanies } from './modules/db-companies.js';
 import { formatCompanyOption, sortCompaniesByName } from './modules/companies.js';
@@ -679,6 +680,14 @@ async function handleSave() {
     }
 
     const data = gatherFormData();
+    // Snap typed company/client names to an existing registry spelling
+    // (case-insensitive) so "zscale" doesn't become a new variant of "ZScale".
+    if (data.business_info) {
+        data.business_info.name = canonicalizeName(data.business_info.name, loadedCompanies.map((c) => c.name));
+    }
+    if (data.client_info) {
+        data.client_info.name = canonicalizeName(data.client_info.name, loadedClients.map((c) => c.name));
+    }
     if (state.logo) data.business_info.logo = state.logo;
 
     // ── Validation gate — block save on an invalid financial document ────────
