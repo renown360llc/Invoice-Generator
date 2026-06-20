@@ -206,6 +206,20 @@
             .dt-panel { max-width: 100%; }
             .dt-field--row { grid-template-columns: 1fr; }
         }
+
+        /* ── Two-pane document editor ───────────────────── */
+        .dt-editor__bar { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 1rem; }
+        .dt-editor__title { font-weight: 700; font-size: 1rem; flex: 1; text-align: center; }
+        .dt-editor__grid { display: grid; grid-template-columns: minmax(300px, 400px) 1fr; gap: 1.25rem; align-items: start; }
+        .dt-editor__form { max-height: calc(100vh - 170px); overflow-y: auto; padding-right: 0.5rem; }
+        .dt-editor__preview { position: sticky; top: 1rem; }
+        .dt-editor__preview iframe { width: 100%; height: calc(100vh - 170px); border: 1px solid var(--surface-glass-border); border-radius: 10px; background: #fff; box-shadow: 0 6px 20px rgba(15,23,42,0.06); }
+        @media (max-width: 900px) {
+            .dt-editor__grid { grid-template-columns: 1fr; }
+            .dt-editor__form { max-height: none; overflow: visible; }
+            .dt-editor__preview { position: static; }
+            .dt-editor__preview iframe { height: 75vh; }
+        }
     </style>
 </head>
 
@@ -261,7 +275,7 @@
                     <div class="dt-card__title">Mutual Pass Through Agreement (MPTA)</div>
                     <div class="dt-card__desc">Used when Renown360 refers a candidate for a referral fee. Documents the candidate, deployment client, bill rate between parties, and non-solicitation terms.</div>
                     <div class="dt-card__actions">
-                        <button class="btn btn--primary btn--sm" onclick="openPanel('mpta')">Fill &amp; Download</button>
+                        <button class="btn btn--primary btn--sm" onclick="openEditor('mpta')">Fill &amp; Preview</button>
                         <button class="btn btn--outline btn--sm" onclick="downloadBlank('mpta')">With Placeholders</button>
                     </div>
                 </div>
@@ -273,9 +287,10 @@
                         <span class="dt-card__badge dt-card__badge--dda">Banking</span>
                     </div>
                     <div class="dt-card__title">Direct Deposit Agreement Form</div>
-                    <div class="dt-card__desc">Send this blank form to a vendor/subcontractor to collect their banking details for ACH direct deposit. They fill it out and return it to you.</div>
+                    <div class="dt-card__desc">Authorize ACH direct deposit to a vendor. Fill in your company + the vendor's banking details with a live preview, or download a blank form to collect details.</div>
                     <div class="dt-card__actions">
-                        <button class="btn btn--primary btn--sm" onclick="downloadBlank('dda')">Download Blank Form</button>
+                        <button class="btn btn--primary btn--sm" onclick="openEditor('dda')">Fill &amp; Preview</button>
+                        <button class="btn btn--outline btn--sm" onclick="downloadBlank('dda')">Blank Form</button>
                     </div>
                 </div>
 
@@ -293,6 +308,21 @@
                 </div>
 
             </div>
+
+            <!-- ── Two-pane editor (MPTA & Direct Deposit) ───────── -->
+            <section id="dtEditor" class="dt-editor" hidden>
+                <div class="dt-editor__bar">
+                    <button class="btn btn--ghost btn--sm" id="dtEditorBack">← Back to templates</button>
+                    <div class="dt-editor__title" id="dtEditorTitle">—</div>
+                    <button class="btn btn--primary btn--sm" id="dtEditorDownload">Download PDF</button>
+                </div>
+                <div class="dt-editor__grid">
+                    <div class="dt-editor__form"><div id="dtEditorFormBody"></div></div>
+                    <div class="dt-editor__preview">
+                        <iframe id="dtPreview" title="Document preview"></iframe>
+                    </div>
+                </div>
+            </section>
         </div>
     </main>
 

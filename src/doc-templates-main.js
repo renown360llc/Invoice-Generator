@@ -1,6 +1,7 @@
 import './modules/searchable-select.js';
 import { getCurrentUser } from './auth.js'
 import { loadLayout } from './components/layout.js'
+import { dbGetCompanies } from './modules/db-companies.js'
 
 // ── Company constants ──────────────────────────────────────────────────────
 const CO = {
@@ -395,29 +396,38 @@ async function getLogoDataUrl() {
     } catch { return '' }
 }
 
-async function openPrintWindow(title, bodyHtml) {
+let appLogoDataUrl = ''
+
+// The "from" (generating) company shown in the document header. Defaults to
+// Renown360, but the MPTA/DDA editor can override it from a saved company.
+function defaultCo() {
+    return { name: 'Renown360 LLC', address: CO.address, email: CO.email, logo: appLogoDataUrl }
+}
+
+function docHeaderHtml(co) {
+    const addr = esc(co.address || '').replace(/\n/g, '<br>')
+    return `<div class="doc-header">
+        ${co.logo ? `<img src="${co.logo}" alt="">` : '<div></div>'}
+        <div class="doc-header-info"><strong>${esc(co.name || '')}</strong><br>${addr}<br>${esc(co.email || '')}</div>
+    </div>`
+}
+
+// One HTML string used for BOTH the live preview (iframe) and the print window,
+// so what you see is exactly what prints.
+function buildDocHtml(title, co, bodyHtml, autoPrint) {
+    const printScript = autoPrint
+        ? '<scr' + 'ipt>window.onload=function(){setTimeout(function(){window.print();},400);};</scr' + 'ipt>'
+        : ''
+    return `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${esc(title)}</title><style>${PRINT_CSS}</style></head><body>${docHeaderHtml(co)}${bodyHtml}${printScript}</body></html>`
+}
+
+async function openPrintWindow(title, bodyHtml, co) {
     const w = window.open('', '_blank', 'width=850,height=1100')
     if (!w) { showToast('Pop-up blocked — please allow pop-ups for this site.', 'error'); return }
-    const logoSrc = await getLogoDataUrl()
-    const header = `
-        <div class="doc-header">
-            ${logoSrc ? `<img src="${logoSrc}" alt="Renown360">` : '<div></div>'}
-            <div class="doc-header-info">
-                <strong>Renown360 LLC</strong><br>
-                1309 Coffeen Avenue STE 1200<br>
-                Sheridan, Wyoming 82801<br>
-                contracts@renown360.com
-            </div>
-        </div>`
-    w.document.write(`<!DOCTYPE html><html><head>
-        <meta charset="UTF-8">
-        <title>${esc(title)}</title>
-        <style>${PRINT_CSS}</style>
-    </head><body>${header}${bodyHtml}
-    <script>
-        window.onload = function() { setTimeout(function(){ window.print(); }, 500); };
-    <\/script>
-    </body></html>`)
+    if (!appLogoDataUrl) appLogoDataUrl = await getLogoDataUrl()
+    const company = co || defaultCo()
+    if (!company.logo) company.logo = appLogoDataUrl
+    w.document.write(buildDocHtml(title, company, bodyHtml, true))
     w.document.close()
 }
 
@@ -608,47 +618,59 @@ li{margin-bottom:1.5pt!important;line-height:1.3!important;font-size:9pt!importa
 }
 
 // ── MPTA ───────────────────────────────────────────────────────────────────
-async function generateMPTA() {
-    const clientName = val('f_client_name'); if (!clientName) { showToast('Client company name is required', 'error'); return }
-    const candName   = val('f_cand_name');   if (!candName)   { showToast('Candidate name is required', 'error'); return }
-    const endClient  = val('f_end_client');  if (!endClient)  { showToast('End client / deployment company is required', 'error'); return }
-
-    const date         = val('f_date')
-    const clientAddr   = val('f_client_addr')   || '_____________________________________________'
-    const clientSigner = val('f_client_signer') || '___________________'
-    const clientTitle  = val('f_client_title')  || '___________________'
-    const start        = val('f_start')
-    const rate         = val('f_rate') || '___'
-    const ourSigner    = val('f_our_signer')    || '___________________'
-    const ourTitle     = val('f_our_title')     || 'Managing Director'
-
-    await openPrintWindow(`MPTA — ${candName}`, `
+function mptaBodyHtml(v) {
+    const coName = v.co?.name || CO.name
+    const coAddr = v.co?.address || CO.address
+    const clientName   = esc(v.clientName)
+    const candName     = esc(v.candName)
+    const endClient    = esc(v.endClient)
+    const clientAddr   = esc(v.clientAddr   || '_____________________________________________')
+    const clientSigner = esc(v.clientSigner || '___________________')
+    const clientTitle  = esc(v.clientTitle  || '___________________')
+    const rate         = esc(v.rate || '___')
+    const ourSigner    = esc(v.ourSigner    || '___________________')
+    const ourTitle     = esc(v.ourTitle     || 'Managing Director')
+    return `
 <style>@page{margin:0.4in 0.75in;} .doc-header{margin-bottom:8pt!important;padding-bottom:5pt!important;align-items:center!important;} .doc-header img{height:160px!important;width:160px!important;object-fit:contain!important;align-self:flex-end!important;} .doc-header-info{font-size:9pt!important;line-height:1.5!important;} h1{font-size:13pt!important;margin-bottom:5pt!important;} p{font-size:10pt!important;margin-bottom:4pt!important;line-height:1.35!important;} table.sig{margin-top:10pt!important;} table.sig td{padding:2pt 8pt 2pt 0!important;} .sig-line{height:16pt!important;margin-bottom:2pt!important;} .sig-block{margin-top:0!important;} .sig-label{font-size:8.5pt!important;}</style>
 <h1>Mutual Pass Through Agreement</h1>
-<p>This PASS THROUGH AGREEMENT ("Agreement") is made this ${fmtDate(date)} between
-<strong>${esc(clientName)}</strong> ("Client"), a corporation with its principal place of business at ${esc(clientAddr)},
-and <strong>${CO.name}</strong> ("Vendor"), a Wyoming LLC with its principal place of business at ${CO.address}
+<p>This PASS THROUGH AGREEMENT ("Agreement") is made this ${fmtDate(v.date)} between
+<strong>${clientName}</strong> ("Client"), a corporation with its principal place of business at ${clientAddr},
+and <strong>${esc(coName)}</strong> ("Vendor"), a Wyoming LLC with its principal place of business at ${esc(coAddr)}
 (hereinafter "VENDOR"). In consideration of the mutual promises and covenants in this Agreement, the parties agree as follows, intending to be legally bound.</p>
 
-<p><strong>${esc(candName)}</strong> ("CANDIDATE") is being deployed at <strong>${esc(endClient)}</strong> through <strong>${esc(clientName)}</strong>. Now <strong>${esc(clientName)}</strong> desires to deal directly with <strong>${CO.name}</strong>. <strong>${CO.name}</strong> agrees to this arrangement for the following consideration:</p>
+<p><strong>${candName}</strong> ("CANDIDATE") is being deployed at <strong>${endClient}</strong> through <strong>${clientName}</strong>. Now <strong>${clientName}</strong> desires to deal directly with <strong>${esc(coName)}</strong>. <strong>${esc(coName)}</strong> agrees to this arrangement for the following consideration:</p>
 
-<p>1. <strong>${CO.name}</strong> shall bill <strong>${esc(clientName)}</strong> at the rate of <strong>$${esc(rate)}/hr</strong> for the services provided by <strong>${esc(candName)}</strong> from the date of joining, i.e., ${fmtDate(start)}, and payment will be made within one (1) week after payment is received from Client (<strong>${esc(endClient)}</strong>).</p>
+<p>1. <strong>${esc(coName)}</strong> shall bill <strong>${clientName}</strong> at the rate of <strong>$${rate}/hr</strong> for the services provided by <strong>${candName}</strong> from the date of joining, i.e., ${fmtDate(v.start)}, and payment will be made within one (1) week after payment is received from Client (<strong>${endClient}</strong>).</p>
 
-<p>2. <strong>${esc(clientName)}</strong> and <strong>${CO.name}</strong> agree not to directly or indirectly offer employment to, or to independently contract with, or to refer to an outside agency or business, any consultants introduced to each other for the period of (a) or (b) as mentioned below, whichever is later: (a) one (1) year from the date of introduction; (b) one (1) year from the last day of services provided by the introduced consultants on projects resulting from such introduction.</p>
+<p>2. <strong>${clientName}</strong> and <strong>${esc(coName)}</strong> agree not to directly or indirectly offer employment to, or to independently contract with, or to refer to an outside agency or business, any consultants introduced to each other for the period of (a) or (b) as mentioned below, whichever is later: (a) one (1) year from the date of introduction; (b) one (1) year from the last day of services provided by the introduced consultants on projects resulting from such introduction.</p>
 
 <p>3. This Agreement shall be governed by the laws of the State of Wyoming.</p>
 
 <table class="sig">
     <tr>
-        <td><strong>${esc(clientName)}</strong><div class="sig-block"><div class="sig-line"></div><div class="sig-label">Sign</div></div><div class="sig-block"><div class="sig-line"></div><div class="sig-label">Name: ${esc(clientSigner)}</div></div><div class="sig-block"><div class="sig-line"></div><div class="sig-label">Title: ${esc(clientTitle)}</div></div><div class="sig-block"><div class="sig-line"></div><div class="sig-label">Date</div></div></td>
-        <td><strong>${CO.name}</strong><div class="sig-block"><div class="sig-line"></div><div class="sig-label">Sign</div></div><div class="sig-block"><div class="sig-line"></div><div class="sig-label">Name: ${esc(ourSigner)}</div></div><div class="sig-block"><div class="sig-line"></div><div class="sig-label">Title: ${esc(ourTitle)}</div></div><div class="sig-block"><div class="sig-line"></div><div class="sig-label">Date</div></div></td>
+        <td><strong>${clientName}</strong><div class="sig-block"><div class="sig-line"></div><div class="sig-label">Sign</div></div><div class="sig-block"><div class="sig-line"></div><div class="sig-label">Name: ${clientSigner}</div></div><div class="sig-block"><div class="sig-line"></div><div class="sig-label">Title: ${clientTitle}</div></div><div class="sig-block"><div class="sig-line"></div><div class="sig-label">Date</div></div></td>
+        <td><strong>${esc(coName)}</strong><div class="sig-block"><div class="sig-line"></div><div class="sig-label">Sign</div></div><div class="sig-block"><div class="sig-line"></div><div class="sig-label">Name: ${ourSigner}</div></div><div class="sig-block"><div class="sig-line"></div><div class="sig-label">Title: ${ourTitle}</div></div><div class="sig-block"><div class="sig-line"></div><div class="sig-label">Date</div></div></td>
     </tr>
 </table>
-`)
+`
+}
+
+async function generateMPTA() {
+    const clientName = val('f_client_name'); if (!clientName) { showToast('Client company name is required', 'error'); return }
+    const candName   = val('f_cand_name');   if (!candName)   { showToast('Candidate name is required', 'error'); return }
+    const endClient  = val('f_end_client');  if (!endClient)  { showToast('End client / deployment company is required', 'error'); return }
+    const v = {
+        clientName, candName, endClient,
+        date: val('f_date'), clientAddr: val('f_client_addr'), clientSigner: val('f_client_signer'),
+        clientTitle: val('f_client_title'), start: val('f_start'), rate: val('f_rate'),
+        ourSigner: val('f_our_signer'), ourTitle: val('f_our_title'), co: defaultCo()
+    }
+    await openPrintWindow(`MPTA — ${candName}`, mptaBodyHtml(v))
 }
 
 // ── Direct Deposit Agreement ───────────────────────────────────────────────
 function ddaBodyHtml(v) {
+    const coName = esc(v.co?.name || CO.name)
     const row = (label, value) =>
         `<tr><td style="padding:2pt 8pt 2pt 10pt;vertical-align:top;white-space:nowrap;font-size:9.5pt;">${label}</td><td style="padding:2pt 4pt;font-size:9.5pt;">:</td><td style="padding:2pt 0;border-bottom:1px solid #aaa;width:100%;font-size:9.5pt;">${value}</td></tr>`
     const sigRow = (label, value) =>
@@ -656,7 +678,7 @@ function ddaBodyHtml(v) {
     return `
 <style>@page{margin:0.5in 0.75in;} .doc-header{margin-bottom:10pt!important;padding-bottom:6pt!important;align-items:center!important;} .doc-header img{height:130px!important;width:130px!important;object-fit:contain!important;align-self:flex-end!important;} .doc-header-info{font-size:9pt!important;line-height:1.6!important;}</style>
 <h1 style="text-align:center;font-size:11.5pt;font-weight:bold;margin-bottom:6pt;text-decoration:underline;">DIRECT DEPOSIT AGREEMENT FORM</h1>
-<p style="font-size:9.5pt;margin-bottom:5pt;line-height:1.35;">I/We, hereby authorize <strong>${CO.name}</strong> (Company) to directly initiate credit entries to the account of its Vendor having a bank account with the Financial Institution indicated below.</p>
+<p style="font-size:9.5pt;margin-bottom:5pt;line-height:1.35;">I/We, hereby authorize <strong>${coName}</strong> (Company) to directly initiate credit entries to the account of its Vendor having a bank account with the Financial Institution indicated below.</p>
 
 <p style="margin:6pt 0 2pt;font-size:10pt;"><strong>VENDOR DETAILS:</strong></p>
 <table style="width:100%;border-collapse:collapse;margin-bottom:5pt;">
@@ -675,9 +697,9 @@ function ddaBodyHtml(v) {
     ${row('SWIFT code', v.swift)}
 </table>
 
-<p style="font-size:9pt;line-height:1.35;margin-bottom:4pt;"><em><strong><u>Erroneous Deposits and Debit entries</u></strong> – If ${CO.name} claims a refund against erroneous deposits into my/our bank account, prompt response and cooperation is required until the claim is settled through appropriate evidence or correcting entries. Such debit entries shall not exceed the original amount credited. Failure to respond within 10 days authorizes ${CO.name} to initiate the necessary correcting entries.</em></p>
+<p style="font-size:9pt;line-height:1.35;margin-bottom:4pt;"><em><strong><u>Erroneous Deposits and Debit entries</u></strong> – If ${coName} claims a refund against erroneous deposits into my/our bank account, prompt response and cooperation is required until the claim is settled through appropriate evidence or correcting entries. Such debit entries shall not exceed the original amount credited. Failure to respond within 10 days authorizes ${coName} to initiate the necessary correcting entries.</em></p>
 
-<p style="font-size:9pt;line-height:1.35;margin-bottom:6pt;">This authorization remains in full force and effect until ${CO.name} and the Bank receive written notice of its termination with reasonable time to act. I/We understand this authorization covers deposit or adjustment of funds for services rendered.</p>
+<p style="font-size:9pt;line-height:1.35;margin-bottom:6pt;">This authorization remains in full force and effect until ${coName} and the Bank receive written notice of its termination with reasonable time to act. I/We understand this authorization covers deposit or adjustment of funds for services rendered.</p>
 
 <table style="width:100%;border-collapse:collapse;margin-top:8pt;">
     ${sigRow('Signature', '')}
@@ -976,12 +998,113 @@ function closePanel() {
     document.getElementById('dtOverlay').classList.remove('is-open')
 }
 
+// ── Two-pane editor (MPTA & Direct Deposit): company picker + live preview ──
+
+let companiesList = []
+let editorKey = null
+let editorCoLogo = ''
+
+function setVal(id, v) { const el = document.getElementById(id); if (el) el.value = v }
+
+// The chosen "from" company from the editable block.
+function companyFromBlock() {
+    return {
+        name: val('f_co_name') || CO.name,
+        address: val('f_co_address') || CO.address,
+        email: val('f_co_email') || CO.email,
+        logo: editorCoLogo || appLogoDataUrl
+    }
+}
+
+function companyPickerBlock() {
+    const opts = ['<option value="">— Renown360 (default) —</option>',
+        ...companiesList.map(c => `<option value="${esc(c.id)}">${esc(c.name)}</option>`)].join('')
+    return `
+        <div class="dt-section">
+            <div class="dt-section-label">Your Company (From)</div>
+            <div class="dt-field">
+                <label>Use a saved company</label>
+                <select id="f_co_pick">${opts}</select>
+            </div>
+            <div class="dt-field"><label>Company Name</label><input type="text" id="f_co_name" value="${esc(CO.name)}"></div>
+            <div class="dt-field"><label>Address</label><input type="text" id="f_co_address" value="${esc(CO.address)}"></div>
+            <div class="dt-field"><label>Email</label><input type="text" id="f_co_email" value="${esc(CO.email)}"></div>
+        </div>`
+}
+
+function editorValues(key) {
+    if (key === 'mpta') {
+        return {
+            clientName: val('f_client_name'), candName: val('f_cand_name'), endClient: val('f_end_client'),
+            date: val('f_date'), clientAddr: val('f_client_addr'), clientSigner: val('f_client_signer'),
+            clientTitle: val('f_client_title'), start: val('f_start'), rate: val('f_rate'),
+            ourSigner: val('f_our_signer'), ourTitle: val('f_our_title')
+        }
+    }
+    const vendorName = val('f_vendor_name')
+    return {
+        vendorName,
+        vendorEIN: val('f_vendor_ein') || '_______________',
+        vendorAddr: val('f_vendor_addr') || '_______________________________________________',
+        acctName: val('f_acct_name') || vendorName || '',
+        bankName: val('f_bank_name'),
+        acctType: val('f_acct_type') || 'Checking',
+        account: val('f_account'),
+        routing: val('f_routing'),
+        swift: val('f_swift') || '_______________',
+        signer: val('f_signer') || '',
+        email: val('f_email') || '',
+        date: fmtDate(val('f_date'))
+    }
+}
+
+function renderEditorPreview() {
+    if (!editorKey) return
+    const co = companyFromBlock()
+    const v = editorValues(editorKey); v.co = co
+    const body = editorKey === 'mpta' ? mptaBodyHtml(v) : ddaBodyHtml(v)
+    const iframe = document.getElementById('dtPreview')
+    if (iframe) iframe.srcdoc = buildDocHtml(PANELS[editorKey].title, co, body, false)
+}
+
+function applyCompanyPick(id) {
+    const c = companiesList.find(x => String(x.id) === id)
+    if (c) {
+        setVal('f_co_name', c.name || ''); setVal('f_co_address', c.address || ''); setVal('f_co_email', c.email || '')
+        editorCoLogo = c.logo || ''
+    } else {
+        setVal('f_co_name', CO.name); setVal('f_co_address', CO.address); setVal('f_co_email', CO.email)
+        editorCoLogo = appLogoDataUrl
+    }
+}
+
+window.openEditor = function(key) {
+    if (!PANELS[key]) return
+    editorKey = key
+    editorCoLogo = appLogoDataUrl
+    document.getElementById('dtEditorFormBody').innerHTML = companyPickerBlock() + PANELS[key].html()
+    document.getElementById('dtEditorTitle').textContent = PANELS[key].title
+    document.getElementById('dtGrid').hidden = true
+    document.getElementById('dtEditor').hidden = false
+    window.scrollTo(0, 0)
+    renderEditorPreview()
+}
+
+function closeEditor() {
+    editorKey = null
+    document.getElementById('dtEditor').hidden = true
+    document.getElementById('dtGrid').hidden = false
+}
+
 // ── Init ──────────────────────────────────────────────────────────────────
 
 async function init() {
     await loadLayout('doc-templates')
     const user = await getCurrentUser()
     if (!user) { window.location.href = 'login.html'; return }
+
+    appLogoDataUrl = await getLogoDataUrl()
+    try { companiesList = await dbGetCompanies() } catch (_) { companiesList = [] }
 
     document.getElementById('dtClose').addEventListener('click', closePanel)
     document.getElementById('dtCancel').addEventListener('click', closePanel)
@@ -990,6 +1113,25 @@ async function init() {
     document.getElementById('dtGenerate').addEventListener('click', async () => {
         if (!currentKey || !PANELS[currentKey]) return
         await PANELS[currentKey].generate()
+    })
+
+    // Editor wiring (live preview + company picker + download).
+    const formBody = document.getElementById('dtEditorFormBody')
+    formBody.addEventListener('input', renderEditorPreview)
+    formBody.addEventListener('change', (e) => {
+        if (e.target.id === 'f_co_pick') applyCompanyPick(e.target.value)
+        renderEditorPreview()
+    })
+    document.getElementById('dtEditorBack').addEventListener('click', closeEditor)
+    document.getElementById('dtEditorDownload').addEventListener('click', () => {
+        if (!editorKey) return
+        const co = companyFromBlock()
+        const v = editorValues(editorKey); v.co = co
+        const body = editorKey === 'mpta' ? mptaBodyHtml(v) : ddaBodyHtml(v)
+        const title = editorKey === 'mpta'
+            ? `MPTA — ${v.candName || 'Document'}`
+            : `Direct Deposit Agreement — ${v.vendorName || 'Vendor'}`
+        openPrintWindow(title, body, co)
     })
 }
 
