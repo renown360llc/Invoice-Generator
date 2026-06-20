@@ -217,7 +217,7 @@ const PANELS = {
         sub: 'Referral / Candidate Fee Agreement',
         html: () => `
             <div class="dt-info-box">
-                Used when you refer a candidate and receive a referral fee. Enter the client company (who pays you) and the candidate details.
+                Used when another company refers you a candidate and you pay them a pass-through fee. Your company (the header / "Client") is billed by the other company (the "Vendor").
             </div>
             <div class="dt-section">
                 <div class="dt-section-label">Agreement Details</div>
@@ -227,22 +227,22 @@ const PANELS = {
                 </div>
             </div>
             <div class="dt-section">
-                <div class="dt-section-label">Client / Paying Company</div>
+                <div class="dt-section-label">Vendor / Other Company (bills you)</div>
                 <div class="dt-field">
-                    <label>Client Company Name *</label>
+                    <label>Vendor Company Name *</label>
                     <input type="text" id="f_client_name" placeholder="e.g. Nityo Infotech Corp.">
                 </div>
                 <div class="dt-field">
-                    <label>Client Address</label>
+                    <label>Vendor Address</label>
                     <input type="text" id="f_client_addr" placeholder="e.g. 666 Plainsboro Road, Suite 1335, Plainsboro, NJ 08536">
                 </div>
                 <div class="dt-field--row">
                     <div class="dt-field">
-                        <label>Client Signatory Name</label>
+                        <label>Vendor Signatory Name</label>
                         <input type="text" id="f_client_signer" placeholder="Their representative">
                     </div>
                     <div class="dt-field">
-                        <label>Client Signatory Title</label>
+                        <label>Vendor Signatory Title</label>
                         <input type="text" id="f_client_title" placeholder="e.g. GM – Legal & Compliance">
                     </div>
                 </div>
@@ -634,13 +634,13 @@ function mptaBodyHtml(v) {
 <style>@page{margin:0.4in 0.75in;} .doc-header{margin-bottom:8pt!important;padding-bottom:5pt!important;align-items:center!important;} .doc-header img{height:160px!important;width:160px!important;object-fit:contain!important;align-self:flex-end!important;} .doc-header-info{font-size:9pt!important;line-height:1.5!important;} h1{font-size:13pt!important;margin-bottom:5pt!important;} p{font-size:10pt!important;margin-bottom:4pt!important;line-height:1.35!important;} table.sig{margin-top:10pt!important;} table.sig td{padding:2pt 8pt 2pt 0!important;} .sig-line{height:16pt!important;margin-bottom:2pt!important;} .sig-block{margin-top:0!important;} .sig-label{font-size:8.5pt!important;}</style>
 <h1>Mutual Pass Through Agreement</h1>
 <p>This PASS THROUGH AGREEMENT ("Agreement") is made this ${fmtDate(v.date)} between
-<strong>${clientName}</strong> ("Client"), a corporation with its principal place of business at ${clientAddr},
-and <strong>${esc(coName)}</strong> ("Vendor"), a Wyoming LLC with its principal place of business at ${esc(coAddr)}
+<strong>${esc(coName)}</strong> ("Client"), a Wyoming LLC with its principal place of business at ${esc(coAddr)},
+and <strong>${clientName}</strong> ("Vendor"), a corporation with its principal place of business at ${clientAddr}
 (hereinafter "VENDOR"). In consideration of the mutual promises and covenants in this Agreement, the parties agree as follows, intending to be legally bound.</p>
 
-<p><strong>${candName}</strong> ("CANDIDATE") is being deployed at <strong>${endClient}</strong> through <strong>${clientName}</strong>. Now <strong>${clientName}</strong> desires to deal directly with <strong>${esc(coName)}</strong>. <strong>${esc(coName)}</strong> agrees to this arrangement for the following consideration:</p>
+<p><strong>${candName}</strong> ("CANDIDATE") is being deployed at <strong>${endClient}</strong> through <strong>${esc(coName)}</strong>. Now <strong>${esc(coName)}</strong> desires to deal directly with <strong>${clientName}</strong>. <strong>${clientName}</strong> agrees to this arrangement for the following consideration:</p>
 
-<p>1. <strong>${esc(coName)}</strong> shall bill <strong>${clientName}</strong> at the rate of <strong>$${rate}/hr</strong> for the services provided by <strong>${candName}</strong> from the date of joining, i.e., ${fmtDate(v.start)}, and payment will be made within one (1) week after payment is received from Client (<strong>${endClient}</strong>).</p>
+<p>1. <strong>${clientName}</strong> shall bill <strong>${esc(coName)}</strong> at the rate of <strong>$${rate}/hr</strong> for the services provided by <strong>${candName}</strong> from the date of joining, i.e., ${fmtDate(v.start)}, and payment will be made within one (1) week after payment is received from the end client (<strong>${endClient}</strong>).</p>
 
 <p>2. <strong>${clientName}</strong> and <strong>${esc(coName)}</strong> agree not to directly or indirectly offer employment to, or to independently contract with, or to refer to an outside agency or business, any consultants introduced to each other for the period of (a) or (b) as mentioned below, whichever is later: (a) one (1) year from the date of introduction; (b) one (1) year from the last day of services provided by the introduced consultants on projects resulting from such introduction.</p>
 
@@ -648,8 +648,8 @@ and <strong>${esc(coName)}</strong> ("Vendor"), a Wyoming LLC with its principal
 
 <table class="sig">
     <tr>
-        <td><strong>${clientName}</strong><div class="sig-block"><div class="sig-line"></div><div class="sig-label">Sign</div></div><div class="sig-block"><div class="sig-line"></div><div class="sig-label">Name: ${clientSigner}</div></div><div class="sig-block"><div class="sig-line"></div><div class="sig-label">Title: ${clientTitle}</div></div><div class="sig-block"><div class="sig-line"></div><div class="sig-label">Date</div></div></td>
-        <td><strong>${esc(coName)}</strong><div class="sig-block"><div class="sig-line"></div><div class="sig-label">Sign</div></div><div class="sig-block"><div class="sig-line"></div><div class="sig-label">Name: ${ourSigner}</div></div><div class="sig-block"><div class="sig-line"></div><div class="sig-label">Title: ${ourTitle}</div></div><div class="sig-block"><div class="sig-line"></div><div class="sig-label">Date</div></div></td>
+        <td><strong>${esc(coName)}</strong> ("Client")<div class="sig-block"><div class="sig-line"></div><div class="sig-label">Sign</div></div><div class="sig-block"><div class="sig-line"></div><div class="sig-label">Name: ${ourSigner}</div></div><div class="sig-block"><div class="sig-line"></div><div class="sig-label">Title: ${ourTitle}</div></div><div class="sig-block"><div class="sig-line"></div><div class="sig-label">Date</div></div></td>
+        <td><strong>${clientName}</strong> ("Vendor")<div class="sig-block"><div class="sig-line"></div><div class="sig-label">Sign</div></div><div class="sig-block"><div class="sig-line"></div><div class="sig-label">Name: ${clientSigner}</div></div><div class="sig-block"><div class="sig-line"></div><div class="sig-label">Title: ${clientTitle}</div></div><div class="sig-block"><div class="sig-line"></div><div class="sig-label">Date</div></div></td>
     </tr>
 </table>
 `
