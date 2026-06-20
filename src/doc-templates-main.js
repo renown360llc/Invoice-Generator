@@ -730,7 +730,7 @@ async function generateMPTA() {
 function ddaBodyHtml(v) {
     const coName = esc(v.co?.name || CO.name)
     const row = (label, value) =>
-        `<tr><td style="padding:2pt 8pt 2pt 10pt;vertical-align:top;white-space:nowrap;font-size:9.5pt;">${label}</td><td style="padding:2pt 4pt;font-size:9.5pt;">:</td><td style="padding:2pt 0;border-bottom:1px solid #aaa;width:100%;font-size:9.5pt;">${value}</td></tr>`
+        `<tr><td style="padding:3pt 8pt 3pt 10pt;vertical-align:bottom;white-space:nowrap;font-size:9.5pt;">${label}</td><td style="padding:3pt 4pt;vertical-align:bottom;font-size:9.5pt;">:</td><td style="padding:3pt 0;border-bottom:1px solid #aaa;width:100%;font-size:9.5pt;vertical-align:bottom;">${value || '&nbsp;'}</td></tr>`
     const sigRow = (label, value) =>
         `<tr><td style="padding:4pt 0;font-weight:bold;color:#c0392b;font-size:10pt;width:15%;">${label}</td><td style="padding:4pt 6pt;font-size:10pt;">:</td><td style="padding:4pt 0;border-bottom:1px solid #000;width:55%;font-size:10pt;">${value}&nbsp;</td><td style="width:30%;"></td></tr>`
     return `
@@ -775,14 +775,14 @@ async function generateDDA() {
 
     const v = {
         vendorName,
-        vendorEIN:  val('f_vendor_ein')  || '_______________',
-        vendorAddr: val('f_vendor_addr') || '_______________________________________________',
+        vendorEIN:  val('f_vendor_ein'),
+        vendorAddr: val('f_vendor_addr'),
         acctName:   val('f_acct_name')   || vendorName,
         bankName,
         acctType:   val('f_acct_type')   || 'Checking',
         account,
         routing,
-        swift:      val('f_swift')       || '_______________',
+        swift:      val('f_swift'),
         signer:     val('f_signer')      || '',
         email:      val('f_email')       || '',
         date:       fmtDate(val('f_date')),
@@ -1102,14 +1102,14 @@ function editorValues(key) {
     const vendorName = val('f_vendor_name')
     return {
         vendorName,
-        vendorEIN: val('f_vendor_ein') || '_______________',
-        vendorAddr: val('f_vendor_addr') || '_______________________________________________',
+        vendorEIN: val('f_vendor_ein'),
+        vendorAddr: val('f_vendor_addr'),
         acctName: val('f_acct_name') || vendorName || '',
         bankName: val('f_bank_name'),
         acctType: val('f_acct_type') || 'Checking',
         account: val('f_account'),
         routing: val('f_routing'),
-        swift: val('f_swift') || '_______________',
+        swift: val('f_swift'),
         signer: val('f_signer') || '',
         email: val('f_email') || '',
         date: fmtDate(val('f_date'))
