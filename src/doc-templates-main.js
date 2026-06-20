@@ -2,6 +2,8 @@ import './modules/searchable-select.js';
 import { getCurrentUser } from './auth.js'
 import { loadLayout } from './components/layout.js'
 import { dbGetCompanies } from './modules/db-companies.js'
+import { jsPDF } from 'jspdf'
+import html2canvas from 'html2canvas'
 
 // ── Company constants ──────────────────────────────────────────────────────
 const CO = {
@@ -434,6 +436,47 @@ async function openPrintWindow(title, bodyHtml, co) {
     if (!company.logo) company.logo = appLogoDataUrl
     w.document.write(buildDocHtml(title, company, bodyHtml, true))
     w.document.close()
+}
+
+// Render the document to a real PDF file and download it (no print dialog).
+// Falls back to the print window if rendering fails.
+async function downloadDocPdf(filename, co, bodyHtml) {
+    if (!appLogoDataUrl) appLogoDataUrl = await getLogoDataUrl()
+    const company = co || defaultCo()
+    if (!company.logo) company.logo = appLogoDataUrl
+
+    const holder = document.createElement('div')
+    holder.style.cssText = 'position:fixed;left:-99999px;top:0;width:794px;background:#fff;'
+    holder.innerHTML = `<style>${PRINT_CSS} body{padding:0!important;}</style><div style="padding:48px 56px;">${docHeaderHtml(company)}${bodyHtml}</div>`
+    document.body.appendChild(holder)
+
+    try {
+        const canvas = await html2canvas(holder, { scale: 2, backgroundColor: '#ffffff', useCORS: true })
+        const pdf = new jsPDF({ unit: 'pt', format: 'a4', compress: true })
+        const pageW = pdf.internal.pageSize.getWidth()
+        const pageH = pdf.internal.pageSize.getHeight()
+        const imgH = canvas.height * (pageW / canvas.width)
+        const imgData = canvas.toDataURL('image/jpeg', 0.95)
+
+        let heightLeft = imgH
+        let position = 0
+        pdf.addImage(imgData, 'JPEG', 0, position, pageW, imgH)
+        heightLeft -= pageH
+        while (heightLeft > 0) {
+            position -= pageH
+            pdf.addPage()
+            pdf.addImage(imgData, 'JPEG', 0, position, pageW, imgH)
+            heightLeft -= pageH
+        }
+        pdf.save(`${String(filename).replace(/[^\w.-]+/g, '_')}.pdf`)
+        showToast('PDF downloaded', 'success')
+    } catch (err) {
+        console.error('PDF generation failed:', err)
+        showToast('Could not build PDF — opening print view instead', 'error')
+        openPrintWindow(filename, bodyHtml, company)
+    } finally {
+        holder.remove()
+    }
 }
 
 function fmtDate(iso) {
@@ -1145,7 +1188,7 @@ async function init() {
         const title = editorKey === 'mpta'
             ? `MPTA — ${v.candName || 'Document'}`
             : `Direct Deposit Agreement — ${v.vendorName || 'Vendor'}`
-        openPrintWindow(title, body, co)
+        downloadDocPdf(title, co, body)
     })
 }
 
