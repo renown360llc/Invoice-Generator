@@ -332,6 +332,7 @@ const PANELS = {
                 <div class="dt-field">
                     <label>Account Type</label>
                     <select id="f_acct_type">
+                        <option value="">— Vendor fills this —</option>
                         <option value="Checking">Checking</option>
                         <option value="Savings">Savings</option>
                     </select>
@@ -779,7 +780,7 @@ async function generateDDA() {
         vendorAddr: val('f_vendor_addr'),
         acctName:   val('f_acct_name')   || vendorName,
         bankName,
-        acctType:   val('f_acct_type')   || 'Checking',
+        acctType:   val('f_acct_type'),
         account,
         routing,
         swift:      val('f_swift'),
@@ -1106,7 +1107,7 @@ function editorValues(key) {
         vendorAddr: val('f_vendor_addr'),
         acctName: val('f_acct_name') || vendorName || '',
         bankName: val('f_bank_name'),
-        acctType: val('f_acct_type') || 'Checking',
+        acctType: val('f_acct_type'),
         account: val('f_account'),
         routing: val('f_routing'),
         swift: val('f_swift'),
