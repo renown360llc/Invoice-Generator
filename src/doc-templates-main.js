@@ -625,10 +625,10 @@ function mptaBodyHtml(v) {
     const candName     = esc(v.candName)
     const endClient    = esc(v.endClient)
     const clientAddr   = esc(v.clientAddr   || '_____________________________________________')
-    const clientSigner = esc(v.clientSigner || '___________________')
-    const clientTitle  = esc(v.clientTitle  || '___________________')
+    const clientSigner = esc(v.clientSigner || '')
+    const clientTitle  = esc(v.clientTitle  || '')
     const rate         = esc(v.rate || '___')
-    const ourSigner    = esc(v.ourSigner    || '___________________')
+    const ourSigner    = esc(v.ourSigner    || '')
     const ourTitle     = esc(v.ourTitle     || 'Managing Director')
     return `
 <style>@page{margin:0.4in 0.75in;} .doc-header{margin-bottom:8pt!important;padding-bottom:5pt!important;align-items:center!important;} .doc-header img{height:160px!important;width:160px!important;object-fit:contain!important;align-self:flex-end!important;} .doc-header-info{font-size:9pt!important;line-height:1.5!important;} h1{font-size:13pt!important;margin-bottom:5pt!important;} p{font-size:10pt!important;margin-bottom:4pt!important;line-height:1.35!important;} table.sig{margin-top:10pt!important;} table.sig td{padding:2pt 8pt 2pt 0!important;} .sig-line{height:16pt!important;margin-bottom:2pt!important;} .sig-block{margin-top:0!important;} .sig-label{font-size:8.5pt!important;}</style>
