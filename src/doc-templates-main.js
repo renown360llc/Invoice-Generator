@@ -1084,16 +1084,15 @@ window.openEditor = function(key) {
     editorCoLogo = appLogoDataUrl
     document.getElementById('dtEditorFormBody').innerHTML = companyPickerBlock() + PANELS[key].html()
     document.getElementById('dtEditorTitle').textContent = PANELS[key].title
-    document.getElementById('dtGrid').hidden = true
     document.getElementById('dtEditor').hidden = false
-    window.scrollTo(0, 0)
+    document.body.style.overflow = 'hidden'
     renderEditorPreview()
 }
 
 function closeEditor() {
     editorKey = null
     document.getElementById('dtEditor').hidden = true
-    document.getElementById('dtGrid').hidden = false
+    document.body.style.overflow = ''
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────

@@ -207,18 +207,24 @@
             .dt-field--row { grid-template-columns: 1fr; }
         }
 
-        /* ── Two-pane document editor ───────────────────── */
-        .dt-editor__bar { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 1rem; }
-        .dt-editor__title { font-weight: 700; font-size: 1rem; flex: 1; text-align: center; }
-        .dt-editor__grid { display: grid; grid-template-columns: minmax(300px, 400px) 1fr; gap: 1.25rem; align-items: start; }
-        .dt-editor__form { max-height: calc(100vh - 170px); overflow-y: auto; padding-right: 0.5rem; }
-        .dt-editor__preview { position: sticky; top: 1rem; }
-        .dt-editor__preview iframe { width: 100%; height: calc(100vh - 170px); border: 1px solid var(--surface-glass-border); border-radius: 10px; background: #fff; box-shadow: 0 6px 20px rgba(15,23,42,0.06); }
+        /* ── Two-pane document editor (full-screen modal) ─── */
+        .dt-editor:not([hidden]) {
+            position: fixed; inset: 0; z-index: 1000;
+            display: flex; flex-direction: column;
+            background: var(--surface-app, #f1f5f9);
+            padding: 1rem 1.5rem 1.25rem;
+        }
+        .dt-editor__bar { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding-bottom: 0.85rem; margin-bottom: 0.85rem; border-bottom: 1px solid var(--surface-glass-border); flex-shrink: 0; }
+        .dt-editor__title { font-weight: 700; font-size: 1.05rem; flex: 1; text-align: center; }
+        .dt-editor__grid { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(320px, 420px) 1fr; gap: 1.25rem; }
+        .dt-editor__form { overflow-y: auto; padding-right: 0.5rem; }
+        .dt-editor__preview { min-height: 0; }
+        .dt-editor__preview iframe { width: 100%; height: 100%; border: 1px solid var(--surface-glass-border); border-radius: 10px; background: #fff; box-shadow: 0 6px 20px rgba(15,23,42,0.06); }
         @media (max-width: 900px) {
-            .dt-editor__grid { grid-template-columns: 1fr; }
-            .dt-editor__form { max-height: none; overflow: visible; }
-            .dt-editor__preview { position: static; }
-            .dt-editor__preview iframe { height: 75vh; }
+            .dt-editor:not([hidden]) { padding: 0.75rem; }
+            .dt-editor__grid { grid-template-columns: 1fr; overflow-y: auto; }
+            .dt-editor__form { overflow: visible; }
+            .dt-editor__preview iframe { height: 70vh; min-height: 380px; }
         }
     </style>
 </head>
