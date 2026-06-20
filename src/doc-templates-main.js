@@ -630,6 +630,15 @@ function mptaBodyHtml(v) {
     const rate         = esc(v.rate || '___')
     const ourSigner    = esc(v.ourSigner    || '')
     const ourTitle     = esc(v.ourTitle     || 'Managing Director')
+    // A line only where it's signed by hand (signature + date); Name/Title are
+    // typed data, so they're plain filled text — no blank line above them.
+    const sigCell = (name, role, signer, title) => `
+        <td><strong>${name}</strong> ("${role}")
+            <div class="sig-block"><div class="sig-line"></div><div class="sig-label">Authorized Signature</div></div>
+            <div class="sig-label" style="margin-top:6pt;">Name: ${signer}</div>
+            <div class="sig-label" style="margin-bottom:6pt;">Title: ${title}</div>
+            <div class="sig-block"><div class="sig-line" style="width:60%;"></div><div class="sig-label">Date</div></div>
+        </td>`
     return `
 <style>@page{margin:0.4in 0.75in;} .doc-header{margin-bottom:8pt!important;padding-bottom:5pt!important;align-items:center!important;} .doc-header img{height:160px!important;width:160px!important;object-fit:contain!important;align-self:flex-end!important;} .doc-header-info{font-size:9pt!important;line-height:1.5!important;} h1{font-size:13pt!important;margin-bottom:5pt!important;} p{font-size:10pt!important;margin-bottom:4pt!important;line-height:1.35!important;} table.sig{margin-top:10pt!important;} table.sig td{padding:2pt 8pt 2pt 0!important;} .sig-line{height:16pt!important;margin-bottom:2pt!important;} .sig-block{margin-top:0!important;} .sig-label{font-size:8.5pt!important;}</style>
 <h1>Mutual Pass Through Agreement</h1>
@@ -648,8 +657,8 @@ and <strong>${clientName}</strong> ("Vendor"), a corporation with its principal 
 
 <table class="sig">
     <tr>
-        <td><strong>${esc(coName)}</strong> ("Client")<div class="sig-block"><div class="sig-line"></div><div class="sig-label">Sign</div></div><div class="sig-block"><div class="sig-line"></div><div class="sig-label">Name: ${ourSigner}</div></div><div class="sig-block"><div class="sig-line"></div><div class="sig-label">Title: ${ourTitle}</div></div><div class="sig-block"><div class="sig-line"></div><div class="sig-label">Date</div></div></td>
-        <td><strong>${clientName}</strong> ("Vendor")<div class="sig-block"><div class="sig-line"></div><div class="sig-label">Sign</div></div><div class="sig-block"><div class="sig-line"></div><div class="sig-label">Name: ${clientSigner}</div></div><div class="sig-block"><div class="sig-line"></div><div class="sig-label">Title: ${clientTitle}</div></div><div class="sig-block"><div class="sig-line"></div><div class="sig-label">Date</div></div></td>
+        ${sigCell(esc(coName), 'Client', ourSigner, ourTitle)}
+        ${sigCell(clientName, 'Vendor', clientSigner, clientTitle)}
     </tr>
 </table>
 `
