@@ -304,15 +304,9 @@ const PANELS = {
                     <label>Vendor Company Name *</label>
                     <input type="text" id="f_vendor_name" placeholder="e.g. Rang Technologies Inc.">
                 </div>
-                <div class="dt-field--row">
-                    <div class="dt-field">
-                        <label>Tax ID / EIN</label>
-                        <input type="text" id="f_vendor_ein" placeholder="e.g. 20-3763120">
-                    </div>
-                    <div class="dt-field">
-                        <label>Date</label>
-                        <input type="date" id="f_date" value="${todayISO()}">
-                    </div>
+                <div class="dt-field">
+                    <label>Tax ID / EIN</label>
+                    <input type="text" id="f_vendor_ein" placeholder="e.g. 20-3763120">
                 </div>
                 <div class="dt-field">
                     <label>Vendor Company Address</label>
@@ -764,7 +758,7 @@ function ddaBodyHtml(v) {
     ${sigRow('Signature', '')}
     ${sigRow('Name', v.signer)}
     ${sigRow('Email ID', v.email)}
-    ${sigRow('Date', v.date)}
+    ${sigRow('Date', '')}
 </table>`
 }
 
