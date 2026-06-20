@@ -635,8 +635,8 @@ function mptaBodyHtml(v) {
     const sigCell = (name, role, signer, title) => `
         <td><strong>${name}</strong> ("${role}")
             <div class="sig-block"><div class="sig-line"></div><div class="sig-label">Authorized Signature</div></div>
-            <div class="sig-label" style="margin-top:6pt;">Name: ${signer}</div>
-            <div class="sig-label" style="margin-bottom:6pt;">Title: ${title}</div>
+            <div class="sig-label" style="margin:8pt 0 6pt;">Name: ${signer}</div>
+            <div class="sig-label" style="margin:0 0 8pt;">Title: ${title}</div>
             <div class="sig-block"><div class="sig-line" style="width:60%;"></div><div class="sig-label">Date</div></div>
         </td>`
     return `
