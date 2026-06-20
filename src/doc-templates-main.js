@@ -257,13 +257,18 @@ const PANELS = {
                     <label>End Client (Deployment Company) *</label>
                     <input type="text" id="f_end_client" placeholder="e.g. Cognizant / Bank of America">
                 </div>
+                <div class="dt-field">
+                    <label>Start Date / Joining Date</label>
+                    <input type="date" id="f_start" value="${todayISO()}">
+                </div>
                 <div class="dt-field--row">
                     <div class="dt-field">
-                        <label>Start Date / Joining Date</label>
-                        <input type="date" id="f_start" value="${todayISO()}">
+                        <label>Currency</label>
+                        <input type="text" id="f_currency" list="dtCurrencyList" value="USD" placeholder="USD">
+                        <datalist id="dtCurrencyList"><option value="USD"></option><option value="CAD"></option></datalist>
                     </div>
                     <div class="dt-field">
-                        <label>Referral Fee Rate ($/hr)</label>
+                        <label>Referral Fee Rate (per hour)</label>
                         <input type="text" id="f_rate" placeholder="e.g. 7">
                     </div>
                 </div>
@@ -628,6 +633,7 @@ function mptaBodyHtml(v) {
     const clientSigner = esc(v.clientSigner || '')
     const clientTitle  = esc(v.clientTitle  || '')
     const rate         = esc(v.rate || '___')
+    const currency     = esc(v.currency || 'USD')
     const ourSigner    = esc(v.ourSigner    || '')
     const ourTitle     = esc(v.ourTitle     || 'Managing Director')
     // A line only where it's signed by hand (signature + date); Name/Title are
@@ -649,7 +655,7 @@ and <strong>${clientName}</strong> ("Vendor"), a corporation with its principal 
 
 <p><strong>${candName}</strong> ("CANDIDATE") is being deployed at <strong>${endClient}</strong> through <strong>${esc(coName)}</strong>. Now <strong>${esc(coName)}</strong> desires to deal directly with <strong>${clientName}</strong>. <strong>${clientName}</strong> agrees to this arrangement for the following consideration:</p>
 
-<p>1. <strong>${clientName}</strong> shall bill <strong>${esc(coName)}</strong> at the rate of <strong>$${rate}/hr</strong> for the services provided by <strong>${candName}</strong> from the date of joining, i.e., ${fmtDate(v.start)}, and payment will be made within one (1) week after payment is received from the end client (<strong>${endClient}</strong>).</p>
+<p>1. <strong>${clientName}</strong> shall bill <strong>${esc(coName)}</strong> at the rate of <strong>${currency} ${rate}/hr</strong> for the services provided by <strong>${candName}</strong> from the date of joining, i.e., ${fmtDate(v.start)}, and payment will be made within one (1) week after payment is received from the end client (<strong>${endClient}</strong>).</p>
 
 <p>2. <strong>${clientName}</strong> and <strong>${esc(coName)}</strong> agree not to directly or indirectly offer employment to, or to independently contract with, or to refer to an outside agency or business, any consultants introduced to each other for the period of (a) or (b) as mentioned below, whichever is later: (a) one (1) year from the date of introduction; (b) one (1) year from the last day of services provided by the introduced consultants on projects resulting from such introduction.</p>
 
@@ -671,7 +677,7 @@ async function generateMPTA() {
     const v = {
         clientName, candName, endClient,
         date: val('f_date'), clientAddr: val('f_client_addr'), clientSigner: val('f_client_signer'),
-        clientTitle: val('f_client_title'), start: val('f_start'), rate: val('f_rate'),
+        clientTitle: val('f_client_title'), start: val('f_start'), rate: val('f_rate'), currency: val('f_currency'),
         ourSigner: val('f_our_signer'), ourTitle: val('f_our_title'), co: defaultCo()
     }
     await openPrintWindow(`MPTA — ${candName}`, mptaBodyHtml(v))
@@ -1046,7 +1052,7 @@ function editorValues(key) {
         return {
             clientName: val('f_client_name'), candName: val('f_cand_name'), endClient: val('f_end_client'),
             date: val('f_date'), clientAddr: val('f_client_addr'), clientSigner: val('f_client_signer'),
-            clientTitle: val('f_client_title'), start: val('f_start'), rate: val('f_rate'),
+            clientTitle: val('f_client_title'), start: val('f_start'), rate: val('f_rate'), currency: val('f_currency'),
             ourSigner: val('f_our_signer'), ourTitle: val('f_our_title')
         }
     }
