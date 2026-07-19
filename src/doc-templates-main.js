@@ -367,7 +367,7 @@ const PRINT_CSS = `
     * { margin:0; padding:0; box-sizing:border-box; }
     body { font-family:'Times New Roman',Times,serif; font-size:11pt; color:#000; background:#fff; padding:0.75in 1in; }
     .doc-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:18pt; padding-bottom:10pt; border-bottom:2px solid #1a3a5c; }
-    .doc-header img { height:52px; width:52px; object-fit:contain; }
+    .doc-header img { display:block; flex-shrink:0; max-height:60px; max-width:160px; width:auto; height:auto; }
     .doc-header-info { text-align:right; font-size:8.5pt; color:#444; line-height:1.5; }
     .doc-header-info strong { font-size:10pt; color:#000; }
     h1 { font-size:14pt; font-weight:bold; text-align:center; margin-bottom:8pt; }
@@ -406,13 +406,33 @@ function defaultCo() {
     return { name: 'Renown360 LLC', address: CO.address, email: CO.email, logo: appLogoDataUrl }
 }
 
+// Pre-compute logo pixel dimensions so both the browser preview and
+// html2canvas render identically — same approach the invoices module uses.
+function resolveLogoDimensions(dataUrl) {
+    return new Promise(resolve => {
+        if (!dataUrl) { resolve({ w: 0, h: 0 }); return }
+        const img = new Image()
+        img.onload = () => {
+            const maxW = 160, maxH = 80
+            const scale = Math.min(maxW / img.naturalWidth, maxH / img.naturalHeight, 1)
+            resolve({ w: Math.round(img.naturalWidth * scale), h: Math.round(img.naturalHeight * scale) })
+        }
+        img.onerror = () => resolve({ w: 52, h: 52 })
+        img.src = dataUrl
+    })
+}
+
 function docHeaderHtml(co) {
     const addr = esc(co.address || '').replace(/\n/g, '<br>')
+    const logoTag = co.logo
+        ? `<img src="${co.logo}" alt="" width="${co.logoW || 52}" height="${co.logoH || 52}" style="width:${co.logoW || 52}px;height:${co.logoH || 52}px;display:block;">`
+        : '<div></div>'
     return `<div class="doc-header">
-        ${co.logo ? `<img src="${co.logo}" alt="">` : '<div></div>'}
+        ${logoTag}
         <div class="doc-header-info"><strong>${esc(co.name || '')}</strong><br>${addr}<br>${esc(co.email || '')}</div>
     </div>`
 }
+
 
 // One HTML string used for BOTH the live preview (iframe) and the print window,
 // so what you see is exactly what prints.
@@ -429,6 +449,10 @@ async function openPrintWindow(title, bodyHtml, co) {
     if (!appLogoDataUrl) appLogoDataUrl = await getLogoDataUrl()
     const company = co || defaultCo()
     if (!company.logo) company.logo = appLogoDataUrl
+    if (company.logo && !company.logoW) {
+        const dims = await resolveLogoDimensions(company.logo)
+        company.logoW = dims.w; company.logoH = dims.h
+    }
     w.document.write(buildDocHtml(title, company, bodyHtml, true))
     w.document.close()
 }
@@ -439,6 +463,13 @@ async function downloadDocPdf(filename, co, bodyHtml) {
     if (!appLogoDataUrl) appLogoDataUrl = await getLogoDataUrl()
     const company = co || defaultCo()
     if (!company.logo) company.logo = appLogoDataUrl
+
+    // Pre-compute logo dimensions so the <img> gets explicit width/height —
+    // html2canvas does not support object-fit or CSS-only max constraints.
+    if (company.logo && !company.logoW) {
+        const dims = await resolveLogoDimensions(company.logo)
+        company.logoW = dims.w; company.logoH = dims.h
+    }
 
     const holder = document.createElement('div')
     holder.style.cssText = 'position:fixed;left:-99999px;top:0;width:794px;background:#fff;'
@@ -473,6 +504,7 @@ async function downloadDocPdf(filename, co, bodyHtml) {
         holder.remove()
     }
 }
+
 
 function fmtDate(iso) {
     if (!iso) return '_______________'
@@ -622,8 +654,7 @@ async function generateSOW() {
     await openPrintWindow(`SOW — ${candName} — ${jobTitle}`, `
 <style>
 @page{margin:0.4in 0.75in;}
-.doc-header{margin-bottom:8pt!important;padding-bottom:5pt!important;align-items:center!important;}
-.doc-header img{height:130px!important;width:130px!important;object-fit:contain!important;align-self:flex-end!important;}
+.doc-header{margin-bottom:8pt!important;padding-bottom:5pt!important;}
 .doc-header-info{font-size:9pt!important;line-height:1.5!important;}
 h1{font-size:13pt!important;margin-bottom:5pt!important;}
 h2{font-size:10pt!important;margin:6pt 0 2pt!important;}
@@ -678,20 +709,20 @@ function mptaBodyHtml(v) {
     // typed data, so they're plain filled text — no blank line above them.
     const sigCell = (name, role, signer, title) => `
         <td><strong>${name}</strong> ("${role}")
-            <div class="sig-block"><div class="sig-line"></div><div class="sig-label">Authorized Signature</div></div>
-            <div class="sig-label" style="margin:8pt 0 6pt;">Name: ${signer}</div>
+            <div class="sig-label" style="margin:12pt 0 8pt;">Authorized Signature:</div>
+            <div class="sig-label" style="margin:0 0 8pt;">Name: ${signer}</div>
             <div class="sig-label" style="margin:0 0 8pt;">Title: ${title}</div>
-            <div class="sig-block"><div class="sig-line" style="width:60%;"></div><div class="sig-label">Date</div></div>
+            <div class="sig-label" style="margin:0;">Date:</div>
         </td>`
     return `
-<style>@page{margin:0.4in 0.75in;} .doc-header{margin-bottom:8pt!important;padding-bottom:5pt!important;align-items:center!important;} .doc-header img{height:160px!important;width:160px!important;object-fit:contain!important;align-self:flex-end!important;} .doc-header-info{font-size:9pt!important;line-height:1.5!important;} h1{font-size:13pt!important;margin-bottom:5pt!important;} p{font-size:10pt!important;margin-bottom:4pt!important;line-height:1.35!important;} table.sig{margin-top:10pt!important;} table.sig td{padding:2pt 8pt 2pt 0!important;} .sig-line{height:16pt!important;margin-bottom:2pt!important;} .sig-block{margin-top:0!important;} .sig-label{font-size:8.5pt!important;}</style>
+<style>@page{margin:0.4in 0.75in;} .doc-header{margin-bottom:8pt!important;padding-bottom:5pt!important;} .doc-header-info{font-size:9pt!important;line-height:1.5!important;} h1{font-size:13pt!important;margin-bottom:10pt!important;} p{font-size:10pt!important;margin-bottom:10pt!important;line-height:1.5!important;} table.sig{margin-top:10pt!important;} table.sig td{padding:2pt 8pt 2pt 0!important;} .sig-line{height:16pt!important;margin-bottom:2pt!important;} .sig-block{margin-top:0!important;} .sig-label{font-size:8.5pt!important;}</style>
 <h1>Mutual Pass Through Agreement</h1>
 <p>This PASS THROUGH AGREEMENT ("Agreement") is made this ${fmtDate(v.date)} between
 <strong>${esc(coName)}</strong> ("Client"), a Wyoming LLC with its principal place of business at ${esc(coAddr)},
 and <strong>${clientName}</strong> ("Vendor"), a corporation with its principal place of business at ${clientAddr}
 (hereinafter "VENDOR"). In consideration of the mutual promises and covenants in this Agreement, the parties agree as follows, intending to be legally bound.</p>
 
-<p><strong>${candName}</strong> ("CANDIDATE") is being deployed at <strong>${endClient}</strong> through <strong>${esc(coName)}</strong>. Now <strong>${esc(coName)}</strong> desires to deal directly with <strong>${clientName}</strong>. <strong>${clientName}</strong> agrees to this arrangement for the following consideration:</p>
+<p><strong>${candName}</strong> ("CANDIDATE") is being deployed at <strong>${endClient || 'End Client'}</strong> through <strong>"${esc(coName)}"</strong>. Now <strong>"${esc(coName)}"</strong> desires to engage directly with the Candidate's employer. <strong>"${clientName}"</strong> agrees to let <strong>"${esc(coName)}"</strong> deal with <strong>${candName}</strong> employer for the following consideration:-</p>
 
 <p>1. <strong>${clientName}</strong> shall bill <strong>${esc(coName)}</strong> at the rate of <strong>${currency} ${rate}/hr</strong> for the services provided by <strong>${candName}</strong> from the date of joining, i.e., ${fmtDate(v.start)}, and payment will be made within one (1) week after payment is received from the end client (<strong>${endClient}</strong>).</p>
 
@@ -729,7 +760,7 @@ function ddaBodyHtml(v) {
     const sigRow = (label, value) =>
         `<tr><td style="padding:4pt 0;font-weight:bold;color:#c0392b;font-size:10pt;width:15%;">${label}</td><td style="padding:4pt 6pt;font-size:10pt;">:</td><td style="padding:4pt 0;border-bottom:1px solid #000;width:55%;font-size:10pt;">${value}&nbsp;</td><td style="width:30%;"></td></tr>`
     return `
-<style>@page{margin:0.5in 0.75in;} .doc-header{margin-bottom:10pt!important;padding-bottom:6pt!important;align-items:center!important;} .doc-header img{height:130px!important;width:130px!important;object-fit:contain!important;align-self:flex-end!important;} .doc-header-info{font-size:9pt!important;line-height:1.6!important;}</style>
+<style>@page{margin:0.5in 0.75in;} .doc-header{margin-bottom:10pt!important;padding-bottom:6pt!important;} .doc-header-info{font-size:9pt!important;line-height:1.6!important;}</style>
 <h1 style="text-align:center;font-size:11.5pt;font-weight:bold;margin-bottom:6pt;text-decoration:underline;">DIRECT DEPOSIT AGREEMENT FORM</h1>
 <p style="font-size:9.5pt;margin-bottom:5pt;line-height:1.35;">I/We, hereby authorize <strong>${coName}</strong> (Company) to directly initiate credit entries to the account of its Vendor having a bank account with the Financial Institution indicated below.</p>
 
@@ -964,7 +995,8 @@ async function generateBlankDDA() {
 
 async function downloadAsWord(filename, bodyHtml) {
     const logoSrc = await getLogoDataUrl()
-    const logoTag = logoSrc ? `<img src="${logoSrc}" style="height:52px;width:52px;object-fit:contain;">` : ''
+    const dims = await resolveLogoDimensions(logoSrc)
+    const logoTag = logoSrc ? `<img src="${logoSrc}" style="width:${dims.w}px;height:${dims.h}px;display:block;" width="${dims.w}" height="${dims.h}">` : ''
     const html = `
         <html xmlns:o="urn:schemas-microsoft-com:office:office"
               xmlns:w="urn:schemas-microsoft-com:office:word"
@@ -1056,6 +1088,8 @@ function closePanel() {
 let companiesList = []
 let editorKey = null
 let editorCoLogo = ''
+let editorCoLogoW = 52
+let editorCoLogoH = 52
 
 function setVal(id, v) { const el = document.getElementById(id); if (el) el.value = v }
 
@@ -1065,7 +1099,9 @@ function companyFromBlock() {
         name: val('f_co_name') || CO.name,
         address: val('f_co_address') || CO.address,
         email: val('f_co_email') || CO.email,
-        logo: editorCoLogo || appLogoDataUrl
+        logo: editorCoLogo || appLogoDataUrl,
+        logoW: editorCoLogoW,
+        logoH: editorCoLogoH
     }
 }
 
@@ -1120,7 +1156,7 @@ function renderEditorPreview() {
     if (iframe) iframe.srcdoc = buildDocHtml(PANELS[editorKey].title, co, body, false)
 }
 
-function applyCompanyPick(id) {
+async function applyCompanyPick(id) {
     const c = companiesList.find(x => String(x.id) === id)
     if (c) {
         setVal('f_co_name', c.name || ''); setVal('f_co_address', c.address || ''); setVal('f_co_email', c.email || '')
@@ -1129,12 +1165,16 @@ function applyCompanyPick(id) {
         setVal('f_co_name', CO.name); setVal('f_co_address', CO.address); setVal('f_co_email', CO.email)
         editorCoLogo = appLogoDataUrl
     }
+    const dims = await resolveLogoDimensions(editorCoLogo)
+    editorCoLogoW = dims.w; editorCoLogoH = dims.h
 }
 
-window.openEditor = function(key) {
+window.openEditor = async function(key) {
     if (!PANELS[key]) return
     editorKey = key
     editorCoLogo = appLogoDataUrl
+    const dims = await resolveLogoDimensions(editorCoLogo)
+    editorCoLogoW = dims.w; editorCoLogoH = dims.h
     document.getElementById('dtEditorFormBody').innerHTML = companyPickerBlock() + PANELS[key].html()
     document.getElementById('dtEditorTitle').textContent = PANELS[key].title
     document.getElementById('dtEditor').hidden = false
@@ -1170,14 +1210,19 @@ async function init() {
     // Editor wiring (live preview + company picker + download).
     const formBody = document.getElementById('dtEditorFormBody')
     formBody.addEventListener('input', renderEditorPreview)
-    formBody.addEventListener('change', (e) => {
-        if (e.target.id === 'f_co_pick') applyCompanyPick(e.target.value)
+    formBody.addEventListener('change', async (e) => {
+        if (e.target.id === 'f_co_pick') await applyCompanyPick(e.target.value)
         renderEditorPreview()
     })
     document.getElementById('dtEditorBack').addEventListener('click', closeEditor)
-    document.getElementById('dtEditorDownload').addEventListener('click', () => {
+    document.getElementById('dtEditorDownload').addEventListener('click', async () => {
         if (!editorKey) return
         const co = companyFromBlock()
+        // Pre-resolve logo dimensions so the PDF renders correctly.
+        if (co.logo && !co.logoW) {
+            const dims = await resolveLogoDimensions(co.logo)
+            co.logoW = dims.w; co.logoH = dims.h
+        }
         const v = editorValues(editorKey); v.co = co
         const body = editorKey === 'mpta' ? mptaBodyHtml(v) : ddaBodyHtml(v)
         const title = editorKey === 'mpta'

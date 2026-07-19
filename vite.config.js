@@ -16,6 +16,7 @@ export default defineConfig({
                 clients: resolve(__dirname, 'clients.html'),
                 companies: resolve(__dirname, 'companies.html'),
                 analytics: resolve(__dirname, 'analytics.html'),
+                docTemplates: resolve(__dirname, 'doc-templates.html'),
                 activity: resolve(__dirname, 'activity.html'),
                 timesheets: resolve(__dirname, 'timesheets.html'),
                 profile: resolve(__dirname, 'profile.html'),
